@@ -1,0 +1,38 @@
+# Gradle and build output
+.gradle/
+.kotlin/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.navigation/
+
+# Machine-specific and private configuration (see the *.example files)
+local.properties
+keystore.properties
+test-config.local.properties
+*.local.properties
+!*.local.properties.example
+
+# Signing material
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Generated packages (distribute through GitHub Actions artifacts or Releases instead)
+*.apk
+*.aab
+*.apks
+output-metadata.json
+
+# Logs and OS files
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini

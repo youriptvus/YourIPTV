@@ -1,0 +1,12 @@
+# Optional local configuration for manual device testing. Copy to test-config.local.properties
+# (git-ignored). Neither the build nor the automated unit tests read this file; it only records
+# which provider source and test PINs a tester is authorized to use.
+#
+# Use only a provider and playlist you are authorized to access. Do not commit real values.
+authorized.m3u.url=http://provider.example:8080/get.php?username=YOUR_USERNAME&password=YOUR_PASSWORD&type=m3u_plus&output=ts
+authorized.xtream.server=http://provider.example:8080
+authorized.xtream.username=YOUR_USERNAME
+authorized.xtream.password=YOUR_PASSWORD
+# Device-test PINs for parental-control and Settings-lock testing
+test.parental.pin=0000
+test.settings.pin=0000

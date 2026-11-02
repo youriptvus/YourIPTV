@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/bg"
+    android:paddingStart="32dp" android:paddingEnd="32dp" android:paddingTop="20dp" android:paddingBottom="12dp">
+
+    <TextView
+        android:id="@+id/list_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="24sp" android:textStyle="bold" />
+    <TextView
+        android:id="@+id/list_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="14sp" android:textColor="@color/text_dim" android:paddingTop="4dp" android:paddingBottom="8dp"
+        android:maxLines="4" android:ellipsize="end" />
+    <LinearLayout
+        android:id="@+id/list_actions" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingBottom="8dp" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:clipToPadding="false" android:paddingBottom="24dp" />
+        <TextView
+            android:id="@+id/list_empty" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="center" android:gravity="center" android:textSize="16sp" android:padding="24dp"
+            android:maxWidth="600dp" android:visibility="gone" />
+        <ProgressBar
+            android:id="@+id/list_progress" android:layout_width="48dp" android:layout_height="48dp"
+            android:layout_gravity="center" android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

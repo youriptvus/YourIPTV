@@ -1,0 +1,5 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YourIPTV</string>
+    <string name="free_notice">YourIPTV is free. Every feature is available to everyone — no account, purchase, activation code, trial, or subscription. Your IPTV provider may still require its own login, and provider connection limits and device capabilities still apply.</string>
+</resources>

@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/state_container" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:visibility="gone" android:padding="24dp">
+    <ProgressBar android:id="@+id/progress" android:layout_width="48dp" android:layout_height="48dp" />
+    <TextView
+        android:id="@+id/state_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="16sp" android:gravity="center" android:padding="12dp" android:maxWidth="560dp" />
+    <Button
+        android:id="@+id/state_action" style="@style/Button.Tv" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:visibility="gone" />
+</LinearLayout>
