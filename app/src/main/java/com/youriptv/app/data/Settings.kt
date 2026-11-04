@@ -84,6 +84,21 @@ class Settings(context: Context) {
         get() = sp.getInt("auto_refresh_h", 24)
         set(v) = sp.edit().putInt("auto_refresh_h", v).apply()
 
+    /** Technician-controlled; deliberately excluded from portable backup/restore settings. */
+    var automaticAppUpdates: Boolean
+        get() = sp.getBoolean("automatic_app_updates", false)
+        set(v) = sp.edit().putBoolean("automatic_app_updates", v).apply()
+
+    /** Last update.json seen, so a required update is still enforced when the update server is unreachable. */
+    var lastUpdateInfo: String?
+        get() = sp.getString("last_update_info", null)
+        set(v) = sp.edit().putString("last_update_info", v).apply()
+
+    /** versionCode being installed; the next start after it is installed shows "Updated to …" once. */
+    var pendingUpdateCode: Long
+        get() = sp.getLong("pending_update_code", 0L)
+        set(v) { sp.edit().putLong("pending_update_code", v).commit() } // synchronous: the update kills the process
+
     /** Effective values (defaults included) of every setting listed in [BackupKeys.SETTINGS]. */
     fun backupValues(): Map<String, Any> = mapOf(
         "resume_last" to resumeLastChannel, "last_channel" to lastChannelUrl, "buffer_ms" to bufferMs,

@@ -48,6 +48,28 @@ Live progress is tracked in a local task-progress file (not in the repository).
 - [x] Integration points, and which changes require rebuilding/re-signing the APK, are documented in
       `docs/BRANDING.md`. The separate tool is NOT built yet; package ID and signing key are unchanged.
 
+## 0c. Customer-box automatic updates (0.4.0 / version code 20)
+
+- [x] Technician-only setup inside the Settings-PIN-protected Settings → App Updates: allow update
+      installs (Install unknown apps), allow automatic restart (Display over other apps), then turn
+      Automatic updates On (requires a Settings PIN and install permission; Off by default).
+- [x] Every app opening reads `update.json` from the latest GitHub release; a newer version offers
+      Install or Ignore. Ignore is not remembered, so the offer repeats every opening until current.
+- [x] 2+ releases behind (`versionCode` < `previousVersionCode`): required update, Install only, Back
+      closes the app; enforced from the cached `update.json` when offline.
+- [x] Install shows download and install progress, installs silently (Android 12+, PackageInstaller
+      with `USER_ACTION_NOT_REQUIRED` + `UPDATE_PACKAGES_WITHOUT_USER_ACTION`), then restarts the app;
+      failures show "Update failed" with the reason and Retry.
+- [x] Customers never get permission prompts or Android settings; data and grants are kept.
+- [x] Downloads verified: HTTPS GitHub hosts, size, SHA-256, package, version code, signer, label,
+      minSdk and identical permission set.
+- [x] onn (Android 14) end-to-end: offer, Ignore → re-offer, cancel/no-network → Update failed,
+      silent install, automatic restart, required flow (no Ignore, Back closes, re-forced, offline
+      re-forced), Retry → 0.4.0; 5742 channels and grants intact. See `QA_CHECKLIST.md`.
+- [ ] Known limits: Android ≤ 11 shows one Install confirmation; Android 15+ cannot auto-restart (the
+      customer reopens the app). Not device-tested on Android 15+/≤ 11.
+- [ ] Publish signed `YourIPTV.apk` + `update.json` on GitHub release `v0.4.0`.
+
 ## 0a. Architecture: standalone IPTV player APK (mandatory)
 
 YourIPTV is an IPTV media player. It is **not** a launcher, an OS replacement, or a device-management app.
@@ -58,11 +80,15 @@ is started directly or through the launcher.
 - [x] Independent, fully functional APK (`com.youriptv.app`), with its own complete IPTV interface: Live TV, Movies, Series, TV guide, playlists (Xtream Codes, M3U), player settings, parental PIN, and About.
 - [x] No launcher/home replacement: the manifest declares only `MAIN` + `LAUNCHER` + `LEANBACK_LAUNCHER`, and no `HOME` category.
 - [x] No OS modifications, root, device administrator, lock-task/kiosk, accessibility service, or system-level app restrictions.
-- [x] Minimal permissions: `INTERNET` and `ACCESS_NETWORK_STATE` only. No services, receivers, or content providers.
+- [x] Minimal permissions: `INTERNET`, `ACCESS_NETWORK_STATE`, and (from 0.4.0) the updater set
+      `REQUEST_INSTALL_PACKAGES`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION` and `SYSTEM_ALERT_WINDOW`
+      (both special grants are given once by a technician; no window is ever drawn over other apps).
+      No storage permission, services, receivers or providers.
 - [x] All features are reachable inside the app with a TV remote (D-pad, OK/Select, BACK, plus optional MENU, digits, and CH+/-). No step requires Android system settings.
 - [x] Accidental exit protection: BACK on the navigation rail needs a second press within 2.5 s to leave the app.
 - [x] Phone compatibility kept (touch, portrait layout; `touchscreen` and `leanback` are both `required="false"`). Current test scope is the Onn Android TV box only; the Samsung phone is not part of the testing configuration.
-- [x] Enforced by the automated test `StandaloneAppAuditTest` (no HOME category, no admin/service/receiver/provider, no DevicePolicyManager/lock-task/su code, permission allowlist).
+- [x] Enforced by `StandaloneAppAuditTest` (no HOME category, no admin/service/receiver/provider,
+      no DevicePolicyManager/lock-task/su code, permission allowlist).
 - Note: Google TV intercepts the remote's GUIDE key and opens its own Live tab. YourIPTV can't override this without system privileges, which this requirement rules out. The guide is reachable from the navigation rail and from the player options instead.
 
 ## 1. Playlists and providers

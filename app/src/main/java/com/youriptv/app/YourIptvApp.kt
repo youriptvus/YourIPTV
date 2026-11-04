@@ -31,6 +31,7 @@ class YourIptvApp : Application() {
         livePlayback = LivePlaybackSession(this)
         com.youriptv.app.data.Http.fallbackUserAgent = { settings.globalUserAgent }
         com.youriptv.app.ui.Scheduler.install(this)
+        registerActivityLifecycleCallbacks(com.youriptv.app.updates.AppUpdateChecks(this))
     }
 
     companion object {

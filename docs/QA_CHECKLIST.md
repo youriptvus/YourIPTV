@@ -1,5 +1,27 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.4.0 customer-box automatic updates
+
+Evidence: `D:\APK\qa_evidence\040\` (local only). Device: onn 4K Pro, Android 14. Test builds
+0.4.0-test14/15/16 used a local update server (`adb reverse`); the final step installed the real 0.4.0.
+
+- [x] 163 unit tests pass (updater parsing/policy/no-Settings-intents, standalone audit, backup,
+      settings navigation, no-premium).
+- [x] Signed release `com.youriptv.app` 0.4.0 / code 20, official signing certificate.
+- [x] Technician setup in PIN-protected Settings → App Updates: install permission (a02–a06), restart
+      permission (e02–e05); Settings stays unlocked on return; Automatic updates toggle.
+- [x] Offer dialog with Install/Ignore (b01, e06); Ignore → offered again at next opening.
+- [x] Without `UPDATE_PACKAGES_WITHOUT_USER_ACTION` Android asked to confirm (b02/b03); after adding it
+      the install was silent (c02). Cancel → "Update failed … cancelled" with Retry/Close (b04).
+- [x] Silent install 15 → 16 with automatic restart (logcat `BAL_ALLOW_SAW_PERMISSION`), installer of
+      record `com.youriptv.app`.
+- [x] Required update (device 16, previous 18): Install only (g01); Back → home; reopening re-forces;
+      offline reopening re-forces; offline Install → "Update failed. Could not reach the update server."
+      with Retry only (g02); Retry → real 0.4.0 installed and restarted.
+- [x] Data intact after every update (5742 channels, same last channel); both grants still allowed.
+- [ ] Android 15+ (no auto-restart) and Android ≤ 11 (Install confirmation) not device-tested.
+- [ ] Published GitHub `v0.4.0` assets match the locally verified APK.
+
 ## 0.3.9 integrity hardening and branding centralization
 
 - **Decision recorded:** all player features are free; custom rebranding (via a separate, not-yet-built

@@ -41,6 +41,8 @@ class StandaloneAppAuditTest {
     @Test
     fun permissionsAreMinimal() {
         val perms = Regex("""uses-permission\s+android:name="([^"]+)"""").findAll(manifest).map { it.groupValues[1] }.toSet()
-        assertEquals(setOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE"), perms)
+        assertEquals(setOf("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
+            "android.permission.REQUEST_INSTALL_PACKAGES", "android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION",
+            "android.permission.SYSTEM_ALERT_WINDOW"), perms)
     }
 }

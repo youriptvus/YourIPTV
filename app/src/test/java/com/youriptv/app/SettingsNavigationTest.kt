@@ -13,8 +13,8 @@ class SettingsNavigationTest {
 
     @Test
     fun categoriesAreNamedUniqueAndNonEmpty() {
-        assertEquals(10, SettingsCategory.entries.size)
-        assertEquals(10, SettingsCategory.entries.map { it.title }.distinct().size)
+        assertEquals(11, SettingsCategory.entries.size)
+        assertEquals(11, SettingsCategory.entries.map { it.title }.distinct().size)
         SettingsCategory.entries.forEach {
             assertTrue(it.title.isNotBlank())
             assertTrue(it.description.isNotBlank())

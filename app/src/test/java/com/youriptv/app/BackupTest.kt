@@ -122,7 +122,8 @@ class BackupTest {
         val allKeys = Regex("sp\\.get(?:Boolean|Int|Long|String|StringSet)\\(\"([a-z0-9_]+)\"").findAll(settingsSrc).map { it.groupValues[1] }
             .filterNot { BackupKeys.isSecret(it) }.toSet()
         val parental = setOf("block_adult", "hide_locked", "lock_playlists", "locked_groups")
-        val excluded = setOf("active_playlist") // remapped to the restored playlist's new id
+        // active_playlist is remapped to the restored playlist's new id; update keys are per-device technician state.
+        val excluded = setOf("active_playlist", "automatic_app_updates", "last_update_info", "pending_update_code")
         assertEquals(emptySet<String>(), allKeys - BackupKeys.SETTINGS.keys - parental - excluded)
     }
 

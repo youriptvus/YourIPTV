@@ -12,8 +12,17 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.3.9"
+        // 0.4.0 is code 20; 14-19 were used by local updater device-test builds pointed at a local update server.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 20
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.4.0"
+        val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
+        val updateManifest = if (updateTestOrigin.isEmpty()) {
+            "https://github.com/comp6062/YourIPTV/releases/latest/download/update.json"
+        } else {
+            "${updateTestOrigin}update.json"
+        }
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$updateManifest\"")
+        buildConfigField("String", "UPDATE_TEST_ORIGIN", "\"$updateTestOrigin\"")
     }
 
     // Release signing is read from the untracked keystore.properties at the project root.

@@ -1,5 +1,22 @@
 # Release notes
 
+## 0.4.0 (version code 20)
+
+- Technician-enabled automatic updates for customer boxes (Settings → App Updates, behind the
+  Settings PIN). The technician allows update installs and automatic restart once, then turns
+  Automatic updates On.
+- Each app opening reads `update.json` from the latest GitHub release. Customers choose Install or
+  Ignore; the offer repeats every opening until current. A box 2+ releases behind must update
+  (Install only, also enforced offline from the cached info).
+- Silent in-place install on Android 12+ with download/install progress, automatic app restart
+  (Android ≤ 14 with the technician's restart permission) and an "Update failed" screen with Retry.
+  No permission prompts or Android settings for customers; data and grants are kept.
+- Downloads are checked for host, size, SHA-256, package, signer, version, label and an identical
+  permission set. `scripts/make_update_json.py` generates `update.json` for each release.
+- New permissions: `REQUEST_INSTALL_PACKAGES`, `UPDATE_PACKAGES_WITHOUT_USER_ACTION`,
+  `SYSTEM_ALERT_WINDOW`. Upgrading from 0.3.9 therefore needs one technician install.
+  Package ID and signing key unchanged; all player features remain free.
+
 ## 0.3.9 (version code 13)
 
 - Branding centralization (prep for a separate, authorized rebranding tool — the only paid offering;

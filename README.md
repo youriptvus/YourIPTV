@@ -13,8 +13,8 @@ from a separate launcher.
 
 | | |
 |---|---|
-| Current version | **0.3.9** (`versionCode` 13), application ID `com.youriptv.app` |
-| Stage | Pre-1.0, under active development and testing |
+| Current version | **0.4.0** (`versionCode` 20), application ID `com.youriptv.app` |
+| Stage | Under active development and testing |
 | Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
@@ -22,7 +22,66 @@ from a separate launcher.
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
 [the stable APK URL](https://github.com/comp6062/YourIPTV/releases/latest/download/YourIPTV.apk),
-which can be used by a future in-app updater. The app does not currently update itself.
+which is the distribution address for the in-app updater. See the technician setup below.
+
+### Customer-box automatic updates (0.4.0)
+
+**Technician setup (once per box, at install time):**
+
+1. Install 0.4.0 with the official release key (`adb install -r` or a file manager). Never uninstall
+   or clear data. Upgrading from 0.3.9 always needs this technician install, because 0.4.0 adds the
+   updater permissions.
+2. Set a **Settings PIN** (Settings → Settings Lock), then open **Settings → App Updates**:
+   - **Allow update installs (technician)** opens Android's *Install unknown apps* page; allow YourIPTV.
+     (Google TV shows the full app list; scroll to YourIPTV.)
+   - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
+     YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
+   - Turn **Automatic updates** On. It needs the Settings PIN and the install permission, and is Off by
+     default.
+
+**Customer experience:**
+
+- Every time the app is opened it reads `update.json` from the latest GitHub release. If a newer
+  version exists the customer sees **Install** or **Ignore**. Ignore is not remembered: the offer
+  returns at every opening until the app is current.
+- Once the box is **2 or more releases behind** (installed `versionCode` < `previousVersionCode`), the
+  update is required: a full screen offers only **Install update**; Back closes the app. The last
+  `update.json` seen is cached, so this is still enforced when GitHub is unreachable.
+- Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
+  is silent (no Android prompt). The app then closes briefly and restarts by itself. Failures show
+  **Update failed** plus the reason, with Retry (and Close when not required). After a restart a
+  one-time "updated to version X" message is shown.
+- Customers never see permission prompts or Android settings. Playlists, credentials, PINs, settings
+  and permission grants are kept (in-place update).
+
+**Limits:**
+
+- Android 11 and older show one Android *Install* confirmation per update.
+- Android 15+ does not let a closed app reopen itself; the customer opens the app again from the home
+  screen (the app tells them so before installing).
+- Revoking either technician permission stops silent install or auto-restart; the app does not ask the
+  customer to fix it.
+
+**Download checks:** HTTPS only, from `github.com` or its release download hosts. Checks include
+size, SHA-256 from `update.json`, package name, version code, signing certificate, app label, minSdk,
+and an **identical requested-permission set**. Any release that adds or removes a permission is
+rejected, so a permission change always needs a technician install.
+
+**Publishing a release** (in `comp6062/YourIPTV`):
+
+1. Raise `versionCode`/`versionName` in `app/build.gradle.kts` and build the signed release.
+2. Run `py scripts/make_update_json.py --previous <oldest versionCode that may still skip>`.
+   `previousVersionCode` is normally the versionCode of the release *before* the previous one. Boxes
+   older than that must update.
+3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
+   **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
+   `https://github.com/comp6062/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
+4. Boxes read `https://github.com/comp6062/YourIPTV/releases/latest/download/update.json`. This is not
+   rate-limited like `api.github.com`, and no token or customer data is sent.
+
+Testing builds can point at a local server:
+`-PupdateTestOrigin=http://127.0.0.1:8765/ -PupdateTestVersionCode=N -PupdateTestVersionName=0.4.0-testN`.
+Do not distribute those APKs. Automatic updates are excluded from backup imports.
 
 See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the changelog.
 

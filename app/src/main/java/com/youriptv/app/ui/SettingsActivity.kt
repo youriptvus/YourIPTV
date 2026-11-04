@@ -1,18 +1,22 @@
 package com.youriptv.app.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.youriptv.app.BuildConfig
 import com.youriptv.app.data.BackupData
 import com.youriptv.app.data.BackupException
 import com.youriptv.app.data.BackupManager
 import com.youriptv.app.data.BackupRestore
 import com.youriptv.app.data.ItemKind
 import com.youriptv.app.data.PinKind
+import com.youriptv.app.updates.AppUpdates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,6 +34,7 @@ internal enum class SettingsCategory(val title: String, val description: String)
     PARENTAL("Parental Controls", "Parental PIN, adult categories, group and playlist locks"),
     SETTINGS_LOCK("Settings Lock", "Separate Settings PIN and temporary unlocking"),
     BACKUP("Backup & Restore", "Save playlists, favorites, and settings to a local file, or restore them"),
+    UPDATES("App Updates", "Automatic GitHub update checks"),
     ABOUT("About", "App information and free-use notice"),
 }
 
@@ -105,6 +110,7 @@ class SettingsActivity : ListActivity() {
     /** Row values can change outside Settings (backup files, guide updates); show current ones on return. */
     override fun onResume() {
         super.onResume()
+        pickingFile = false
         if (::adapter.isInitialized) refresh()
     }
 
@@ -316,6 +322,78 @@ class SettingsActivity : ListActivity() {
         SettingsCategory.ABOUT -> listOf(
             Entry("About ${Branding.displayName(this)}", { "Free · no account · no purchase · no activation" }, { startActivity(Intent(this, AboutActivity::class.java)) }),
         )
+        SettingsCategory.UPDATES -> listOf(
+            Entry("Allow update installs (technician)", {
+                if (AppUpdates.installationAuthorized(this)) "Allowed · updates install without asking the customer"
+                else "Not allowed · opens Android's “Install unknown apps” page for this app only"
+            }, { openInstallAuthorization() }),
+            Entry("Allow automatic restart after updates (technician)", {
+                when {
+                    android.os.Build.VERSION.SDK_INT >= 35 -> "Not available on this Android version · customers reopen the app after an update"
+                    AppUpdates.restartsAutomatically(this) -> "Allowed · the app reopens itself after an update"
+                    else -> "Not allowed · opens Android's “Display over other apps” page"
+                }
+            }, { openRestartAuthorization() }),
+            Entry("Automatic updates", {
+                if (s.automaticAppUpdates) "On · checks every app opening · customer chooses Install or Ignore (required after 2 releases)"
+                else "Off · version ${BuildConfig.VERSION_NAME}"
+            }, {
+                if (s.automaticAppUpdates) {
+                    s.automaticAppUpdates = false
+                    s.lastUpdateInfo = null
+                    refresh()
+                } else if (!s.isSettingsLocked()) {
+                    Dialogs.message(this, "Technician setup", "Set a Settings PIN under Settings Lock first, so customers cannot change the automatic-update setting.")
+                } else if (!AppUpdates.installationAuthorized(this)) {
+                    Dialogs.message(this, "Technician setup", "Choose “Allow update installs (technician)” first and allow this app to install unknown apps.")
+                } else {
+                    s.automaticAppUpdates = true
+                    refresh()
+                    Dialogs.message(this, "Automatic updates enabled",
+                        "Every time the app opens it checks the latest ${Branding.displayName(this)} release on GitHub. Customers choose Install or Ignore; " +
+                            "once the box is two releases behind, the update is required. " +
+                            (if (!AppUpdates.silentInstallSupported) "This Android version shows one Install confirmation for each update."
+                            else if (AppUpdates.restartsAutomatically(this)) "Updates install without permission prompts and the app restarts afterwards."
+                            else "Updates install without permission prompts; the app then closes and the customer opens it again."))
+                }
+            }),
+        )
+    }
+
+    /** Technician-only: "Display over other apps" lets the app reopen after an update (Android 10-14). */
+    private fun openRestartAuthorization() {
+        if (android.os.Build.VERSION.SDK_INT >= 35) {
+            Dialogs.message(this, "Automatic restart", "Android 15 and newer do not let an app reopen itself after updating. Customers open the app again from the home screen.")
+            return
+        }
+        if (AppUpdates.restartsAutomatically(this)) {
+            Dialogs.message(this, "Automatic restart allowed", "The app reopens itself after an update.")
+            return
+        }
+        try {
+            pickingFile = true
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        } catch (e: ActivityNotFoundException) {
+            pickingFile = false
+            Dialogs.message(this, "Technician setup",
+                "This device has no “Display over other apps” screen. Without it, customers open the app again after an update.")
+        }
+    }
+
+    /** Technician-only: Android's per-app "Install unknown apps" switch. Customers are never sent here. */
+    private fun openInstallAuthorization() {
+        if (AppUpdates.installationAuthorized(this)) {
+            Dialogs.message(this, "Update installs allowed", "This app is already allowed to install its own updates.")
+            return
+        }
+        try {
+            pickingFile = true
+            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        } catch (e: ActivityNotFoundException) {
+            pickingFile = false
+            Dialogs.message(this, "Technician setup",
+                "This device has no “Install unknown apps” screen. Use Android Settings → Apps → Special app access → Install unknown apps → ${Branding.displayName(this)} → Allow.")
+        }
     }
 
     private fun guideStatus(): String {
