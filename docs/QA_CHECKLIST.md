@@ -20,7 +20,8 @@ Evidence: `D:\APK\qa_evidence\040\` (local only). Device: onn 4K Pro, Android 14
       with Retry only (g02); Retry → real 0.4.0 installed and restarted.
 - [x] Data intact after every update (5742 channels, same last channel); both grants still allowed.
 - [ ] Android 15+ (no auto-restart) and Android ≤ 11 (Install confirmation) not device-tested.
-- [ ] Published GitHub `v0.4.0` assets match the locally verified APK.
+- [x] Published GitHub `v0.4.0` assets (`YourIPTV.apk`, `update.json`) downloaded from the
+      `releases/latest/download/` URLs match the locally verified APK (SHA-256 `4b648c59…59faac4`).
 
 ## 0.3.9 integrity hardening and branding centralization
 

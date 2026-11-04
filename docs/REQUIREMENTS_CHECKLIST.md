@@ -68,7 +68,8 @@ Live progress is tracked in a local task-progress file (not in the repository).
       re-forced), Retry → 0.4.0; 5742 channels and grants intact. See `QA_CHECKLIST.md`.
 - [ ] Known limits: Android ≤ 11 shows one Install confirmation; Android 15+ cannot auto-restart (the
       customer reopens the app). Not device-tested on Android 15+/≤ 11.
-- [ ] Publish signed `YourIPTV.apk` + `update.json` on GitHub release `v0.4.0`.
+- [x] Publish signed `YourIPTV.apk` + `update.json` on GitHub release `v0.4.0` (tag → `cb004e6`;
+      downloaded assets verified, SHA-256 `4b648c59…59faac4`; the onn on 0.4.0 reads it with no offer).
 
 ## 0a. Architecture: standalone IPTV player APK (mandatory)
 
