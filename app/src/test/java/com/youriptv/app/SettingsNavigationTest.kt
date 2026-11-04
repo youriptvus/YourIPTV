@@ -32,7 +32,7 @@ class SettingsNavigationTest {
             "Guide time shift", "24-hour clock", "Auto-update playlist and guide every",
             "Update guide now", "Show channel numbers", "Clear viewing history",
             "Parental PIN", "Block adult categories", "Locked groups", "Hide locked groups",
-            "Lock playlists", "Lock Settings", "About YourIPTV",
+            "Lock playlists", "Lock Settings", "About \${Branding.displayName(this)}",
             "Create backup", "Restore from backup",
         )
         val pageDefinitions = source.substringAfter("private fun entries(category:")

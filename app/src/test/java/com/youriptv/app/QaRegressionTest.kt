@@ -50,17 +50,19 @@ class QaRegressionTest {
     fun previewAndFullscreenRecoverAnEndedLiveStream() {
         val session = ui("LivePlaybackSession.kt")
         assertTrue(session.contains("Player.STATE_ENDED -> { loadingHint.reset(); retryPreview(\"Preview ended\")"))
-        assertTrue(session.contains("generation == expected && player === p && !fullScreen && current != null"))
-        assertTrue(session.contains("if (p.playbackState == Player.STATE_ENDED) p.seekToDefaultPosition()"))
+        assertTrue(session.contains("retryAutomatically(p, item, 1500L * retries)"))
+        assertTrue("preview retries must reopen the media source", session.contains("PlaybackFactory.restartLive(p, item)"))
         val player = ui("PlayerActivity.kt")
         val start = player.substringAfter("override fun onStart()").substringBefore("private fun adoptLiveSession()")
         assertTrue(start.contains("p.playbackState == Player.STATE_ENDED || p.playbackState == Player.STATE_IDLE"))
-        assertTrue(start.contains("p.seekToDefaultPosition()"))
+        assertTrue(start.contains("retryAutomatically(p, item, 0L)"))
+        assertTrue("entering fullscreen must not clear exhausted recovery", start.contains("if (app.livePlayback.recoveryFailed) recoveryObserver()"))
         val ended = player.substringAfter("private fun onEnded()").substringBefore("private fun savePosition()")
         assertTrue(ended.contains("retries < 3"))
         assertTrue(ended.contains("Live stream ended. Reconnecting"))
         assertTrue(ended.contains("The live stream ended and could not be restarted."))
         assertTrue(ended.contains("OK: retry"))
+        assertTrue("ended live inputs must use the shared recovery budget", ended.contains("retryAutomatically(p, item, 1500L)"))
         val retry = player.substringAfter("private fun retry()").substringBefore("// ---------------- Overlays")
         assertTrue(retry.contains("if (it.playbackState == Player.STATE_ENDED) it.seekToDefaultPosition()"))
     }
@@ -193,7 +195,7 @@ class QaRegressionTest {
         assertTrue(listOf("src", "app/src").none { java.io.File("$it/main/java/com/youriptv/app/ui/GuideActivity.kt").exists() })
         val back = main.substringAfter("handleOnBackPressed()").substringBefore("})")
         assertTrue(back.contains("if (!liveGrid.isAtNow()) liveGrid.jumpToNow() else showCategories()"))
-        assertTrue(back.contains("isInside(f, groupsView) -> showMenu()"))
+        assertTrue(back.contains("LiveLevel.CATEGORIES -> showMenu()"))
         // Browsing categories only re-filters; it never tunes a channel or bypasses a locked category.
         val browse = main.substringAfter("private fun showFocusedGroup()").substringBefore("private fun openGroupGuide")
         assertTrue(browse.contains("showLockedGroup(pos, entry)"))
@@ -206,6 +208,21 @@ class QaRegressionTest {
         assertTrue(open.contains("focusItemAt(0)"))
         val grid = ui("LiveGuideGrid.kt")
         assertTrue(grid.contains("if (isAtNow()) exitLeft() else moveTime(false)"))
+    }
+
+    @Test
+    fun liveBackUsesNavigationLevelInsteadOfTouchFocus() {
+        val main = ui("MainActivity.kt")
+        val back = main.substringAfter("handleOnBackPressed()").substringBefore("})")
+        assertTrue(back.contains("section == Section.TV && playlist != null -> when (liveLevel)"))
+        assertTrue(back.contains("LiveLevel.GUIDE -> if (!liveGrid.isAtNow()) liveGrid.jumpToNow() else showCategories()"))
+        assertTrue(back.contains("LiveLevel.CATEGORIES -> showMenu()"))
+        assertTrue(back.contains("LiveLevel.MENU -> confirmExit()"))
+        val levels = main.substringAfter("private fun setLiveLevel(").substringBefore("private fun sizeContentColumn")
+        assertTrue("portrait must track the logical level without adopting the landscape layout", levels.indexOf("liveLevel = target") < levels.indexOf("if (portrait) return"))
+        val groups = main.substringAfter("private fun focusGroups()").substringBefore("\n    }")
+        assertTrue(groups.contains("if (section == Section.TV) setLiveLevel(LiveLevel.CATEGORIES)"))
+        assertFalse("touch clicks must not require an extra focus-only tap", main.contains("isFocusableInTouchMode = true"))
     }
 
     @Test

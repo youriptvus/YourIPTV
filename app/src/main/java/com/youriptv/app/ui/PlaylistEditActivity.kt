@@ -42,6 +42,7 @@ class PlaylistEditActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_playlist_edit)
+        findViewById<android.widget.TextView>(R.id.edit_free_notice).text = Branding.freeNotice(this)
         name = findViewById(R.id.f_name)
         url = findViewById(R.id.f_url)
         user = findViewById(R.id.f_user)

@@ -6,13 +6,20 @@ The evidence for each TiviMate reference behavior is in
 [TIVIMATE_OBSERVATIONS.md](TIVIMATE_OBSERVATIONS.md).
 Live progress is tracked in a local task-progress file (not in the repository).
 
-## 0. Mandatory: no premium tier
+## 0. Mandatory: all player features free; custom rebranding is the only paid offering
 
-- [x] YourIPTV is free to use. Every implemented feature is available to every user.
-- [x] No YourIPTV account, registration, purchase, activation code, license key, trial, or subscription.
-- [x] No paywalls, "unlock" buttons, premium badges, trial timers, or artificial playlist or device limits.
-- [x] No billing or licensing dependencies (no Play Billing or license-check libraries).
-- [x] Features that TiviMate reportedly gates behind Premium are free here:
+- [x] YourIPTV is free to use. Every implemented **player** feature is available to every user.
+- [x] No YourIPTV account, registration, purchase, activation code, license key, trial, or subscription
+      is required to use the player.
+- [x] No paywalls, "unlock" buttons, premium badges, trial timers, or artificial playlist or device limits
+      in the app. No payment screens or branding controls in the normal player settings.
+- [x] No billing or licensing dependencies in the app (no Play Billing or license-check libraries).
+- [x] **Single paid exception — custom rebranding:** the ONLY paid/premium offering associated with
+      YourIPTV is a customized, rebranded build (app name, logos, launcher/TV icons and banner, and
+      About-screen company/contact details), produced by a **separate** authorized tool (not part of
+      this app). Rebranding must NOT add player capability or reduce standard-app functionality — it
+      changes branding only. See section 0b and `docs/BRANDING.md`.
+- [x] Player features that TiviMate reportedly gates behind Premium are free here:
   - multiple playlists
   - favorites management
   - parental PIN
@@ -26,7 +33,20 @@ Live progress is tracked in a local task-progress file (not in the repository).
   - Provider connection limits (`max_connections`): HTTP 401/403/509-style errors explain that the provider's simultaneous-stream limit may be reached.
   - Device and Android limits, such as codec support, PIP availability, and storage.
   - Parental-control PIN for locked groups and settings.
-- [x] Automated test `NoPremiumAuditTest` scans sources, resources, the manifest, and Gradle dependencies for paywall, billing, license, or trial mechanisms — DONE (passes).
+- [x] Automated test `NoPremiumAuditTest` scans sources, resources, the manifest, and Gradle dependencies for paywall, billing, license, or trial mechanisms in the player app — DONE (passes). The paid rebranding lives in a separate tool, so the player app itself stays premium-free.
+
+## 0b. Branding: centralized, rebrandable, player-independent
+
+- [x] All brand surfaces are centralized so a separate authorized tool can customize them without
+      touching player code: `res/values/branding.xml` (name + company/contact strings), the
+      launcher mipmaps, the TV `banner` drawable, and the `Branding` object (About-screen composition).
+- [x] YourIPTV is the default branding; an un-customized build is fully branded as YourIPTV.
+- [x] Branding is read-only at runtime and separate from player behavior, user settings, playlists,
+      provider credentials, and security controls. Rebranding must not overwrite or expose those.
+- [x] The About screen always appends the mandatory "free for everyone" notice and the open-source
+      license acknowledgements; a rebranding tool can add a company block but cannot drop those notices.
+- [x] Integration points, and which changes require rebuilding/re-signing the APK, are documented in
+      `docs/BRANDING.md`. The separate tool is NOT built yet; package ID and signing key are unchanged.
 
 ## 0a. Architecture: standalone IPTV player APK (mandatory)
 

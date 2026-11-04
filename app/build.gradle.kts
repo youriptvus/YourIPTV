@@ -12,8 +12,8 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.3.3"
+        versionCode = 13
+        versionName = "0.3.9"
     }
 
     // Release signing is read from the untracked keystore.properties at the project root.
@@ -33,7 +33,8 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = releaseSigning
         }
     }
@@ -44,6 +45,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         viewBinding = false
     }
 

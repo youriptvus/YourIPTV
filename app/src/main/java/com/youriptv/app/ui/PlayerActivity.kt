@@ -87,6 +87,14 @@ class PlayerActivity : AppCompatActivity() {
     private val isLive get() = current?.kind == ItemKind.LIVE
 
     private val hideBanner = Runnable { banner.visibility = View.GONE }
+    private val recoveryObserver: () -> Unit = {
+        val text = app.livePlayback.recoveryMessage
+        if (text != null) showMessage(text, error = app.livePlayback.recoveryFailed)
+        else if (player?.isPlaying == true && message.visibility == View.VISIBLE) {
+            errorShown = false
+            message.visibility = View.GONE
+        }
+    }
     private val commitNumber = Runnable { commitDigits() }
     private val savePositionTick = object : Runnable {
         override fun run() { savePosition(); handler.postDelayed(this, 15_000) }
@@ -258,12 +266,11 @@ class PlayerActivity : AppCompatActivity() {
                 playerView.useController = false
                 val p = player
                 val error = p?.playerError
-                if (error != null) handleError(error)
+                if (app.livePlayback.recoveryFailed) recoveryObserver()
+                else if (error != null) handleError(error)
                 else if (p != null && (p.playbackState == Player.STATE_ENDED || p.playbackState == Player.STATE_IDLE)) {
                     showMessage("Reconnecting live stream…", error = false)
-                    p.seekToDefaultPosition()
-                    p.prepare()
-                    p.playWhenReady = true
+                    app.livePlayback.retryAutomatically(p, item, 0L)
                 }
                 showBanner()
             }
@@ -371,16 +378,23 @@ class PlayerActivity : AppCompatActivity() {
         player = p
         sharedPlayer = shared
         p.setVideoFrameMetadataListener(frameSampler)
-        if (shared) app.livePlayback.attachFullscreen(playerView)
+        if (shared) {
+            app.livePlayback.observe(recoveryObserver)
+            app.livePlayback.attachFullscreen(playerView)
+            recoveryObserver()
+        }
         else playerView.player = EpisodeAwarePlayer(p)
     }
 
     private fun disposePlayer() {
         val p = player ?: return
+        if (sharedPlayer) app.livePlayback.removeObserver(recoveryObserver)
         if (!sharedPlayer || app.livePlayback.owns(p)) {
             p.removeListener(playbackListener)
             p.clearVideoFrameMetadataListener(frameSampler)
-            if (sharedPlayer) app.livePlayback.detach(playerView)
+            if (sharedPlayer) {
+                app.livePlayback.detach(playerView)
+            }
             else { playerView.player = null; p.release() }
         }
         player = null
@@ -436,6 +450,7 @@ class PlayerActivity : AppCompatActivity() {
         val url = PlaybackFactory.streamUrl(item)
         playingUrl = url
         if (app.livePlayback.owns(p)) app.livePlayback.noteFullscreenItem(item, queue, unlockedGroups, authorizedStamp)
+        if (app.livePlayback.owns(p)) app.livePlayback.resetRecovery()
         android.util.Log.i("YourIPTV", "Start ${item.kind} stream as ${if (url.contains(".m3u8", true)) "HLS" else "progressive/TS"}; buffer ${app.settings.bufferMs} ms; sw decode ${app.settings.preferSoftwareDecoding}")
         lifecycleScope.launch {
             val resumeAt = if (item.kind == ItemKind.LIVE) 0L else withContext(Dispatchers.IO) { app.repo.resumePosition(item) }
@@ -472,7 +487,11 @@ class PlayerActivity : AppCompatActivity() {
         val item = current ?: return
         if (item.kind == ItemKind.LIVE) {
             val p = player
-            if (p != null && retries < 3) {
+            if (!item.isCatchup && (app.livePlayback.hasPendingRestart || app.livePlayback.recoveryFailed)) return
+            if (p != null && !item.isCatchup) {
+                showMessage("Live stream ended. Reconnecting…", error = false)
+                app.livePlayback.retryAutomatically(p, item, 1500L)
+            } else if (p != null && retries < 3) {
                 retries++
                 showMessage("Live stream ended. Reconnecting… ($retries/3)", error = false)
                 handler.postDelayed({
@@ -508,8 +527,12 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun handleError(e: PlaybackException) {
         val p = player ?: return
+        if (app.livePlayback.owns(p) && (app.livePlayback.hasPendingRestart || app.livePlayback.recoveryFailed)) return
         if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-            p.seekToDefaultPosition(); p.prepare(); return
+            val item = current
+            if (item != null && item.kind == ItemKind.LIVE && !item.isCatchup) app.livePlayback.retryAutomatically(p, item, 0L)
+            else { p.seekToDefaultPosition(); p.prepare() }
+            return
         }
         var cause: Throwable? = e.cause
         var httpCode = 0
@@ -531,7 +554,11 @@ class PlayerActivity : AppCompatActivity() {
             retries++
             showMessage("Reconnecting… ($retries/$maxRetries)", error = false)
             val failedItem = current
-            handler.postDelayed({ if (player === p && current == failedItem) p.prepare() }, 1500L * retries)
+            if (failedItem != null && failedItem.kind == ItemKind.LIVE && !failedItem.isCatchup) {
+                app.livePlayback.retryAutomatically(p, failedItem, 1500L * retries)
+            } else handler.postDelayed({
+                if (player === p && current == failedItem) p.prepare()
+            }, 1500L * retries)
             return
         }
         val maxConn = current?.let { app.repo.connectionLimit(it.playlistId) } ?: 0
@@ -560,6 +587,10 @@ class PlayerActivity : AppCompatActivity() {
         val footer = "\n\nOK: retry" + if (isLive) "   ▲▼: change channel   BACK: exit" else "   BACK: exit"
         val item = current
         val url = playingUrl
+        // A live channel keeps reconnecting in the background while the explanation is shown.
+        if (!decoderProblem && item != null && item.kind == ItemKind.LIVE && !item.isCatchup) {
+            app.livePlayback.retryAutomatically(p, item, 1500L)
+        }
         if (decoderProblem || item == null || item.isLocal || !url.startsWith("http", true)) {
             showMessage(text + footer, error = true)
             return
@@ -576,7 +607,10 @@ class PlayerActivity : AppCompatActivity() {
                 if (!probeRetried) {
                     probeRetried = true
                     showMessage("The provider connection is free again. Reconnecting…", error = false)
-                    player?.let { it.prepare(); it.playWhenReady = true }
+                    player?.let {
+                        if (item.kind == ItemKind.LIVE && !item.isCatchup) app.livePlayback.retryAutomatically(it, item, 0L)
+                        else { it.prepare(); it.playWhenReady = true }
+                    }
                     return@launch
                 }
                 showMessage("The provider refused the player (HTTP $httpCode) but answered a connection check normally. " +
@@ -615,10 +649,19 @@ class PlayerActivity : AppCompatActivity() {
         message.visibility = View.GONE
         retries = 0
         player?.let {
-            if (it.playbackState == Player.STATE_ENDED) it.seekToDefaultPosition()
-            it.prepare()
-            it.playWhenReady = true
+            if (item != null && item.kind == ItemKind.LIVE && !item.isCatchup) {
+                if (allowedOrPrompt(item)) sessionRestart(it, item)
+            } else {
+                if (it.playbackState == Player.STATE_ENDED) it.seekToDefaultPosition()
+                it.prepare()
+                it.playWhenReady = true
+            }
         }
+    }
+
+    private fun sessionRestart(p: ExoPlayer, item: MediaItem) {
+        app.livePlayback.resetRecovery()
+        PlaybackFactory.restartLive(p, item)
     }
 
     // ---------------- Overlays ----------------

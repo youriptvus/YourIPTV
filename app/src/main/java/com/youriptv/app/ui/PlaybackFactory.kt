@@ -80,4 +80,12 @@ object PlaybackFactory {
         if (url.contains(".m3u8", ignoreCase = true)) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         return builder.build()
     }
+
+    fun restartLive(player: ExoPlayer, item: MediaItem) {
+        require(item.kind == ItemKind.LIVE && !item.isCatchup)
+        player.stop()
+        player.setMediaItem(mediaItem(item))
+        player.prepare()
+        player.playWhenReady = true
+    }
 }

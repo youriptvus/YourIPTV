@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.youriptv.app.R
+import com.youriptv.app.SigningStatus
 import com.youriptv.app.YourIptvApp
 import com.youriptv.app.data.GroupInfo
 import com.youriptv.app.data.ItemKind
@@ -118,6 +119,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!app.isTrustedBuild) {
+            setContentView(R.layout.activity_untrusted_signer)
+            findViewById<TextView>(R.id.signing_error_message).setText(
+                when {
+                    app.brandStatus != com.youriptv.app.BrandIntegrity.Result.OK -> R.string.integrity_rebrand_message
+                    app.signingStatus == SigningStatus.UNTRUSTED -> R.string.signing_untrusted_message
+                    else -> R.string.signing_unavailable_message
+                }
+            )
+            findViewById<Button>(R.id.signing_error_close).apply {
+                setOnClickListener { finish() }
+                requestFocus()
+            }
+            return
+        }
         setContentView(R.layout.activity_main)
         portrait = resources.getBoolean(R.bool.is_portrait)
         root = findViewById(R.id.main_root)
@@ -178,11 +194,11 @@ class MainActivity : AppCompatActivity() {
                 val f = currentFocus
                 when {
                     // Guide: first back to "now" if browsing other times, then to the categories; categories: to the menu.
-                    tvLevels() && f != null && isInside(f, itemsView) -> if (!liveGrid.isAtNow()) liveGrid.jumpToNow() else showCategories()
-                    tvLevels() && f != null && isInside(f, groupsView) -> showMenu()
-                    // Focus briefly lost (e.g. a list reload): step back one level from the one on screen.
-                    tvLevels() && f == null && liveLevel == LiveLevel.GUIDE -> showCategories()
-                    tvLevels() && f == null && liveLevel == LiveLevel.CATEGORIES -> showMenu()
+                    section == Section.TV && playlist != null -> when (liveLevel) {
+                        LiveLevel.GUIDE -> if (!liveGrid.isAtNow()) liveGrid.jumpToNow() else showCategories()
+                        LiveLevel.CATEGORIES -> showMenu()
+                        LiveLevel.MENU -> confirmExit()
+                    }
                     f != null && isInside(f, itemsView) && groupsView.visibility == View.VISIBLE && groupAdapter.itemCount > 0 -> focusGroups()
                     f != null && (isInside(f, itemsView) || isInside(f, groupsView) || f === searchBox) -> navViews[section]?.requestFocus()
                     f == null || navViews.values.none { it === f } -> { if (navViews[section]?.requestFocus() != true) confirmExit() }
@@ -203,6 +219,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (!app.isTrustedBuild) return
         if (intent.action == Intent.ACTION_MAIN && PlayerActivity.takeLeftWhileWatchingLive(this) &&
             app.settings.resumeLastChannel) pendingResume = true
         takeGuideRequest(intent)
@@ -229,6 +246,7 @@ class MainActivity : AppCompatActivity() {
 
     // Entering the nav rail with LEFT lands on the active section, not the geometrically nearest item.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!app.isTrustedBuild) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN) userInputGeneration++
         val focused = currentFocus
         if (section == Section.TV && focused != null && isInside(focused, itemsView) && liveGrid.handleKey(event)) {
@@ -307,10 +325,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setLiveLevel(level: LiveLevel) {
-        if (portrait) return
         val target = if (section == Section.TV) level else LiveLevel.MENU
         if (target == liveLevel) return
         liveLevel = target
+        if (portrait) return
         root?.let { TransitionManager.beginDelayedTransition(it, ChangeBounds().setDuration(220)) }
         navRail?.visibility = if (target == LiveLevel.MENU) View.VISIBLE else View.GONE
         sizeContentColumn()
@@ -431,7 +449,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (section == Section.TV) attachPreview()
+        if (app.isTrustedBuild && section == Section.TV) attachPreview()
     }
 
     override fun onStop() {
@@ -458,6 +476,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!app.isTrustedBuild) return
         handler.post(clockTick)
         val active = app.repo.playlist(app.settings.activePlaylistId) ?: app.repo.playlists().firstOrNull()
         val changed = active?.id != playlist?.id || active?.lastUpdated != playlist?.lastUpdated
@@ -498,7 +517,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(clockTick)
-        channelAtPause = app.settings.lastChannelUrl
+        if (app.isTrustedBuild) channelAtPause = app.settings.lastChannelUrl
     }
 
     private var channelAtPause: String? = null
@@ -609,8 +628,8 @@ class MainActivity : AppCompatActivity() {
             groupsView.visibility = View.GONE
             itemAdapter.submit(emptyList(), emptySet())
             showState(
-                "Welcome to YourIPTV.\n\nAdd your IPTV provider's playlist (M3U URL or Xtream Codes login) to start watching.\n\n" +
-                    getString(R.string.free_notice),
+                "Welcome to ${Branding.displayName(this)}.\n\nAdd your IPTV provider's playlist (M3U URL or Xtream Codes login) to start watching.\n\n" +
+                    Branding.freeNotice(this),
                 progress = false, action = "Add playlist",
             ) { openLocked(app.settings.isPlaylistsLocked(), "Playlists are locked", PlaylistEditActivity::class.java) }
             if (requestFocus) stateAction.requestFocus()
@@ -1020,7 +1039,10 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- Helpers ----------------
 
-    private fun focusGroups() = focusGroupAt(selectedGroup)
+    private fun focusGroups() {
+        if (section == Section.TV) setLiveLevel(LiveLevel.CATEGORIES)
+        focusGroupAt(selectedGroup)
+    }
 
     private fun isInside(v: View, parent: View): Boolean {
         var cur: View? = v

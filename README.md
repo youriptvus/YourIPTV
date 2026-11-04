@@ -13,14 +13,18 @@ from a separate launcher.
 
 | | |
 |---|---|
-| Current version | **0.3.3** (`versionCode` 7), application ID `com.youriptv.app` |
+| Current version | **0.3.9** (`versionCode` 13), application ID `com.youriptv.app` |
 | Stage | Pre-1.0, under active development and testing |
-| Distribution | Side-loaded APK. No Google Play listing and no published GitHub Release yet |
+| Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
 
-See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the changelog, and
-[docs/TEST_REPORT.md](docs/TEST_REPORT.md) for the tests that were actually run on devices.
+The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
+release is available at
+[the stable APK URL](https://github.com/comp6062/YourIPTV/releases/latest/download/YourIPTV.apk),
+which can be used by a future in-app updater. The app does not currently update itself.
+
+See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the changelog.
 
 ## Free-feature policy
 
@@ -71,7 +75,7 @@ restriction.
 
 All of the following are implemented. Their device-test status is recorded in
 [docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md) and
-[docs/TEST_REPORT.md](docs/TEST_REPORT.md).
+[docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
 **Playlists and providers**
 
@@ -325,8 +329,8 @@ Limitations of automated testing:
 
 - There are no instrumented (on-device) or UI tests. Navigation, focus, playback, provider
   behaviour and device-specific decoding were verified **by hand on real devices**. Those results
-  and their limits are recorded in [docs/TEST_REPORT.md](docs/TEST_REPORT.md) and
-  [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
+  and their limits are recorded in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) and
+  [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 - The tests use no network and no real provider. Optional manual-test settings belong in a
   local, git-ignored `test-config.local.properties` (see `test-config.local.properties.example`).
   Neither the build nor the unit tests read it.
@@ -407,9 +411,8 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog by version (0.1.1 → 0.3.3) |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog by version (0.1.1 → 0.3.9) |
 | [docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md) | Requirements and implementation status |
-| [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Device tests actually performed, with results |
 | [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) | Full hands-on QA pass |
 | [docs/REMOTE_CONTROLS.md](docs/REMOTE_CONTROLS.md) | Remote-control key map |
 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Known issues and test limitations |

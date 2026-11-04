@@ -1,5 +1,9 @@
 # Known issues and test limitations
 
+- Release signing checks and code obfuscation are deterrents, not a guarantee against rebranding:
+  the checks can be removed from modified APKs or shared source. Debug builds skip the check.
+  Keep the original signing key private and backed up; independently signed release builds do not
+  pass the check without updating it or using a valid signing lineage supported by Android.
 - "Prefer software video decoding" is CPU-limited on the moto g 2025 at 1080p60. Presentation
   alternates between 60 fps and about 9 fps. The default hardware decoder plays a steady 60 fps.
 - On a phone, relaunching through a plain launcher intent (`adb shell monkey`) while in
@@ -43,6 +47,14 @@
   further failure (max 15 min). The counter survives app restarts.
 - Device reboot persistence of the locks was not tested (wireless ADB on the test box does not
   survive a reboot); persistence across force-stop and APK update was verified.
+- Phones always show YourIPTV in landscape (0.3.7). The earlier portrait phone layouts remain in
+  the code but are no longer shown on phones.
+- A live channel that stops sending data is reopened after 30 seconds of continuous buffering;
+  after three quick reopens it keeps retrying every 30 seconds while the channel stays open.
+  Some provider channels (e.g. Bizarre Foods on the test list) are closed by the provider every
+  15–75 seconds; YourIPTV reopens them in about 1.5 seconds, so a short pause is visible at each
+  drop. While the provider refuses every connection, recovery waits up to 30 seconds between
+  attempts; OK retries immediately.
 - Phone layouts are not device-tested (TV-box-only scope).
 - Audio delay applies to decoded (PCM) audio only; with HDMI passthrough/bitstream audio it has no effect.
 - Reminders and scheduled recordings run only while YourIPTV is running. By design the app adds no

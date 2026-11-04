@@ -1,5 +1,83 @@
 # Release notes
 
+## 0.3.9 (version code 13)
+
+- Branding centralization (prep for a separate, authorized rebranding tool — the only paid offering;
+  all player features stay free): all brand surfaces now resolve from one place —
+  `res/values/branding.xml` (name + company/contact strings), the launcher mipmaps, the TV `banner`
+  drawable, and the `ui/Branding` object (About-screen composition). YourIPTV remains the default
+  branding. Branding is read-only and separate from player behavior, settings, playlists, credentials,
+  and security controls. The About screen always keeps the free-for-everyone notice and the
+  open-source license acknowledgements. Integration points and which changes require rebuild/re-sign
+  are documented in `docs/BRANDING.md`. No payment UI or branding controls were added to the app.
+- Anti-rebranding hardening, layered on the existing signing-certificate check (0.3.5), which is the
+  real anchor: any change to the installed APK's code, resources or icon forces a re-sign, which the
+  certificate check already rejects before the app starts.
+  - Package lock: release builds refuse to run under any application ID except `com.youriptv.app`,
+    with a single reserved exception seam (`BrandIntegrity.CUSTOM_TOOL_EXCEPTION`, closed by default)
+    for a first-party tool to be added later.
+  - Name lock: release builds refuse to run if the app display name was changed from "YourIPTV".
+  - A modified copy shows the existing integrity screen with a "this copy has been modified" message.
+  - Advisory root / ADB / debugger signals are logged (not fatal), so rooted or developer devices
+    keep working; they can be made strict for a specific threat model.
+  - Optional server-defined branding (`BrandAssets`): when an HTTPS endpoint is configured, the name
+    and logo come from your server, so swapping files in res/ does not change what users see. Off by
+    default; no network contact until configured, and no new dependency.
+  - A dedicated `proguard-rules.pro` keeps the integrity classes intact under R8.
+- Not included by design: runtime self-hashing of classes.dex. R8 rewrites the dex on every build, so
+  a hardcoded dex hash is brittle and adds nothing over the signing-certificate check.
+
+## 0.3.8 (version code 12)
+
+- Fix: a live channel that keeps dropping every minute or so no longer waits 30 seconds between
+  reconnects. A reopen that plays for 10 seconds now counts as successful (previously a full
+  minute), so the next drop gets the quick reconnects again. The 30-second retry pace is kept
+  only for reopens that never start playing.
+- Fix: the Live TV guide preview gave up after two failed reconnects ("Preview unavailable …
+  Choose another channel") and stayed stopped. Seen on the onn. box when the provider refused one
+  reopen (HTTP error) right after ending the stream. The preview now uses the same recovery as
+  full screen: quick reconnects, then a new attempt every 30 seconds until the channel plays.
+- The log now records why each live reconnect happened (player error code, stream ended, or 30
+  seconds of buffering) under the `YourIPTV-Recovery` tag.
+
+## 0.3.6 (version code 10)
+
+- Fix: a live channel (seen on Bizarre Foods) that played well for a long time, buffered a few
+  times and then stayed stuck buffering without ever reloading. Two causes in 0.3.4:
+  - nothing watched for a stream stuck in the buffering state, so a source that stopped
+    delivering data was never reopened;
+  - retry counters reset whenever playback became ready for a moment, and retries only prepared
+    the same exhausted source again instead of reopening it.
+- Live preview and fullscreen now share one recovery coordinator. After 30 seconds of continuous
+  buffering, the stream is reopened from a fresh media source on the same player, closing the old
+  connection first. Errors, ended streams and "behind live window" use the same coordinator, so
+  only one reconnect is pending at a time (important with a one-connection provider).
+- Up to three quick reopens are made. If those fail, the connection is released and the stream is
+  reopened every 30 seconds for as long as you stay on the channel, with an on-screen notice
+  (OK retries immediately). The count resets after a full minute of uninterrupted playback.
+  Playback recovers by itself as soon as the stream is available again.
+- Short buffering does not trigger a reopen. Buffer size, start-up speed and decoder settings are
+  unchanged. Movies, Series and catch-up keep their existing retry behavior.
+
+## 0.3.5 (version code 9)
+
+- Release builds check the installed app's signing certificate against the official YourIPTV
+  certificate before initializing the app. A copy signed with an unrecognized key shows an
+  explanatory screen instead of starting. Debug builds remain usable with a developer's debug key.
+- Release code is obfuscated with Android's R8 optimizer. No account, payment, additional service,
+  or network connection is required by these checks.
+- These protections deter straightforward repackaging; they do not encrypt the branding or make
+  modification impossible. Someone who changes or removes the checks, including in shared source
+  code, may still produce a modified copy.
+
+## 0.3.4 (version code 8)
+
+- Fix Back navigation getting stuck after returning from live fullscreen playback on phones.
+  Back now uses the current Live TV navigation level rather than relying on focus transfers,
+  allowing Back to continue from guide to categories to main menu even in Android touch mode.
+  Portrait also tracks these navigation levels without changing its layout or tap behavior.
+- Playback, stream parsing, category ordering and Movies/Shows navigation are unchanged.
+
 ## 0.3.3 (version code 7)
 
 - Fix: choppy, pixelated and skipping live playback on phones such as the moto g 2025. The cause

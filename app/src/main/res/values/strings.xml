@@ -1,5 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">YourIPTV</string>
-    <string name="free_notice">YourIPTV is free. Every feature is available to everyone — no account, purchase, activation code, trial, or subscription. Your IPTV provider may still require its own login, and provider connection limits and device capabilities still apply.</string>
+    <!-- app_name lives in branding.xml (the centralized, rebrandable resource file). -->
+    <string name="free_notice">%1$s is free. Every feature is available to everyone — no account, purchase, activation code, trial, or subscription. Your IPTV provider may still require its own login, and provider connection limits and device capabilities still apply.</string>
+    <string name="signing_error_title">YourIPTV integrity check</string>
+    <string name="signing_untrusted_message">This copy was signed with an unrecognized key and cannot start. Obtain YourIPTV from its official source.</string>
+    <string name="signing_unavailable_message">YourIPTV could not verify its signing key. Try the official release again. Your data has not been removed.</string>
+    <string name="integrity_rebrand_message">This copy of YourIPTV has been modified (its name or package was changed) and cannot start. Obtain YourIPTV from its official source.</string>
+    <string name="signing_error_close">Close</string>
 </resources>

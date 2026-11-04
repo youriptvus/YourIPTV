@@ -30,7 +30,7 @@ internal enum class SettingsCategory(val title: String, val description: String)
     PARENTAL("Parental Controls", "Parental PIN, adult categories, group and playlist locks"),
     SETTINGS_LOCK("Settings Lock", "Separate Settings PIN and temporary unlocking"),
     BACKUP("Backup & Restore", "Save playlists, favorites, and settings to a local file, or restore them"),
-    ABOUT("About", "YourIPTV information and free-use notice"),
+    ABOUT("About", "App information and free-use notice"),
 }
 
 /** Category pages share one Settings visit and its existing unlock lifetime. */
@@ -314,7 +314,7 @@ class SettingsActivity : ListActivity() {
             }),
         ) else emptyList()
         SettingsCategory.ABOUT -> listOf(
-            Entry("About YourIPTV", { "Free · no account · no purchase · no activation" }, { startActivity(Intent(this, AboutActivity::class.java)) }),
+            Entry("About ${Branding.displayName(this)}", { "Free · no account · no purchase · no activation" }, { startActivity(Intent(this, AboutActivity::class.java)) }),
         )
     }
 

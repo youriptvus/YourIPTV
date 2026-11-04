@@ -1,9 +1,80 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.3.9 integrity hardening and branding centralization
+
+- **Decision recorded:** all player features are free; custom rebranding (via a separate, not-yet-built
+  tool) is the only paid offering. See `docs/REQUIREMENTS_CHECKLIST.md` §0/§0b and `docs/BRANDING.md`.
+- **Acceptance criteria (0.3.9 branding prep):**
+  - [ ] Default build shows name "YourIPTV", stock launcher icon (phone) and TV banner, and the About
+        screen with the free-for-everyone notice and open-source acknowledgements intact.
+  - [ ] All brand values resolve from `res/values/branding.xml` + `ui/Branding.kt`; no brand string is
+        hardcoded in player screens.
+  - [ ] No payment screen, "Unlock Premium" control, or branding control appears in player settings.
+  - [ ] Branding changes do not read/write settings, playlists, provider credentials, PIN hashes, or
+        history.
+  - [ ] `NoPremiumAuditTest` still passes (player app has no billing/paywall/trial code).
+  - [ ] Package id `com.youriptv.app` and signing key unchanged; integrity gate still starts the app.
+
+## 0.3.6 / 0.3.7 live recovery and phone landscape
+
+- **Devices and build:** moto g 2025 (`ZA223G5NBZ`, Android 16) and onn. Streaming Device 4K pro
+  (`192.168.1.150:5555`); signed 0.3.6 (code 10), then 0.3.7 (code 11), installed with
+  `adb install -r` and the official signing certificate. No uninstall or data clear.
+- **Automated:** `testDebugUnitTest assembleRelease` passed. `LiveBufferingRecoveryTest` covers
+  the 30-second continuous-buffering deadline, three quick reopens, the 30-second slow retry that
+  continues indefinitely, the playback stability reset (10 seconds from 0.3.8), shared error/ended budget, and
+  cancellation on pause, channel change and manual retry.
+- **PASS — moto g network outage (0.3.6):** Bizarre Foods full screen; Wi-Fi and mobile data were
+  switched off for about 2 minutes. YourIPTV showed three quick reconnects, then the "Trying again
+  in 30 seconds" notice with further reopen attempts. After the network was restored, video and
+  audio resumed within about 5 seconds with no user input and the notice cleared. Wi-Fi and mobile
+  data were restored to their original enabled state. Evidence: `qa_evidence\live_recovery_036\moto_outage_036.txt`.
+- **Not reproduced:** the original natural stall after long viewing. The outage test produced
+  network errors, not a silent buffering stall; the 30-second stall deadline is unit-tested.
+- **onn. box, Bizarre Foods on "Test list" (0.3.7 → 0.3.8):**
+  - Cause found: the provider closes this channel's connection every 15–75 seconds
+    ("Live stream ended"); a reopen 1.5 seconds later normally plays. Occasionally the provider
+    refuses the reopen (HTTP error) or drops every new connection for several minutes.
+  - 0.3.7 FAIL: the quick-reopen budget was only refunded after a full minute of playback, so
+    after a few drops each later drop waited 30 seconds; the guide preview stopped completely
+    after two refused reopens ("Preview unavailable … Choose another channel").
+  - 0.3.8 PASS: 12-minute fullscreen soak with audio on in nearly every sample; each drop
+    reopened in about 1.5 seconds. A further 10-minute run included a ~5-minute provider outage
+    (every connection refused, attempts 4–10 every 30 seconds, including one that buffered with
+    no data); playback resumed automatically at 23:39 and later drops were again reopened
+    within seconds. No crash or ANR. Evidence: `qa_evidence\live_recovery_036\onn_soak_037.txt`,
+    `onn_soak_038.txt`, `onn_soak_038_fullscreen.txt`, `onn_recovery_stream_038.txt`.
+  - The final 0.3.8 build was installed on the onn. box only; the moto g was disconnected and
+    still has 0.3.7.
+- **TiviMate reference:** Bizarre Foods played normally in TiviMate on the onn. box for about two
+  minutes; its automatic restart was not observed.
+- **onn. box playlist:** the existing Xtream playlist reported the provider account as expired with
+  0 channels (last refreshed while 0.3.4 was installed). The authorized test M3U was added as
+  "Test list" and made active; the Xtream playlist was left unchanged.
+- **PASS — phone landscape (0.3.7):** with the moto g held upright and auto-rotate on, the main
+  menu, categories, guide with preview, full-screen player, Playlists, Add playlist and a series
+  screen all displayed in landscape (`mCurrentRotation=ROTATION_90`). Settings and About were not
+  opened on the phone because Settings is PIN-locked. Evidence: `qa_evidence\landscape_037\`.
+
+## 0.3.4 phone Back navigation
+
+- **Device and build:** moto g 2025, ADB serial `ZA223G5NBZ`; Android 16; 0.3.4 (version code 8)
+  installed over 0.3.3 with `adb install -r`, preserving app data and playlist.
+- **Regression reproduced on 0.3.3:** after leaving fullscreen, further Back presses could leave
+  the screen at the guide when Android was in touch mode.
+- **PASS — hardware/ADB Back events:** full screen → guide → categories → main menu, with touch
+  mode still active and TV focused in the menu.
+- **PASS — Android system Back button:** returned from the guide to categories, then from
+  categories to the main menu.
+- **PASS — touch interaction:** one tap on All channels opened the guide; a tap selected BIG
+  BROTHER for preview, a second tap opened it full screen, and Back restored the guide with the
+  same channel and category.
+- **Playback:** one active YourIPTV audio track was observed during preview/full-screen return.
+  Evidence screenshots: `qa_evidence\phone_back\05`–`10`.
+
 ## 0.3.3 phone fullscreen smoothness
 
-See TEST_REPORT.md "0.3.3 phone fullscreen smoothness" for the moto g comparison with TiviMate,
-the before and after diagnostics, and the 10-minute run.
+This earlier device test covered the moto g fullscreen playback fix in 0.3.3.
 
 ## 0.3.1 compact guide
 

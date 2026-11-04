@@ -38,9 +38,43 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     private var playerPlaylistId: Long? = null
     private var authorizationStamp = app.settings.restrictionStamp()
     private var authorizedGroup: String? = null
-    private var generation = 0
     private var retries = 0
-    private var pendingRetry: Runnable? = null
+    var recoveryMessage: String? = null
+        private set
+    var recoveryFailed = false
+        private set
+    val hasPendingRestart get() = bufferingRecovery.hasPendingRestart
+    private val bufferingRecovery = LiveBufferingRecovery(
+        postDelayed = { task, delay -> handler.postDelayed(task, delay) },
+        remove = { task -> handler.removeCallbacks(task) },
+        onRestart = { attempt ->
+            val item = current
+            val p = player
+            if (item != null && p != null && canRestart(p, item)) {
+                recoveryMessage = if (attempt <= LiveBufferingRecovery.MAX_RESTARTS)
+                    "Live stream interrupted. Reconnecting ($attempt/${LiveBufferingRecovery.MAX_RESTARTS})..."
+                else "Live stream still interrupted. Reconnecting (attempt $attempt)..."
+                recoveryFailed = false
+                status = recoveryMessage.orEmpty()
+                android.util.Log.w("YourIPTV-Recovery", "Reopening live source, attempt $attempt")
+                notifyObservers()
+                PlaybackFactory.restartLive(p, item)
+            } else bufferingRecoveryReset()
+        },
+        onExhausted = {
+            player?.stop()
+            loadingHint.reset()
+            recoveryFailed = true
+            recoveryMessage = "The live stream is not responding. Trying again in ${LiveBufferingRecovery.SLOW_RETRY_MS / 1000} seconds..." +
+                if (fullScreen) "\n\nOK: retry now   Change channel or press BACK to leave." else ""
+            status = recoveryMessage.orEmpty()
+            android.util.Log.w("YourIPTV-Recovery", "Quick live recovery failed; retrying every ${LiveBufferingRecovery.SLOW_RETRY_MS / 1000} s")
+            notifyObservers()
+        },
+        onStalled = {
+            android.util.Log.w("YourIPTV-Recovery", "Live stream buffered for ${LiveBufferingRecovery.BUFFERING_TIMEOUT_MS / 1000} s")
+        },
+    )
     private val loadingHint = PreviewLoadingHint(
         postDelayed = { task, delay -> handler.postDelayed(task, delay) },
         remove = { task -> handler.removeCallbacks(task) },
@@ -65,11 +99,27 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         private set
 
     private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (current == null || player !== this@LivePlaybackSession.player) return
+            bufferingRecovery.update(
+                buffering = player.playbackState == Player.STATE_BUFFERING && player.playWhenReady,
+                playing = player.isPlaying,
+                playWhenReady = player.playWhenReady,
+            )
+            if (player.isPlaying && recoveryMessage != null) {
+                recoveryMessage = null
+                recoveryFailed = false
+                status = ""
+                notifyObservers()
+            }
+        }
+
         override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_ENDED && current != null) android.util.Log.w("YourIPTV-Recovery", "Live stream ended")
             if (fullScreen || current == null) return
             status = when (state) {
                 Player.STATE_BUFFERING -> loadingPreviewStatus()
-                Player.STATE_READY -> { loadingHint.reset(); retries = 0; cancelRetry(); "" }
+                Player.STATE_READY -> { loadingHint.reset(); retries = 0; "" }
                 Player.STATE_ENDED -> { loadingHint.reset(); retryPreview("Preview ended"); return }
                 else -> { loadingHint.reset(); status }
             }
@@ -77,6 +127,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            if (current != null) android.util.Log.w("YourIPTV-Recovery", "Live playback error ${error.errorCodeName}")
             if (fullScreen || current == null) return
             retryPreview("Preview unavailable (${error.errorCodeName})")
         }
@@ -87,35 +138,24 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         return if (loadingHint.isSlow) SLOW_PREVIEW_MESSAGE else "Loading preview..."
     }
 
-    private fun cancelRetry() {
-        pendingRetry?.let { handler.removeCallbacks(it) }
-        pendingRetry = null
-    }
-
     private fun retryPreview(reason: String) {
         loadingHint.reset()
         val p = player ?: return
-        if (pendingRetry != null) return
-        if (retries >= 2) {
-            status = "$reason. Choose another channel or open full screen to retry."
-            notifyObservers()
-            return
-        }
-        retries++
-        status = "$reason. Reconnecting ($retries/2)..."
-        val expected = generation
-        val retry = Runnable {
-            pendingRetry = null
-            if (generation == expected && player === p && !fullScreen && current != null) {
-                if (p.playbackState == Player.STATE_ENDED) p.seekToDefaultPosition()
-                p.prepare()
-                p.playWhenReady = true
-            }
-        }
-        pendingRetry = retry
-        handler.postDelayed(retry, 1500L * retries)
+        val item = current ?: return
+        if (hasPendingRestart || recoveryFailed) return
+        // The shared coordinator limits quick reopens and then keeps retrying slowly, so the preview never stays stuck.
+        if (retries < 2) retries++
+        status = if (retryAutomatically(p, item, 1500L * retries)) "$reason. Reconnecting..."
+        else "$reason. Choose another channel or open full screen to retry."
         notifyObservers()
     }
+
+    fun retryAutomatically(p: ExoPlayer, item: MediaItem, delayMs: Long): Boolean =
+        canRestart(p, item) && bufferingRecovery.scheduleRestart(delayMs)
+
+    private fun canRestart(p: ExoPlayer, item: MediaItem): Boolean =
+        player === p && p.playWhenReady && owners.isNotEmpty() && isCurrentAuthorized(item) &&
+            !Scheduler.recordingUsesOnlyConnection(item.playlistId)
 
     private val restrictionListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         handler.post {
@@ -125,7 +165,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
                 authorizedGroup = null
                 val item = current
                 if (item != null && app.settings.isGroupLocked(item.group)) {
-                    generation++
+                    bufferingRecoveryReset()
                     loadingHint.reset()
                     player?.stop()
                     player?.clearMediaItems()
@@ -166,7 +206,6 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     private fun attach(view: PlayerView, isFullscreen: Boolean) {
         fullScreen = isFullscreen
         if (isFullscreen) {
-            cancelRetry()
             loadingHint.reset()
         }
         val old = target
@@ -246,9 +285,8 @@ class LivePlaybackSession(private val app: YourIptvApp) {
 
     private fun tune(item: MediaItem, items: List<MediaItem>, unlockedGroup: String?) {
         val p = obtain(item)
-        generation++
+        bufferingRecoveryReset()
         loadingHint.reset()
-        cancelRetry()
         retries = 0
         current = item
         queue = liveQueue(item, items)
@@ -271,6 +309,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     }
 
     fun noteFullscreenItem(item: MediaItem, items: List<MediaItem>, unlockedGroups: Set<String>, stamp: Int) {
+        if (current?.url != item.url || current?.playlistId != item.playlistId) bufferingRecoveryReset()
         current = item
         queue = items
         authorizationStamp = stamp
@@ -292,9 +331,8 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     }
 
     fun stop() {
-        generation++
+        bufferingRecoveryReset()
         loadingHint.reset()
-        cancelRetry()
         target?.player = null
         player?.removeListener(playerListener)
         player?.release()
@@ -311,5 +349,13 @@ class LivePlaybackSession(private val app: YourIptvApp) {
 
     private fun notifyObservers() {
         observers.toList().forEach { it() }
+    }
+
+    fun resetRecovery() = bufferingRecoveryReset()
+
+    private fun bufferingRecoveryReset() {
+        bufferingRecovery.reset()
+        recoveryMessage = null
+        recoveryFailed = false
     }
 }
