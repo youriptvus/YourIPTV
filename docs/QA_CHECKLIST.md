@@ -5,15 +5,36 @@
 - **Decision recorded:** all player features are free; custom rebranding (via a separate, not-yet-built
   tool) is the only paid offering. See `docs/REQUIREMENTS_CHECKLIST.md` §0/§0b and `docs/BRANDING.md`.
 - **Acceptance criteria (0.3.9 branding prep):**
-  - [ ] Default build shows name "YourIPTV", stock launcher icon (phone) and TV banner, and the About
-        screen with the free-for-everyone notice and open-source acknowledgements intact.
-  - [ ] All brand values resolve from `res/values/branding.xml` + `ui/Branding.kt`; no brand string is
-        hardcoded in player screens.
-  - [ ] No payment screen, "Unlock Premium" control, or branding control appears in player settings.
-  - [ ] Branding changes do not read/write settings, playlists, provider credentials, PIN hashes, or
+  - [x] **TV (onn, `192.168.1.150:5555`):** default build shows name "YourIPTV", Leanback label
+        `app_name`, icon `mipmap/ic_launcher`, banner `drawable/banner`; nav-rail header, Settings →
+        About entry and About screen show "YourIPTV" (no `%1$s` leak), the free-for-everyone notice and
+        open-source acknowledgements are intact; live playback works. Evidence:
+        `D:\APK\qa_evidence\f01_tv_settings_about_category_039.png`, `f02_tv_about_screen_039.png`,
+        `f02_tv_about_ui.xml`, `f03_tv_playback_039.png`.
+  - [x] **Phone (moto g `ZA223G5NBZ`, Android 16):** signed 0.3.9 installed with `adb install -r`
+        over 0.3.8 (data kept). Integrity gate passed and live playback resumed; app drawer shows
+        label "YourIPTV" with the default icon; nav-rail header "YourIPTV"; Add playlist notice
+        reads "YourIPTV is free. …" (no `%1$s` leak); the editor was closed without saving and the
+        playlist list is unchanged. Evidence: `D:\APK\qa_evidence\f05_phone_main_039.png`,
+        `f07_phone_after_unlock.png` (nav header), `f08_phone_launcher_039.png`,
+        `f08_phone_launcher_ui_039.xml`, `f09_phone_add_playlist_notice_039.png`.
+  - [x] **Phone About (after the user unlocked Settings):** Settings → About category "App
+        information and free-use notice", entry "About YourIPTV"; About screen title "About
+        YourIPTV", version line, "YourIPTV is free.", brand name in every body line, open-source
+        section present, no `%1$s`, no company block. Evidence:
+        `f10_phone_settings_about_entry_039.png`, `f11_phone_about_screen_039.png`,
+        `f11_phone_about_ui_039.xml`.
+  - [ ] **Phone — not covered:** the welcome text only shows when no playlist exists and was not
+        checked to avoid clearing data. It uses the same `Branding.displayName`/`freeNotice` code
+        verified elsewhere.
+  - [x] All brand values resolve from `res/values/branding.xml` + `ui/Branding.kt`; no brand string is
+        hardcoded in player screens (`BrandingCentralizationTest`).
+  - [x] No payment screen, "Unlock Premium" control, or branding control appears in player settings.
+  - [x] Branding changes do not read/write settings, playlists, provider credentials, PIN hashes, or
         history.
-  - [ ] `NoPremiumAuditTest` still passes (player app has no billing/paywall/trial code).
-  - [ ] Package id `com.youriptv.app` and signing key unchanged; integrity gate still starts the app.
+  - [x] `NoPremiumAuditTest` still passes (154 tests, 0 failures).
+  - [x] Package id `com.youriptv.app` and signing key unchanged (signer `4aef8798…cecd0539`, v1+v2
+        verified); integrity gate still starts the app on the onn box.
 
 ## 0.3.6 / 0.3.7 live recovery and phone landscape
 

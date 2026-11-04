@@ -29,6 +29,35 @@ rebranding tool** will use. The tool itself is **not** built yet; this is prepar
 Keep the **resource names** identical; only replace the values/files. `ui/Branding.kt` is the stable
 contract that maps these resources to the UI, so the tool edits resources, not player code.
 
+### Screens that read the name dynamically
+
+Visible screens never hardcode "YourIPTV"; they read `Branding.displayName()` (= `@string/app_name`),
+so changing `app_name` updates all of them:
+
+- About screen title (`AboutActivity`, `about_title`) and the About body (`Branding.aboutBody()`).
+- Settings → About category entry ("About <name>").
+- Main screen welcome text and nav-rail header (`MainActivity`).
+- Free-use notice on the About screen, welcome text, and playlist editor (`edit_free_notice`) via
+  `Branding.freeNotice()`. `@string/free_notice` starts with a `%1$s` placeholder for the name;
+  keep that placeholder when translating or editing.
+
+`BrandingCentralizationTest` guards this: layouts must not contain "YourIPTV", `app_name` must match
+`BrandIntegrity.EXPECTED_BRAND_NAME`, `free_notice` must start with `%1$s`, and the About body must
+keep the open-source section.
+
+### Strings intentionally still hardcoded (future tool checklist)
+
+These are internal or part of a file/network format identity, so they were left as "YourIPTV".
+The rebranding tool should decide per customer whether to change them:
+
+- Log tags and theme style names (internal only).
+- `Http.DEFAULT_USER_AGENT` and the Settings "YourIPTV default" user-agent label (providers may
+  allow-list it).
+- Backup file format messages (`Backup`, `BackupFiles`) and the Settings "Choose a YourIPTV backup
+  file" prompt (backup compatibility).
+- Scheduler / `StreamDiagnosis` messages.
+- Integrity / signing error strings (`BrandIntegrity`, `OfficialSigning`).
+
 ## What a rebrand must NOT touch
 
 - Player behavior, user settings, playlists, provider credentials, history, favorites, PIN hashes.

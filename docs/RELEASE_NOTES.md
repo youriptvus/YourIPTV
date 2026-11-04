@@ -10,6 +10,9 @@
   and security controls. The About screen always keeps the free-for-everyone notice and the
   open-source license acknowledgements. Integration points and which changes require rebuild/re-sign
   are documented in `docs/BRANDING.md`. No payment UI or branding controls were added to the app.
+- Brand-neutral screen text: the About title and body, Settings → About entry, welcome text and the
+  free-use notice (About, welcome, playlist editor) now read the app name from `@string/app_name`
+  instead of hardcoding "YourIPTV". Guarded by the new `BrandingCentralizationTest`.
 - Anti-rebranding hardening, layered on the existing signing-certificate check (0.3.5), which is the
   real anchor: any change to the installed APK's code, resources or icon forces a re-sign, which the
   certificate check already rejects before the app starts.

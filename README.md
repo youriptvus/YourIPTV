@@ -35,19 +35,27 @@ parental controls, settings, and every other implemented feature. The automated 
 `NoPremiumAuditTest` checks the sources, resources, manifest and dependencies for billing,
 licensing, trial and paywall mechanisms.
 
-### Possible future offering: company branding
+### Paid offering: custom rebranding only
 
-The **only** paid offering under consideration is optional **company branding**. This would let a
-business replace the "Your IPTV" name and logo with its own company name and logo.
+**All player features are free; custom rebranding is paid.** Custom rebranding is the **only** paid
+offering associated with YourIPTV. A company or customer can receive a customized build with its own
+app name, logos and branding images, phone launcher icons, Android TV icon/banner, and About-screen
+company and support/contact details.
 
-- It is a **possibility only**. It is not available, not implemented, and not committed to. No
-  pricing or release date has been set.
-- Any payment would cover the custom name and logo only. It would **never** unlock, limit, or
-  restrict any player feature, including playback, playlists, the EPG/guide, recording,
-  catch-up, favorites, parental controls, or settings.
-- No other premium tier, subscription, or paid feature restriction is planned.
-- This repository contains no billing, subscription, licensing-server, activation, premium-screen
-  or rebranding code.
+- Rebranding is done by a **separate, authorized rebranding tool** (not part of this repository and
+  not yet built). The app itself contains no payment screens, "Unlock Premium" buttons, or branding
+  controls.
+- A rebranded app is **never** more capable than the standard app, and the standard app is never
+  reduced. Payment covers the custom branding only. It never unlocks, limits, or restricts any player
+  feature, including playback, playlists, Xtream Codes, M3U, the EPG/guide, recording, catch-up,
+  favorites, parental controls, or settings.
+- Rebranding never touches player behavior, user settings, playlists, provider credentials or
+  security controls, and the free-use notice and open-source license acknowledgements stay on the
+  About screen.
+- No other premium tier, subscription, or paid feature restriction exists or is planned.
+- This repository contains no billing, subscription, licensing-server, or activation code. It contains
+  only the centralized default branding (`res/values/branding.xml`, `ui/Branding.kt`, launcher icons and
+  TV banner) that the separate tool will customize. See [docs/BRANDING.md](docs/BRANDING.md).
 
 ### What still applies
 
