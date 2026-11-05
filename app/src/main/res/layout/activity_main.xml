@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="horizontal" android:background="@color/bg">
+
+    <LinearLayout
+        android:id="@+id/nav_rail" android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="vertical" android:background="@color/panel" android:padding="8dp">
+        <TextView
+            android:id="@+id/brand" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/app_name" android:textSize="22sp" android:textStyle="bold"
+            android:textColor="@color/accent" android:padding="12dp" />
+        <TextView
+            android:id="@+id/playlist_name" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="12sp" android:textColor="@color/text_dim" android:paddingStart="12dp" android:paddingBottom="8dp"
+            android:maxLines="2" android:ellipsize="end" />
+        <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <LinearLayout android:id="@+id/nav_container" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" />
+        </ScrollView>
+        <TextView
+            android:id="@+id/clock" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="14sp" android:textColor="@color/text_dim" android:padding="12dp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/groups" android:layout_width="250dp" android:layout_height="match_parent"
+        android:background="@color/bg" android:padding="6dp" android:clipToPadding="false" />
+
+    <LinearLayout
+        android:id="@+id/content_column"
+        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+        android:orientation="vertical" android:padding="8dp">
+        <include layout="@layout/content_header" />
+        <LinearLayout
+            android:id="@+id/live_header" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:paddingBottom="8dp" android:visibility="gone">
+            <include layout="@layout/live_preview" android:layout_width="320dp" android:layout_height="wrap_content" />
+            <LinearLayout android:id="@+id/live_info" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:orientation="vertical" android:paddingStart="16dp">
+                <TextView android:id="@+id/live_heading" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="13sp" android:textColor="@color/text_dim" android:maxLines="1" android:ellipsize="end"
+                    android:paddingBottom="2dp" android:visibility="gone" />
+                <TextView android:id="@+id/live_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="21sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/live_meta" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="14sp" android:textColor="@color/accent" android:paddingTop="4dp" />
+                <TextView android:id="@+id/live_desc" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="13sp" android:textColor="@color/text_dim" android:maxLines="3" android:ellipsize="end"
+                    android:paddingTop="6dp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="12sp" android:textColor="@color/text_dim" android:paddingTop="6dp"
+                    android:text="OK preview, OK again full screen  ·  RIGHT later  ·  hold LEFT earlier  ·  BACK categories  ·  MENU options" />
+            </LinearLayout>
+        </LinearLayout>
+        <com.youriptv.app.ui.GuideTimelineView
+            android:id="@+id/live_timeline" android:layout_width="match_parent" android:layout_height="28dp"
+            android:visibility="gone" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/items" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:clipToPadding="false" android:paddingBottom="24dp" />
+            <include layout="@layout/content_state" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

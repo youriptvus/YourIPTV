@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF0E1116</color>
+    <color name="panel">#FF161B22</color>
+    <color name="panel_alt">#FF1E252F</color>
+    <color name="accent">#FF2EA8FF</color>
+    <color name="accent_dim">#552EA8FF</color>
+    <color name="text">#FFF2F5F8</color>
+    <color name="text_dim">#FF9AA6B2</color>
+    <color name="overlay">#CC0B0E12</color>
+    <color name="danger">#FFFF6B6B</color>
+    <color name="fav">#FFFFC93C</color>
+    <color name="ic_bg">#FF0E1116</color>
+</resources>
+
+

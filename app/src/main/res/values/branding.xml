@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Centralized branding resources for YourIPTV.
+
+  This is the ONLY resource file a separate, authorized rebranding tool should edit to customize the
+  app for a company or customer. Everything here has safe YourIPTV defaults. Player behavior, user
+  settings, playlists, provider credentials, and security controls live elsewhere and must NOT be
+  touched by rebranding.
+
+  Overridable here:
+    - app_name          : launcher label / brand display name (also used by the integrity check).
+    - brand_company_name: shown on the About screen; empty = hide the company block.
+    - brand_support_*   : optional contact details on the About screen. The default website is
+                          https://youriptv.us; other empty contact fields are omitted.
+    - brand_about_tagline: optional one-line description under the app name on About.
+
+  Overridable as binary resources (replace the files, keep the names):
+    - @string/app_name text here, plus:
+    - mipmap ic_launcher / ic_launcher_round / ic_launcher_foreground (phone launcher icons)
+    - drawable banner (Android TV / Leanback 320x180 banner)
+  Any of these changes requires rebuilding and re-signing the APK (see docs/BRANDING.md).
+
+  NOT overridable (must be preserved): the "free for everyone" notice and the open-source license
+  acknowledgements, which the About screen always appends.
+-->
+<resources>
+    <string name="app_name">YourIPTV</string>
+
+    <!-- Company / customer identity shown on the About screen. Empty defaults = YourIPTV's own,
+         company-neutral branding. A rebranding tool fills these in per customer. -->
+    <string name="brand_company_name"></string>
+    <string name="brand_about_tagline"></string>
+    <string name="brand_support_email"></string>
+    <string name="brand_support_url">https://youriptv.us</string>
+    <string name="brand_support_phone"></string>
+</resources>

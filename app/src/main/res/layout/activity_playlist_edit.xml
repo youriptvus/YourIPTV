@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/bg"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+        android:paddingStart="48dp" android:paddingEnd="48dp" android:paddingTop="20dp" android:paddingBottom="32dp">
+
+        <TextView
+            android:id="@+id/edit_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="24sp" android:textStyle="bold" android:text="Add playlist" />
+        <TextView
+            android:id="@+id/edit_free_notice"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="13sp" android:textColor="@color/text_dim" android:paddingTop="4dp" android:paddingBottom="12dp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <Button
+                android:id="@+id/type_xtream" style="@style/Button.Tv" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Xtream Codes login" android:layout_marginEnd="12dp" />
+            <Button
+                android:id="@+id/type_m3u" style="@style/Button.Tv" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="M3U playlist URL" />
+        </LinearLayout>
+
+        <TextView style="@style/FieldLabel" android:text="Playlist name" />
+        <EditText android:id="@+id/f_name" style="@style/Field" android:inputType="text" android:hint="My provider" />
+
+        <TextView android:id="@+id/l_url" style="@style/FieldLabel" android:text="Server URL" />
+        <EditText android:id="@+id/f_url" style="@style/Field" android:inputType="textUri" android:hint="http://provider.example:8080" />
+
+        <LinearLayout android:id="@+id/xtream_fields" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView style="@style/FieldLabel" android:text="Username" />
+            <EditText android:id="@+id/f_user" style="@style/Field" android:inputType="text" />
+            <TextView style="@style/FieldLabel" android:text="Password" />
+            <EditText android:id="@+id/f_pass" style="@style/Field" android:inputType="textPassword" />
+        </LinearLayout>
+
+        <TextView style="@style/FieldLabel" android:text="Guide (EPG / XMLTV) URL — optional" />
+        <EditText android:id="@+id/f_epg" style="@style/Field" android:inputType="textUri"
+            android:hint="Leave empty to use the provider's guide" />
+
+        <TextView style="@style/FieldLabel" android:text="User agent — optional" />
+        <EditText android:id="@+id/f_ua" style="@style/Field" android:inputType="text" android:hint="Default" />
+
+        <TextView
+            android:id="@+id/edit_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="14sp" android:textColor="@color/accent" android:paddingTop="12dp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+            android:paddingTop="12dp">
+            <Button
+                android:id="@+id/btn_save" style="@style/Button.Tv" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Save and load" android:layout_marginEnd="12dp" />
+            <Button
+                android:id="@+id/btn_cancel" style="@style/Button.Tv" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Cancel" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
