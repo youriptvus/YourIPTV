@@ -47,6 +47,16 @@ class AppUpdatesTest {
     }
 
     @Test
+    fun versionOnly050ReleaseOffers043AndRequires042() {
+        val r = UpdateRelease.parse(json(code = 24, name = "0.5.0", previous = 23))
+        assertEquals("https://github.com/youriptvus/YourIPTV/releases/download/v0.5.0/YourIPTV.apk", r.url)
+        assertTrue(r.isNewerThan(23))
+        assertFalse("0.4.3 must still offer Ignore", r.isRequiredFor(23))
+        assertTrue("Code 22 is two releases behind", r.isRequiredFor(22))
+        assertFalse(r.isNewerThan(24))
+    }
+
+    @Test
     fun rejectsApksOutsideTheOfficialReleaseOrBadData() {
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://evil.example/YourIPTV.apk")) }
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://github.com/someone/YourIPTV/releases/download/v0.4.0/YourIPTV.apk")) }

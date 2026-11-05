@@ -1,5 +1,14 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.5.0 version-only release (version code 24)
+
+- [x] Full offline unit suite passes: 171 tests, no failures or skips; signed release build passes.
+- [x] Signed release verified as `com.youriptv.app`, label YourIPTV, version 0.5.0 / code 24;
+      official signing certificate and requested permissions match 0.4.3.
+- [x] Generated `update.json` has code 24 and `previousVersionCode` 23; APK size and SHA-256 match.
+- [ ] User reviews, commits and pushes the repository changes, then publishes `v0.5.0` manually.
+- [ ] After publication, test the 0.4.3-to-0.5.0 in-app update on an authorized device.
+
 ## 0.4.3 playlist editing (version code 23)
 
 - [x] Full offline unit suite passes: 170 tests, no failures or skips.
@@ -10,11 +19,11 @@
       persist after reopening the editor.
 - [ ] With playlist locking enabled, confirm Settings → Playlists → Edit current playlist requires
       the parental PIN; check narrow-screen phone layout and TV D-pad navigation.
-- [ ] User reviews, commits and pushes the repository changes, then publishes `v0.4.3` manually.
-- [ ] Test the in-app 0.4.2-to-0.4.3 update flow on an authorized device; no feature build was
-      installed during release preparation.
+- [x] Source was committed and pushed, and `v0.4.3` was published as the Latest release.
+- [x] On the authorized onn TV at 192.168.1.150, the genuine 0.4.2 app downloaded and installed 0.4.3
+      after Install was selected once; it reopened automatically, retaining backed-up configuration.
 
-## 0.4.2 version-only automatic-update test
+## 0.4.2 version-only automatic-update test (historical; standalone release not published)
 
 - [x] Archive the complete 0.4.1 repository, changelog and signed release files locally before editing.
 - [x] Offline signed release build succeeds as `com.youriptv.app`, version 0.4.2 / code 22.
@@ -22,14 +31,8 @@
 - [x] APK has the same official signer, app label and seven requested permissions as 0.4.1.
 - [x] Generated and verified `update.json`: code 22, previous code 21, size 3,632,496 bytes,
       SHA-256 `ed8d5cb4201619a8ea65cd83f4c63f93e014f428eb9443c5ae743c25dc8e9b3c`.
-- [ ] User commits/pushes the local repository and publishes `v0.4.2` as Latest with `YourIPTV.apk`
-      and `update.json`. This is the normal public updater, not a private test channel.
-- [ ] Device on 0.4.1 with automatic updates enabled: Install/Ignore offer; Ignore then reopen
-      re-offers; Install downloads and installs without permission prompts; data and grants retained.
-- [ ] Android 12-14 test box with existing overlay authorization restarts automatically after install.
-- [ ] Updated device reports 0.4.2 / code 22; reopening no longer offers the same update.
-
-Do not install 0.4.2 by ADB before this end-to-end test; leave test devices on 0.4.1.
+- [ ] The planned 0.4.1-to-0.4.2 production update was not tested because the standalone 0.4.2
+      release was not published. The later 0.4.2-to-0.4.3 retest is recorded above.
 
 ## 0.4.1 website and update-source migration
 

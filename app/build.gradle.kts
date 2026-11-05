@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 0.4.3 adds playlist editing; 14-19 were used by local updater device-test builds.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 23
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.4.3"
+        // 0.5.0 is a version-only release; 14-19 were used by local updater device-test builds.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 24
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.0"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
             "https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"

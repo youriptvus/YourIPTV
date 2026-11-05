@@ -4,6 +4,14 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 0.5.0 (version code 24)
+
+- Version-only maintenance release; no new player or playlist features since 0.4.3.
+- Package ID, official signing key, requested permissions, settings, and production update URL are
+  unchanged.
+- Once published, devices using the current updater on 0.4.3 can Install or Ignore; devices on
+  version code 22 or below must update.
+
 ## 0.4.3 (version code 23)
 
 - Add direct **Edit current** shortcuts in Playlists and Settings for the active provider's M3U or
