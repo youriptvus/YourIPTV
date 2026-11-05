@@ -1,5 +1,14 @@
 # Release notes
 
+## 0.4.1 (version code 21)
+
+- Update source moved to the GitHub repository `youriptvus/YourIPTV` (the previous repository is
+  retired). Boxes read `https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json`.
+- 0.4.0 boxes cannot find this release by themselves (they still look at the retired repository),
+  so install 0.4.1 once with `adb install -r`. The permission set is unchanged, so the technician
+  grants and all data are kept.
+- Add the official website, `https://youriptv.us`, to the README and default About screen.
+
 ## 0.4.0 (version code 20)
 
 - Technician-enabled automatic updates for customer boxes (Settings → App Updates, behind the

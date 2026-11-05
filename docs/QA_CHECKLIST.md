@@ -1,5 +1,13 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.4.1 website and update-source migration
+
+- [x] Offline release build succeeds as `com.youriptv.app`, version 0.4.1 / code 21, official signer.
+- [x] 164 unit tests pass, including the default About website resource check.
+- [x] APK resources contain `https://youriptv.us`; README links to the same URL.
+- [x] Update manifest points to `youriptvus/YourIPTV`; no connection to GitHub was made for this work.
+- [ ] Not installed on a device and not published. User will create/publish the repository and release.
+
 ## 0.4.0 customer-box automatic updates
 
 Evidence: `D:\APK\qa_evidence\040\` (local only). Device: onn 4K Pro, Android 14. Test builds

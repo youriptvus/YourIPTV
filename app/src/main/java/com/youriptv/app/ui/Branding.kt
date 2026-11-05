@@ -37,19 +37,25 @@ object Branding {
     fun freeNotice(context: Context): String = context.getString(R.string.free_notice, displayName(context))
 
     /**
-     * Optional, rebrandable company block for the About screen. Empty when no company is configured
-     * (YourIPTV default), so stock builds show no company section.
+     * Rebrandable company/contact block for the About screen. The default build shows YourIPTV's
+     * website; a company name is optional.
      */
     fun companyBlock(context: Context): String {
         val company = context.optional(R.string.brand_company_name)
-        if (company.isBlank()) return ""
+        val tagline = context.optional(R.string.brand_about_tagline)
+        val supportEmail = context.optional(R.string.brand_support_email)
+        val supportPhone = context.optional(R.string.brand_support_phone)
+        val supportUrl = context.optional(R.string.brand_support_url)
+        if (listOf(company, tagline, supportEmail, supportPhone, supportUrl).all(String::isBlank)) return ""
         val lines = buildList {
-            add("COMPANY")
-            add("• $company")
-            context.optional(R.string.brand_about_tagline).takeIf { it.isNotBlank() }?.let { add("• $it") }
-            context.optional(R.string.brand_support_email).takeIf { it.isNotBlank() }?.let { add("• Support: $it") }
-            context.optional(R.string.brand_support_phone).takeIf { it.isNotBlank() }?.let { add("• Phone: $it") }
-            context.optional(R.string.brand_support_url).takeIf { it.isNotBlank() }?.let { add("• Web: $it") }
+            if (company.isNotBlank()) {
+                add("COMPANY")
+                add("• $company")
+            }
+            tagline.takeIf { it.isNotBlank() }?.let { add("• $it") }
+            supportEmail.takeIf { it.isNotBlank() }?.let { add("• Support: $it") }
+            supportPhone.takeIf { it.isNotBlank() }?.let { add("• Phone: $it") }
+            supportUrl.takeIf { it.isNotBlank() }?.let { add("• Web: $it") }
         }
         return lines.joinToString("\n")
     }

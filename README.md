@@ -9,11 +9,13 @@ YourIPTV is an app only. It is not an Android launcher, a home-screen replacemen
 modification, or a device-management tool. It works the same whether it is opened directly or
 from a separate launcher.
 
+Website: [youriptv.us](https://youriptv.us)
+
 ## Development status
 
 | | |
 |---|---|
-| Current version | **0.4.0** (`versionCode` 20), application ID `com.youriptv.app` |
+| Current version | **0.4.1** (`versionCode` 21), application ID `com.youriptv.app` |
 | Stage | Under active development and testing |
 | Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
@@ -21,16 +23,17 @@ from a separate launcher.
 
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
-[the stable APK URL](https://github.com/comp6062/YourIPTV/releases/latest/download/YourIPTV.apk),
+[the stable APK URL](https://github.com/youriptvus/YourIPTV/releases/latest/download/YourIPTV.apk),
 which is the distribution address for the in-app updater. See the technician setup below.
 
-### Customer-box automatic updates (0.4.0)
+### Customer-box automatic updates (0.4.0 and newer)
 
 **Technician setup (once per box, at install time):**
 
-1. Install 0.4.0 with the official release key (`adb install -r` or a file manager). Never uninstall
-   or clear data. Upgrading from 0.3.9 always needs this technician install, because 0.4.0 adds the
-   updater permissions.
+1. Install the current version with the official release key (`adb install -r` or a file manager).
+   Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of 0.4.1 because
+   the update source moved to `youriptvus/YourIPTV`; older versions also need a technician install
+   because 0.4.0 added updater permissions.
 2. Set a **Settings PIN** (Settings → Settings Lock), then open **Settings → App Updates**:
    - **Allow update installs (technician)** opens Android's *Install unknown apps* page; allow YourIPTV.
      (Google TV shows the full app list; scroll to YourIPTV.)
@@ -67,7 +70,7 @@ size, SHA-256 from `update.json`, package name, version code, signing certificat
 and an **identical requested-permission set**. Any release that adds or removes a permission is
 rejected, so a permission change always needs a technician install.
 
-**Publishing a release** (in `comp6062/YourIPTV`):
+**Publishing a release** (in `youriptvus/YourIPTV`):
 
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts` and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <oldest versionCode that may still skip>`.
@@ -75,8 +78,8 @@ rejected, so a permission change always needs a technician install.
    older than that must update.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
-   `https://github.com/comp6062/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
-4. Boxes read `https://github.com/comp6062/YourIPTV/releases/latest/download/update.json`. This is not
+   `https://github.com/youriptvus/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
+4. Boxes read `https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json`. This is not
    rate-limited like `api.github.com`, and no token or customer data is sent.
 
 Testing builds can point at a local server:
@@ -319,7 +322,7 @@ sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 ### Steps
 
 ```powershell
-git clone https://github.com/comp6062/YourIPTV.git
+git clone https://github.com/youriptvus/YourIPTV.git
 cd YourIPTV
 
 # Tell Gradle where the Android SDK is. Use ONE of these:

@@ -37,7 +37,7 @@ internal data class UpdateRelease(
     companion object {
         const val MAX_APK_BYTES = 100L * 1024 * 1024
         const val MAX_MANIFEST_BYTES = 64L * 1024
-        private const val DOWNLOAD_PREFIX = "https://github.com/comp6062/YourIPTV/releases/download/"
+        private const val DOWNLOAD_PREFIX = "https://github.com/youriptvus/YourIPTV/releases/download/"
         private val GITHUB_HOSTS = setOf(
             "github.com", "release-assets.githubusercontent.com",
             "objects.githubusercontent.com", "github-releases.githubusercontent.com",

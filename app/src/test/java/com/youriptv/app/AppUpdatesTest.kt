@@ -14,7 +14,7 @@ import java.io.File
 class AppUpdatesTest {
     private val sha = "a".repeat(64)
     private fun json(code: Long = 15, name: String = "0.4.0", previous: Long = 13, size: Long = 1000,
-                     apk: String = "https://github.com/comp6062/YourIPTV/releases/download/v$name/YourIPTV.apk", hash: String = sha) =
+                     apk: String = "https://github.com/youriptvus/YourIPTV/releases/download/v$name/YourIPTV.apk", hash: String = sha) =
         """{"versionCode":$code,"versionName":"$name","apk":"$apk","size":$size,"sha256":"$hash","previousVersionCode":$previous}"""
 
     @Test
@@ -40,7 +40,7 @@ class AppUpdatesTest {
     fun rejectsApksOutsideTheOfficialReleaseOrBadData() {
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://evil.example/YourIPTV.apk")) }
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://github.com/someone/YourIPTV/releases/download/v0.4.0/YourIPTV.apk")) }
-        assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://github.com/comp6062/YourIPTV/releases/download/v0.3.9/YourIPTV.apk")) }
+        assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(apk = "https://github.com/youriptvus/YourIPTV/releases/download/v0.3.9/YourIPTV.apk")) }
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(hash = "xyz")) }
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(size = 0)) }
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(json(previous = 15)) }
@@ -56,7 +56,7 @@ class AppUpdatesTest {
 
     @Test
     fun networkStaysOnGithubHttps() {
-        assertTrue(UpdateRelease.allowedNetworkUrl("https://github.com/comp6062/YourIPTV/releases/latest/download/update.json"))
+        assertTrue(UpdateRelease.allowedNetworkUrl("https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"))
         assertTrue(UpdateRelease.allowedNetworkUrl("https://release-assets.githubusercontent.com/x"))
         assertFalse(UpdateRelease.allowedNetworkUrl("http://github.com/x"))
         assertFalse(UpdateRelease.allowedNetworkUrl("https://github.com.evil.example/x"))

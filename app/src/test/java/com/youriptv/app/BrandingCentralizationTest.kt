@@ -17,6 +17,11 @@ class BrandingCentralizationTest {
         assertTrue(branding.contains("<string name=\"app_name\">${BrandIntegrity.EXPECTED_BRAND_NAME}</string>"))
     }
 
+    @Test fun defaultAboutWebsiteIsYourIPTVUs() {
+        val branding = res("values/branding.xml").readText()
+        assertTrue(branding.contains("<string name=\"brand_support_url\">https://youriptv.us</string>"))
+    }
+
     @Test fun aboutBodyTemplateDoesNotHardcodeTheBrandName() {
         val src = listOf(File("src/main/java/com/youriptv/app/ui/Branding.kt"), File("app/src/main/java/com/youriptv/app/ui/Branding.kt")).first { it.exists() }
         val body = src.readText().substringAfter("fun aboutBody(").substringBefore("\"\"\"\n    }")

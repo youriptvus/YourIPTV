@@ -12,12 +12,12 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 0.4.0 is code 20; 14-19 were used by local updater device-test builds pointed at a local update server.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 20
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.4.0"
+        // 0.4.1 is code 21 (0.4.0 was 20); 14-19 were used by local updater device-test builds pointed at a local update server.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 21
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.4.1"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
-            "https://github.com/comp6062/YourIPTV/releases/latest/download/update.json"
+            "https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"
         } else {
             "${updateTestOrigin}update.json"
         }

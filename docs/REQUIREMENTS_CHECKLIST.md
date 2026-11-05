@@ -71,6 +71,15 @@ Live progress is tracked in a local task-progress file (not in the repository).
 - [x] Publish signed `YourIPTV.apk` + `update.json` on GitHub release `v0.4.0` (tag → `cb004e6`;
       downloaded assets verified, SHA-256 `4b648c59…59faac4`; the onn on 0.4.0 reads it with no offer).
 
+## 0d. 0.4.1 website and update-source migration
+
+- [x] Replace the retired update repository with `youriptvus/YourIPTV`; compiled manifest URL uses
+      `releases/latest/download/update.json`. Existing 0.4.0 boxes need one technician install of 0.4.1.
+- [x] Show `https://youriptv.us` in the README and in the default About-screen contact block, using
+      `brand_support_url` so an authorized rebrand can supply its own support website.
+- [x] Build signed 0.4.1 / code 21 with the official key; 164 unit tests pass. No device install or
+      GitHub publication was performed. The user will publish manually from their own repository.
+
 ## 0a. Architecture: standalone IPTV player APK (mandatory)
 
 YourIPTV is an IPTV media player. It is **not** a launcher, an OS replacement, or a device-management app.

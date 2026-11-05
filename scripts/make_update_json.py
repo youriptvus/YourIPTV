@@ -1,7 +1,7 @@
 """Write update.json for a YourIPTV GitHub release (run with: py scripts/make_update_json.py --previous N).
 
 Upload the result next to YourIPTV.apk on the release. Installed apps read it from
-https://github.com/comp6062/YourIPTV/releases/latest/download/update.json
+https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json
 """
 import argparse
 import hashlib
@@ -36,7 +36,7 @@ def main():
     info = {
         "versionCode": a.version_code,
         "versionName": a.version_name,
-        "apk": a.apk_url or f"https://github.com/comp6062/YourIPTV/releases/download/v{a.version_name}/YourIPTV.apk",
+        "apk": a.apk_url or f"https://github.com/youriptvus/YourIPTV/releases/download/v{a.version_name}/YourIPTV.apk",
         "size": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
         "previousVersionCode": a.previous,

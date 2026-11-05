@@ -21,7 +21,7 @@ rebranding tool** will use. The tool itself is **not** built yet; this is prepar
 | Surface | Where | Type |
 |---|---|---|
 | App display name | `res/values/branding.xml` → `@string/app_name` | string |
-| Company name / tagline / support email, phone, URL | `res/values/branding.xml` → `brand_*` | strings |
+| Company name / tagline / support email, phone, URL (default website: `https://youriptv.us`) | `res/values/branding.xml` → `brand_*` | strings |
 | Phone launcher icons | `res/mipmap-*/ic_launcher.png`, `ic_launcher_round.png`, `ic_launcher_foreground.png` (+ `mipmap-anydpi-v26/*.xml`) | images |
 | Android TV / Leanback banner (320×180) | `res/drawable-*/banner.png` | image |
 | About-screen company block | composed by `ui/Branding.kt` from the `brand_*` strings | code-driven, data in branding.xml |

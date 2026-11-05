@@ -10,7 +10,8 @@
   Overridable here:
     - app_name          : launcher label / brand display name (also used by the integrity check).
     - brand_company_name: shown on the About screen; empty = hide the company block.
-    - brand_support_*   : optional contact details on the About screen; empty = omitted.
+    - brand_support_*   : optional contact details on the About screen. The default website is
+                          https://youriptv.us; other empty contact fields are omitted.
     - brand_about_tagline: optional one-line description under the app name on About.
 
   Overridable as binary resources (replace the files, keep the names):
@@ -30,6 +31,6 @@
     <string name="brand_company_name"></string>
     <string name="brand_about_tagline"></string>
     <string name="brand_support_email"></string>
-    <string name="brand_support_url"></string>
+    <string name="brand_support_url">https://youriptv.us</string>
     <string name="brand_support_phone"></string>
 </resources>
