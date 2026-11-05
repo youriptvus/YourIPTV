@@ -77,8 +77,18 @@ Live progress is tracked in a local task-progress file (not in the repository).
       `releases/latest/download/update.json`. Existing 0.4.0 boxes need one technician install of 0.4.1.
 - [x] Show `https://youriptv.us` in the README and in the default About-screen contact block, using
       `brand_support_url` so an authorized rebrand can supply its own support website.
-- [x] Build signed 0.4.1 / code 21 with the official key; 164 unit tests pass. No device install or
-      GitHub publication was performed. The user will publish manually from their own repository.
+- [x] Build signed 0.4.1 / code 21 with the official key; 164 unit tests pass. User published the release;
+      onn GitHub auto-update and Moto G in-place install/startup verified. See `QA_CHECKLIST.md`.
+
+## 0e. 0.4.2 version-only update validation
+
+- [x] Prepare a version-only release using the existing updater; no player restrictions, new permissions,
+      branding changes, package change, signing-key change or customer-settings changes.
+- [x] Archive the previous 0.4.1 repository before updating the authoritative local repository.
+- [x] Built/verified signed 0.4.2 / code 22 and `update.json` with previous code 21; ten focused
+      updater tests pass, with the same signer, branding and requested permissions as 0.4.1.
+- [ ] User publishes manually; then verify Install/Ignore, repeated offers, silent install and restart
+      on an authorized device. Leave devices on 0.4.1 until the published-release test.
 
 ## 0a. Architecture: standalone IPTV player APK (mandatory)
 

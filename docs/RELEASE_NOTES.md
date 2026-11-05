@@ -1,5 +1,12 @@
 # Release notes
 
+## 0.4.2 (version code 22)
+
+- Version-only release for testing automatic updates from 0.4.1 through the existing GitHub updater.
+- Player functionality, branding, package ID, signing key, permissions and settings are unchanged.
+- Devices on 0.4.1 can Install or Ignore; ignored updates are offered again at the next app opening.
+- Publish as a normal Latest release, not a pre-release. It will be offered to all eligible devices.
+
 ## 0.4.1 (version code 21)
 
 - Update source moved to the GitHub repository `youriptvus/YourIPTV` (the previous repository is

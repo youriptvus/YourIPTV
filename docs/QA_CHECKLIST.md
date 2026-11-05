@@ -1,12 +1,33 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.4.2 version-only automatic-update test
+
+- [x] Archive the complete 0.4.1 repository, changelog and signed release files locally before editing.
+- [x] Offline signed release build succeeds as `com.youriptv.app`, version 0.4.2 / code 22.
+- [x] All 10 focused updater tests pass, including optional update 21 -> 22 and required update for code 20.
+- [x] APK has the same official signer, app label and seven requested permissions as 0.4.1.
+- [x] Generated and verified `update.json`: code 22, previous code 21, size 3,632,496 bytes,
+      SHA-256 `ed8d5cb4201619a8ea65cd83f4c63f93e014f428eb9443c5ae743c25dc8e9b3c`.
+- [ ] User commits/pushes the local repository and publishes `v0.4.2` as Latest with `YourIPTV.apk`
+      and `update.json`. This is the normal public updater, not a private test channel.
+- [ ] Device on 0.4.1 with automatic updates enabled: Install/Ignore offer; Ignore then reopen
+      re-offers; Install downloads and installs without permission prompts; data and grants retained.
+- [ ] Android 12-14 test box with existing overlay authorization restarts automatically after install.
+- [ ] Updated device reports 0.4.2 / code 22; reopening no longer offers the same update.
+
+Do not install 0.4.2 by ADB before this end-to-end test; leave test devices on 0.4.1.
+
 ## 0.4.1 website and update-source migration
 
 - [x] Offline release build succeeds as `com.youriptv.app`, version 0.4.1 / code 21, official signer.
 - [x] 164 unit tests pass, including the default About website resource check.
 - [x] APK resources contain `https://youriptv.us`; README links to the same URL.
 - [x] Update manifest points to `youriptvus/YourIPTV`; no connection to GitHub was made for this work.
-- [ ] Not installed on a device and not published. User will create/publish the repository and release.
+- [x] User published `v0.4.1`; public manifest and APK URLs return 200 and match the signed local release.
+- [x] onn on the code-20 updater test build installed 0.4.1 through GitHub, retained data and grants,
+      and restarted automatically without an installer confirmation or new permission prompt.
+- [x] Moto G upgraded from 0.4.0 by `adb install -r`; installed APK hash verified, startup and advancing
+      video preview checked. Full-screen playback and all player features were not tested in this pass.
 
 ## 0.4.0 customer-box automatic updates
 

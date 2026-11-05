@@ -15,7 +15,7 @@ Website: [youriptv.us](https://youriptv.us)
 
 | | |
 |---|---|
-| Current version | **0.4.1** (`versionCode` 21), application ID `com.youriptv.app` |
+| Current version | **0.4.2** (`versionCode` 22), application ID `com.youriptv.app` |
 | Stage | Under active development and testing |
 | Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
@@ -73,9 +73,9 @@ rejected, so a permission change always needs a technician install.
 **Publishing a release** (in `youriptvus/YourIPTV`):
 
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts` and build the signed release.
-2. Run `py scripts/make_update_json.py --previous <oldest versionCode that may still skip>`.
-   `previousVersionCode` is normally the versionCode of the release *before* the previous one. Boxes
-   older than that must update.
+2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
+   For 0.4.2, use `--previous 21`: 0.4.1 devices may Install or Ignore. Devices below that code are
+   two or more releases behind and must update.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
    `https://github.com/youriptvus/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
