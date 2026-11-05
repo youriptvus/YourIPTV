@@ -37,7 +37,7 @@ class Repository(context: Context) {
             put("epg_url", p.epgUrl); put("user_agent", p.userAgent)
         }
         return if (p.id == 0L) db.insert("playlists", null, v)
-        else { db.update("playlists", v, "id=?", arrayOf(p.id.toString())); p.id }
+        else if (db.update("playlists", v, "id=?", arrayOf(p.id.toString())) > 0) p.id else -1L
     }
 
     fun playlistHasUrl(id: Long, url: String): Boolean = url.isNotEmpty() &&

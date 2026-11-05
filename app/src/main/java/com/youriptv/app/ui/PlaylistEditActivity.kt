@@ -1,5 +1,7 @@
 package com.youriptv.app.ui
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -63,6 +65,11 @@ class PlaylistEditActivity : AppCompatActivity() {
 
         val id = intent.getLongExtra(EXTRA_ID, 0L)
         editing = if (id != 0L) app.repo.playlist(id) else null
+        if (id != 0L && editing == null) {
+            Dialogs.toast(this, "This playlist no longer exists.")
+            finish()
+            return
+        }
         editing?.let { p ->
             findViewById<TextView>(R.id.edit_title).text = "Edit playlist"
             name.setText(p.name); url.setText(p.url); user.setText(p.username); pass.setText(p.password)
@@ -121,6 +128,8 @@ class PlaylistEditActivity : AppCompatActivity() {
         val previousActive = app.settings.activePlaylistId
         val id = app.repo.savePlaylist(p)
         if (id <= 0) { status.text = "Could not save the playlist."; return }
+        val saved = app.repo.playlist(id)
+        if (saved == null) { status.text = "Playlist no longer exists. Return to Playlists and try again."; return }
         if (!sourceChanged && base?.epgUrl == p.epgUrl) { app.settings.activePlaylistId = id; finish(); return }
         // Keep the current working playlist active until the saved one actually loads.
         val keepPrevious = previousActive != id && app.repo.playlist(previousActive) != null
@@ -129,7 +138,6 @@ class PlaylistEditActivity : AppCompatActivity() {
         busy = true
         btnSave.isEnabled = false
         status.text = "Connecting to provider…"
-        val saved = app.repo.playlist(id) ?: return
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching { Refresher.refreshAll(saved) { msg -> runOnUiThread { status.text = msg } } }
@@ -151,5 +159,8 @@ class PlaylistEditActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ID = "playlist_id"
+
+        fun editIntent(context: Context, id: Long): Intent =
+            Intent(context, PlaylistEditActivity::class.java).putExtra(EXTRA_ID, id)
     }
 }

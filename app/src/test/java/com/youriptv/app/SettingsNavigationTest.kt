@@ -30,6 +30,7 @@ class SettingsNavigationTest {
             "Prefer software video decoding", "Invert channel up/down", "Start with last channel",
             "Default user agent", "Keep past programmes", "Download future programmes",
             "Guide time shift", "24-hour clock", "Auto-update playlist and guide every",
+            "Edit current playlist",
             "Update guide now", "Show channel numbers", "Clear viewing history",
             "Parental PIN", "Block adult categories", "Locked groups", "Hide locked groups",
             "Lock playlists", "Lock Settings", "About \${Branding.displayName(this)}",

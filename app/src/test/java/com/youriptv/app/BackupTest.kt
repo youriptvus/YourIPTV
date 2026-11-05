@@ -131,7 +131,8 @@ class BackupTest {
     fun restoreRequiresParentalPinWhenPlaylistsAreLockedAndKeepsLockedVisitOpenOnlyForPicker() {
         val ui = listOf(File("src/main/java/com/youriptv/app/ui/SettingsActivity.kt"), File("app/src/main/java/com/youriptv/app/ui/SettingsActivity.kt"))
             .first { it.exists() }.readText()
-        assertTrue(ui.contains("if (s.isPlaylistsLocked()) Dialogs.requirePin(this, \"restore playlists\")"))
+        assertTrue(ui.contains("withPlaylistPermission(reason: String = \"restore playlists\", then: () -> Unit)"))
+        assertTrue(ui.contains("if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason)"))
         assertTrue(ui.contains("withPlaylistPermission { loadAndConfirm"))
         assertTrue(ui.contains("withPlaylistPermission { pickingFile = true; importDoc.launch"))
         assertTrue(ui.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))

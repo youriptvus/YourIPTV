@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.4.3 (version code 23)
+
+- Add direct **Edit current** shortcuts in Playlists and Settings for the active provider's M3U or
+  Xtream URL and credentials, plus playlist name, EPG URL, and user agent.
+- Respect the playlist parental lock in Settings, and report when a playlist disappears or cannot
+  be saved instead of silently turning an edit into an add.
+- Keep playlist and editor action buttons reachable on narrow screens with horizontal scrolling.
+
 ## 0.4.2 (version code 22)
 
 - Version-only release for testing automatic updates from 0.4.1 through the existing GitHub updater.

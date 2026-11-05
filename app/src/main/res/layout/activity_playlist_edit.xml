@@ -14,14 +14,18 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textSize="13sp" android:textColor="@color/text_dim" android:paddingTop="4dp" android:paddingBottom="12dp" />
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-            <Button
-                android:id="@+id/type_xtream" style="@style/Button.Tv" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="Xtream Codes login" android:layout_marginEnd="12dp" />
-            <Button
-                android:id="@+id/type_m3u" style="@style/Button.Tv" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="M3U playlist URL" />
-        </LinearLayout>
+        <HorizontalScrollView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:fillViewport="true" android:scrollbars="horizontal" android:focusable="false">
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+                <Button
+                    android:id="@+id/type_xtream" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Xtream Codes login" android:layout_marginEnd="12dp" />
+                <Button
+                    android:id="@+id/type_m3u" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="M3U playlist URL" />
+            </LinearLayout>
+        </HorizontalScrollView>
 
         <TextView style="@style/FieldLabel" android:text="Playlist name" />
         <EditText android:id="@+id/f_name" style="@style/Field" android:inputType="text" android:hint="My provider" />
@@ -48,14 +52,18 @@
             android:id="@+id/edit_status" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textSize="14sp" android:textColor="@color/accent" android:paddingTop="12dp" />
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
-            android:paddingTop="12dp">
-            <Button
-                android:id="@+id/btn_save" style="@style/Button.Tv" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="Save and load" android:layout_marginEnd="12dp" />
-            <Button
-                android:id="@+id/btn_cancel" style="@style/Button.Tv" android:layout_width="wrap_content"
-                android:layout_height="wrap_content" android:text="Cancel" />
-        </LinearLayout>
+        <HorizontalScrollView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:fillViewport="true" android:scrollbars="horizontal" android:focusable="false">
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal"
+                android:paddingTop="12dp">
+                <Button
+                    android:id="@+id/btn_save" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Save and load" android:layout_marginEnd="12dp" />
+                <Button
+                    android:id="@+id/btn_cancel" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="Cancel" />
+            </LinearLayout>
+        </HorizontalScrollView>
     </LinearLayout>
 </ScrollView>

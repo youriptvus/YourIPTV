@@ -15,7 +15,7 @@ Website: [youriptv.us](https://youriptv.us)
 
 | | |
 |---|---|
-| Current version | **0.4.2** (`versionCode` 22), application ID `com.youriptv.app` |
+| Current version | **0.4.3** (`versionCode` 23), application ID `com.youriptv.app` |
 | Stage | Under active development and testing |
 | Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
@@ -74,7 +74,7 @@ rejected, so a permission change always needs a technician install.
 
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts` and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 0.4.2, use `--previous 21`: 0.4.1 devices may Install or Ignore. Devices below that code are
+   For 0.4.3, use `--previous 22`: 0.4.2 devices may Install or Ignore. Devices below that code are
    two or more releases behind and must update.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
@@ -261,6 +261,17 @@ the device in the app's private database. Do not commit them to this repository.
 
 Open **Playlists** in the main menu and add a playlist. The EPG URL and a custom User-Agent are
 optional fields on the same screen.
+
+To change the active playlist, choose **Playlists → Edit current** or
+**Settings → Playlists → Edit current playlist**. Edit its URL, Xtream username and password,
+name, guide URL, or user agent, then choose **Save and load**. If playlist locking is enabled,
+the parental PIN is required. Editing another playlist remains available through its MENU or
+long-press options.
+
+Changes to the playlist source, login, or guide URL start a reload. If loading fails, the new
+settings remain saved; correct them and choose **Save** again, or refresh later from Playlists.
+Changing providers or credentials can change stream URLs, so favorites or history tied to the old
+URLs may not match the refreshed list.
 
 ### Xtream Codes
 

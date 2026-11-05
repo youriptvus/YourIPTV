@@ -26,7 +26,7 @@ import java.util.Locale
 
 internal enum class SettingsCategory(val title: String, val description: String) {
     GENERAL("General", "Startup and viewing history"),
-    PLAYLISTS("Playlists", "Automatic playlist and guide updates"),
+    PLAYLISTS("Playlists", "Edit the current playlist and automatic updates"),
     EPG("TV Guide / EPG", "Programme storage, time shift, and guide updates"),
     PLAYBACK("Playback", "Buffer, video, audio, stream format, and user agent"),
     APPEARANCE("Appearance", "Channel numbers and clock format"),
@@ -164,9 +164,21 @@ class SettingsActivity : ListActivity() {
         }
     }
 
-    /** Restoring can add or switch playlists, so it needs the parental PIN while "Lock playlists" is on. */
-    private fun withPlaylistPermission(then: () -> Unit) {
-        if (s.isPlaylistsLocked()) Dialogs.requirePin(this, "restore playlists") { then() } else then()
+    /** Editing or restoring playlists needs the parental PIN while "Lock playlists" is on. */
+    private fun withPlaylistPermission(reason: String = "restore playlists", then: () -> Unit) {
+        if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason) { then() } else then()
+    }
+
+    private fun editCurrentPlaylist() {
+        if (app.repo.playlist(s.activePlaylistId) == null) {
+            Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
+            return
+        }
+        withPlaylistPermission("edit playlists") {
+            val current = app.repo.playlist(s.activePlaylistId)
+            if (current == null) Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
+            else startActivity(PlaylistEditActivity.editIntent(this, current.id))
+        }
     }
 
     private fun restoreFromFolder() {
@@ -265,6 +277,7 @@ class SettingsActivity : ListActivity() {
             }),
         )
         SettingsCategory.PLAYLISTS -> listOf(
+            Entry("Edit current playlist", { app.repo.playlist(s.activePlaylistId)?.name ?: "No active playlist" }, { editCurrentPlaylist() }),
             number("Auto-update playlist and guide every", "hours (0 = off)", { s.autoRefreshHours }, 0, 168) { s.autoRefreshHours = it },
         )
         SettingsCategory.PLAYBACK -> listOf(

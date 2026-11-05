@@ -2,6 +2,7 @@ package com.youriptv.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Button
 import androidx.lifecycle.lifecycleScope
 import com.youriptv.app.data.Playlist
 import com.youriptv.app.data.SourceType
@@ -13,12 +14,14 @@ import kotlinx.coroutines.withContext
 class PlaylistsActivity : ListActivity() {
 
     private lateinit var adapter: TextAdapter<Playlist>
+    private lateinit var editCurrent: Button
     private var busy = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         listTitle.text = "Playlists"
         addAction("Add playlist") { startActivity(Intent(this, PlaylistEditActivity::class.java)) }
+        editCurrent = addAction("Edit current") { editCurrentPlaylist() }
         adapter = TextAdapter(
             bind = { p -> describe(p) },
             onClick = { p, _ -> activate(p) },
@@ -36,9 +39,15 @@ class PlaylistsActivity : ListActivity() {
     private fun reload() {
         val all = app.repo.playlists()
         adapter.submit(all)
-        if (!busy) listSubtitle.text = "OK selects the active playlist. MENU or long-press OK for edit, refresh, guide update, and delete."
+        setEditCurrentEnabled(!busy && all.any { it.id == app.settings.activePlaylistId })
+        if (!busy) listSubtitle.text = "Edit current opens the active playlist settings. OK selects a playlist; MENU or long-press OK shows more options."
         setEmpty(if (all.isEmpty()) "No playlists yet. Choose \"Add playlist\" to enter an M3U URL or Xtream Codes login." else null)
         if (all.isEmpty()) actions.getChildAt(0)?.requestFocus() else list.post { list.getChildAt(0)?.requestFocus() }
+    }
+
+    private fun setEditCurrentEnabled(enabled: Boolean) {
+        editCurrent.isEnabled = enabled
+        editCurrent.alpha = if (enabled) 1f else 0.5f
     }
 
     private fun describe(p: Playlist): Pair<String, String> {
@@ -64,12 +73,22 @@ class PlaylistsActivity : ListActivity() {
         if (p.lastUpdated == 0L) refresh(p, full = true) else finish()
     }
 
+    private fun editCurrentPlaylist() {
+        val p = app.repo.playlist(app.settings.activePlaylistId)
+        if (p == null) {
+            Dialogs.toast(this, "No active playlist. Select one first.")
+            reload()
+        } else edit(p)
+    }
+
+    private fun edit(p: Playlist) = startActivity(PlaylistEditActivity.editIntent(this, p.id))
+
     private fun options(p: Playlist) {
         val opts = listOf("Make active", "Edit", "Refresh playlist and guide", "Update guide (EPG) only", "Delete")
         Dialogs.choose(this, p.name, opts) { i ->
             when (i) {
                 0 -> activate(p)
-                1 -> startActivity(Intent(this, PlaylistEditActivity::class.java).putExtra(PlaylistEditActivity.EXTRA_ID, p.id))
+                1 -> edit(p)
                 2 -> refresh(p, full = true)
                 3 -> refresh(p, full = false)
                 4 -> Dialogs.confirm(this, "Delete playlist", "Delete \"${p.name}\" with its favorites, history, and guide data from this device?") {
@@ -86,6 +105,7 @@ class PlaylistsActivity : ListActivity() {
     private fun refresh(p: Playlist, full: Boolean) {
         if (busy) return
         busy = true
+        setEditCurrentEnabled(false)
         setBusy(true, "Updating \"${p.name}\"…")
         val onProgress: (String) -> Unit = { msg -> runOnUiThread { listSubtitle.text = msg } }
         lifecycleScope.launch {

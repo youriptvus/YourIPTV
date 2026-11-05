@@ -1,5 +1,19 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.4.3 playlist editing (version code 23)
+
+- [x] Full offline unit suite passes: 170 tests, no failures or skips.
+- [x] Signed release build verified as `com.youriptv.app`, version 0.4.3 / code 23; official
+      signing certificate and requested permissions match 0.4.2.
+- [x] Generated `update.json` for code 23 with `previousVersionCode` 22; APK size and SHA-256 match.
+- [ ] On an authorized phone and TV, edit M3U and Xtream settings, save/reload, and verify values
+      persist after reopening the editor.
+- [ ] With playlist locking enabled, confirm Settings → Playlists → Edit current playlist requires
+      the parental PIN; check narrow-screen phone layout and TV D-pad navigation.
+- [ ] User reviews, commits and pushes the repository changes, then publishes `v0.4.3` manually.
+- [ ] Test the in-app 0.4.2-to-0.4.3 update flow on an authorized device; no feature build was
+      installed during release preparation.
+
 ## 0.4.2 version-only automatic-update test
 
 - [x] Archive the complete 0.4.1 repository, changelog and signed release files locally before editing.
