@@ -4,6 +4,15 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 0.5.1 (version code 25)
+
+- **Automatic updates are On by default** and no longer depend on any other setting: no Settings PIN
+  or technician permission is needed to turn them on or for updates to install.
+- Boxes upgrading from 0.5.0 or older have Automatic updates switched On once, even if they were Off.
+- Without the technician's "Install unknown apps" permission, Android shows its own prompt during an
+  update instead of the update failing. With the permission, Android 12+ still installs silently.
+- Package ID, official signing key, requested permissions and production update URL are unchanged.
+  Devices on 0.5.0 can Install or Ignore; devices on version code 23 or below must update.
 ## 0.5.0 (version code 24)
 
 - Version-only maintenance release; no new player or playlist features since 0.4.3.

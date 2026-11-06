@@ -355,17 +355,14 @@ class SettingsActivity : ListActivity() {
                     s.automaticAppUpdates = false
                     s.lastUpdateInfo = null
                     refresh()
-                } else if (!s.isSettingsLocked()) {
-                    Dialogs.message(this, "Technician setup", "Set a Settings PIN under Settings Lock first, so customers cannot change the automatic-update setting.")
-                } else if (!AppUpdates.installationAuthorized(this)) {
-                    Dialogs.message(this, "Technician setup", "Choose “Allow update installs (technician)” first and allow this app to install unknown apps.")
                 } else {
                     s.automaticAppUpdates = true
                     refresh()
                     Dialogs.message(this, "Automatic updates enabled",
                         "Every time the app opens it checks the latest ${Branding.displayName(this)} release on GitHub. Customers choose Install or Ignore; " +
                             "once the box is two releases behind, the update is required. " +
-                            (if (!AppUpdates.silentInstallSupported) "This Android version shows one Install confirmation for each update."
+                            (if (!AppUpdates.installationAuthorized(this)) "Android asks once to allow installs from this app unless “Allow update installs” is set here first."
+                            else if (!AppUpdates.silentInstallSupported) "This Android version shows one Install confirmation for each update."
                             else if (AppUpdates.restartsAutomatically(this)) "Updates install without permission prompts and the app restarts afterwards."
                             else "Updates install without permission prompts; the app then closes and the customer opens it again."))
                 }

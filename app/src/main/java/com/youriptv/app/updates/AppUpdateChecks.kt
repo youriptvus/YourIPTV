@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 
 /**
- * Checks update.json each time the app is opened while a technician has enabled automatic updates.
+ * Checks update.json each time the app is opened while automatic updates are on (the default).
  * Optional updates offer Install/Ignore; Ignore lasts only until the next opening. Updates two or more
  * releases ahead are required and block the player until installed.
  */

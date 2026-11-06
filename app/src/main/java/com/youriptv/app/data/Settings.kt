@@ -6,6 +6,13 @@ import android.content.Context
 class Settings(context: Context) {
     private val sp = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
+    init {
+        // 0.5.1: automatic updates became default-on; switch them on once for boxes that had them off.
+        if (!sp.contains("auto_updates_forced_on")) {
+            sp.edit().putBoolean("automatic_app_updates", true).putBoolean("auto_updates_forced_on", true).apply()
+        }
+    }
+
     var activePlaylistId: Long
         get() = sp.getLong("active_playlist", 0)
         set(v) = sp.edit().putLong("active_playlist", v).apply()
@@ -84,9 +91,9 @@ class Settings(context: Context) {
         get() = sp.getInt("auto_refresh_h", 24)
         set(v) = sp.edit().putInt("auto_refresh_h", v).apply()
 
-    /** Technician-controlled; deliberately excluded from portable backup/restore settings. */
+    /** On by default and independent of every other setting; excluded from portable backup/restore settings. */
     var automaticAppUpdates: Boolean
-        get() = sp.getBoolean("automatic_app_updates", false)
+        get() = sp.getBoolean("automatic_app_updates", true)
         set(v) = sp.edit().putBoolean("automatic_app_updates", v).apply()
 
     /** Last update.json seen, so a required update is still enforced when the update server is unreachable. */

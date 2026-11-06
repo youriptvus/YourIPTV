@@ -50,9 +50,10 @@ Live progress is tracked in a local task-progress file (not in the repository).
 
 ## 0c. Customer-box automatic updates (0.4.0 / version code 20)
 
-- [x] Technician-only setup inside the Settings-PIN-protected Settings → App Updates: allow update
-      installs (Install unknown apps), allow automatic restart (Display over other apps), then turn
-      Automatic updates On (requires a Settings PIN and install permission; Off by default).
+- [x] Technician setup in Settings → App Updates: allow update installs (Install unknown apps) and
+      automatic restart (Display over other apps). Since 0.5.1 Automatic updates are On by default,
+      independent of any other setting (no Settings PIN or permission required), and forced On once
+      for upgraded boxes.
 - [x] Every app opening reads `update.json` from the latest GitHub release; a newer version offers
       Install or Ignore. Ignore is not remembered, so the offer repeats every opening until current.
 - [x] 2+ releases behind (`versionCode` < `previousVersionCode`): required update, Install only, Back

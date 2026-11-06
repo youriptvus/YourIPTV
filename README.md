@@ -34,13 +34,15 @@ which is the distribution address for the in-app updater. See the technician set
    Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of 0.4.1 because
    the update source moved to `youriptvus/YourIPTV`; older versions also need a technician install
    because 0.4.0 added updater permissions.
-2. Set a **Settings PIN** (Settings → Settings Lock), then open **Settings → App Updates**:
+2. **Automatic updates** are **On by default** and do not depend on any other setting (no Settings
+   PIN or permission is required to turn them on or keep them working). For the smoothest updates,
+   open **Settings → App Updates** once:
    - **Allow update installs (technician)** opens Android's *Install unknown apps* page; allow YourIPTV.
-     (Google TV shows the full app list; scroll to YourIPTV.)
+     (Google TV shows the full app list; scroll to YourIPTV.) Without it, Android asks once during
+     the first update to allow installs from YourIPTV.
    - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
      YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
-   - Turn **Automatic updates** On. It needs the Settings PIN and the install permission, and is Off by
-     default.
+   - Optionally set a **Settings PIN** so customers cannot turn **Automatic updates** Off.
 
 **Customer experience:**
 
@@ -54,16 +56,16 @@ which is the distribution address for the in-app updater. See the technician set
   is silent (no Android prompt). The app then closes briefly and restarts by itself. Failures show
   **Update failed** plus the reason, with Retry (and Close when not required). After a restart a
   one-time "updated to version X" message is shown.
-- Customers never see permission prompts or Android settings. Playlists, credentials, PINs, settings
-  and permission grants are kept (in-place update).
+- When the technician allowed update installs, customers never see permission prompts. Playlists,
+  credentials, PINs, settings and permission grants are kept (in-place update).
 
 **Limits:**
 
 - Android 11 and older show one Android *Install* confirmation per update.
 - Android 15+ does not let a closed app reopen itself; the customer opens the app again from the home
   screen (the app tells them so before installing).
-- Revoking either technician permission stops silent install or auto-restart; the app does not ask the
-  customer to fix it.
+- Without the install permission, Android shows its own prompt to allow installs from YourIPTV during
+  an update; without the restart permission, the customer reopens the app after an update.
 
 **Download checks:** HTTPS only, from `github.com` or its release download hosts. Checks include
 size, SHA-256 from `update.json`, package name, version code, signing certificate, app label, minSdk,

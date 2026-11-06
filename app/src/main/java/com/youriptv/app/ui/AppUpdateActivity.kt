@@ -75,11 +75,7 @@ class AppUpdateActivity : ListActivity() {
             setBusy(false, "Update failed. Close and reopen the app to check again.")
             return
         }
-        if (!AppUpdates.installationAuthorized(this)) {
-            setBusy(false, "Update failed: installing updates has not been authorized on this device. Contact your technician.")
-            showRetry()
-            return
-        }
+        // Without the technician's "Install unknown apps" grant, Android itself asks once during installation.
         hideButtons()
         setBusy(true, "Downloading update… 0%")
         job = lifecycleScope.launch {
@@ -146,7 +142,7 @@ class AppUpdateActivity : ListActivity() {
                 if (confirm == null) { fail("Android did not provide the installation step."); return }
                 try {
                     waitingForAndroid = true
-                    setBusy(true, "Installing update… Confirm Install to continue.")
+                    setBusy(true, "Installing update… Follow Android's prompt to continue.")
                     startActivity(confirm)
                 } catch (e: ActivityNotFoundException) {
                     fail("This device has no package installer. Contact your technician.")

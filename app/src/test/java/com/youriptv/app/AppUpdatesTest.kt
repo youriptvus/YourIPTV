@@ -138,4 +138,20 @@ class AppUpdatesTest {
         }
         assertTrue(files.any { it.readText().contains("USER_ACTION_NOT_REQUIRED") })
     }
+
+    @Test
+    fun automaticUpdatesAreOnByDefaultAndIndependentOfOtherSettings() {
+        val main = listOf(File("src/main"), File("app/src/main")).first { it.exists() }
+        val settings = File(main, "java/com/youriptv/app/data/Settings.kt").readText()
+        assertTrue(settings.contains("getBoolean(\"automatic_app_updates\", true)"))
+        assertTrue("Existing boxes are switched on once", settings.contains("putBoolean(\"automatic_app_updates\", true).putBoolean(\"auto_updates_forced_on\", true)"))
+        val screen = File(main, "java/com/youriptv/app/ui/SettingsActivity.kt").readText()
+        val toggle = screen.substringAfter("Entry(\"Automatic updates\"").substringBefore("private fun openRestartAuthorization")
+        assertFalse("Turning updates on must not need a Settings PIN", toggle.contains("isSettingsLocked"))
+        assertFalse("Turning updates on must not need a prior install grant", toggle.contains("} else if (!AppUpdates.installationAuthorized"))
+        val checks = File(main, "java/com/youriptv/app/updates/AppUpdateChecks.kt").readText()
+        assertFalse(checks.contains("isSettingsLocked") || checks.contains("hasPin"))
+        val installer = File(main, "java/com/youriptv/app/ui/AppUpdateActivity.kt").readText()
+        assertFalse("Android asks for the install grant itself", installer.contains("installationAuthorized"))
+    }
 }
