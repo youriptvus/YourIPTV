@@ -10,7 +10,7 @@ import com.youriptv.app.BuildConfig
 import com.youriptv.app.YourIptvApp
 import com.youriptv.app.ui.AppUpdateActivity
 import com.youriptv.app.ui.Branding
-import com.youriptv.app.ui.Dialogs
+import com.youriptv.app.ui.RemoteBack
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,19 +33,23 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
     private var offer: UpdateRelease? = null
     private var required: UpdateRelease? = null
     private var dialog: AlertDialog? = null
+    private val receipt = UpdateReceipt(AppUpdates.installedCode, BuildConfig.VERSION_NAME, object : UpdateReceipt.Store {
+        override var pendingCode: Long
+            get() = app.settings.pendingUpdateCode
+            set(value) { app.settings.pendingUpdateCode = value }
+    })
 
     override fun onActivityStarted(activity: Activity) { gate.started() }
 
     override fun onActivityResumed(activity: Activity) {
         resumed = WeakReference(activity)
         if (activity is AppUpdateActivity) return
-        val pending = app.settings.pendingUpdateCode
-        if (pending != 0L && AppUpdates.installedCode >= pending) {
-            app.settings.pendingUpdateCode = 0L
-            Dialogs.toast(activity, "${Branding.displayName(activity)} updated to version ${BuildConfig.VERSION_NAME}.")
+        if (!app.settings.automaticAppUpdates) {
+            offer = null
+            required = null
+        } else if (gate.takeCheck()) {
+            beginCheck()
         }
-        if (!app.settings.automaticAppUpdates) { offer = null; required = null; return }
-        if (gate.takeCheck()) beginCheck()
         present(activity)
     }
 
@@ -90,8 +94,12 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
             activity.startActivity(updateIntent(activity, it, required = true))
             return
         }
-        val release = offer ?: return
         if (dialog?.isShowing == true) return
+        receipt.current()?.let {
+            showReceipt(activity, it)
+            return
+        }
+        val release = offer ?: return
         val name = Branding.displayName(activity)
         dialog = AlertDialog.Builder(activity)
             .setTitle("$name update available")
@@ -104,7 +112,35 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
             }
             .setNegativeButton("Ignore") { _, _ -> offer = null }
             .setOnCancelListener { offer = null }
-            .show().also { it.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus() }
+            .show().also {
+                RemoteBack.bind(it, activity)
+                it.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus()
+            }
+    }
+
+    private fun showReceipt(activity: Activity, confirmation: UpdateReceipt.Confirmation) {
+        var acknowledged = false
+        val changes = confirmation.changes.takeIf { it.isNotEmpty() }
+            ?.joinToString("\n\n") { "\u2022 $it" }
+            ?: "Release notes are unavailable for this version."
+        val shown = AlertDialog.Builder(activity)
+            .setTitle("${Branding.displayName(activity)} updated to ${confirmation.installedName}")
+            .setMessage("Update installed successfully.\n\nWhat's new in ${confirmation.installedName}:\n\n$changes")
+            .setCancelable(false)
+            .setPositiveButton("Got it") { _, _ ->
+                receipt.acknowledge(confirmation)
+                acknowledged = true
+            }
+            .create()
+        shown.setOnDismissListener {
+            if (dialog === shown) dialog = null
+            // Pausing keeps the receipt pending; only acknowledgement lets an optional offer follow.
+            if (acknowledged) resumed.get()?.let { present(it) }
+        }
+        dialog = shown
+        shown.show()
+        RemoteBack.bind(shown, activity)
+        shown.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus()
     }
 
     private fun updateIntent(activity: Activity, release: UpdateRelease, required: Boolean) =

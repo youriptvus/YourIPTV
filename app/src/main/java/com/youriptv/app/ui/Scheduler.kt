@@ -119,6 +119,7 @@ object Scheduler : Application.ActivityLifecycleCallbacks {
             .setNegativeButton("Dismiss", null)
             .show()
         reminderOwner = WeakReference(a)
+        reminderDialog?.let { RemoteBack.bind(it, a) }
         reminderDialog?.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
     }
 

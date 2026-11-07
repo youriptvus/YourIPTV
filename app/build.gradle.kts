@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 0.5.2: Settings lock also prevents editing existing playlists.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 26
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.2"
+        // 0.5.3: hold Back to return to playback; show installed-version changelog after updates.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 27
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.3"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
             "https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"

@@ -4,6 +4,15 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 0.5.3 (version code 27)
+
+- Hold Back in the app or TV guide to return to the current stream in full screen. Short Back presses
+  keep their usual action. Existing playback is reused; a released live stream is reopened only after
+  validating the channel and current parental restrictions.
+- After an in-app update, show the installed version and its bundled changelog. The confirmation stays
+  pending until acknowledged with Got it, including after the app is closed or restarted.
+- Devices on 0.5.2 can Install or Ignore; devices on version code 25 or below must update.
+
 ## 0.5.2 (version code 26)
 
 - Disable editing existing playlists while Settings lock is on, including during a temporary Settings

@@ -5,10 +5,9 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import com.youriptv.app.R
 
-class AboutActivity : AppCompatActivity() {
+class AboutActivity : RemoteActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_about)

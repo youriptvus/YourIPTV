@@ -18,7 +18,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -53,7 +52,7 @@ import kotlin.math.abs
 import java.util.Locale
 
 @OptIn(UnstableApi::class)
-class PlayerActivity : AppCompatActivity() {
+class PlayerActivity : RemoteActivity() {
 
     private val app get() = YourIptvApp.instance
     private var player: ExoPlayer? = null
@@ -158,6 +157,12 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_RETURN_TO_STREAM, false)) {
+            // Returning to an existing player must not reload the global queue or reopen its media source.
+            if (isLive && sharedPlayer) adoptLiveSession()
+            showCurrentStreamFullscreen()
+            return
+        }
         setIntent(intent)
         savePosition()
         loadIntent(intent)
@@ -752,6 +757,31 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun hideOverlay() { overlay.visibility = View.GONE }
 
+    private fun refreshCurrentMetadataForReturn() {
+        val item = current ?: return
+        if (item.isLocal || item.isCatchup || item.kind == ItemKind.LIVE) return
+        val fresh = app.repo.itemByUrl(item.playlistId, item.url) ?: return
+        if (fresh.kind != item.kind || fresh.group == item.group) return
+        // A provider refresh can move a movie/episode into a locked category without changing the settings stamp.
+        unlockedGroups.clear()
+        queue = queue.toMutableList().apply { this[index] = item.copy(group = fresh.group) }
+    }
+
+    private fun showCurrentStreamFullscreen() {
+        refreshCurrentMetadataForReturn()
+        handler.removeCallbacks(hideBanner)
+        handler.removeCallbacks(commitNumber)
+        digits.clear()
+        numberEntry.visibility = View.GONE
+        banner.visibility = View.GONE
+        hideOverlay()
+        playerView.hideController()
+        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            refreshAuthorization()
+            current?.let { allowedOrPrompt(it) }
+        }
+    }
+
     // ---------------- Options ----------------
 
     private fun showOptions() {
@@ -872,6 +902,7 @@ class PlayerActivity : AppCompatActivity() {
             true
         }
         d.show()
+        RemoteBack.bind(d, this)
     }
 
     private fun chooseAspect() {
@@ -961,7 +992,7 @@ class PlayerActivity : AppCompatActivity() {
 
     // ---------------- Keys ----------------
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    protected override fun dispatchAppKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val down = event.action == KeyEvent.ACTION_DOWN
         val up = event.action == KeyEvent.ACTION_UP
@@ -971,7 +1002,7 @@ class PlayerActivity : AppCompatActivity() {
                 if (up) hideOverlay()
                 return true
             }
-            return super.dispatchKeyEvent(event)
+            return super.dispatchAppKeyEvent(event)
         }
 
         digitOf(code)?.let { d ->
@@ -984,7 +1015,7 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-            if (!isLive && !errorShown && playerView.isControllerFullyVisible) return super.dispatchKeyEvent(event)
+            if (!isLive && !errorShown && playerView.isControllerFullyVisible) return super.dispatchAppKeyEvent(event)
             if (down) {
                 if (event.repeatCount == 0) { okDownAt = event.eventTime; longPressFired = false }
                 else if (!longPressFired && (event.isLongPress || event.eventTime - okDownAt >= 600)) { longPressFired = true; showOptions() }
@@ -1015,8 +1046,8 @@ class PlayerActivity : AppCompatActivity() {
             return true
         }
 
-        return if (isLive) liveKey(event, code, down, up) || super.dispatchKeyEvent(event)
-        else vodKey(event, code, down) || super.dispatchKeyEvent(event)
+        return if (isLive) liveKey(event, code, down, up) || super.dispatchAppKeyEvent(event)
+        else vodKey(event, code, down) || super.dispatchAppKeyEvent(event)
     }
 
     /** The guide lives in Live TV: return there with this channel's category and row, as BACK from a preview would. */
@@ -1118,9 +1149,43 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_UNLOCKED_GROUP = "unlocked_group"
         const val EXTRA_AUTHORIZATION_STAMP = "authorization_stamp"
         const val EXTRA_FROM_PREVIEW = "from_preview"
+        const val EXTRA_RETURN_TO_STREAM = "return_to_stream"
         private val ASPECTS = listOf("Fit", "Zoom (crop)", "Stretch")
         private var active: java.lang.ref.WeakReference<PlayerActivity>? = null
         private const val KEY_LEFT_LIVE = "left_while_watching_live"
+
+        private fun returnTarget(): PlayerActivity? = active?.get()?.takeIf { target ->
+            if (target.isFinishing || target.isDestroyed) return@takeIf false
+            val item = target.current ?: return@takeIf false
+            val p = target.player ?: return@takeIf false
+            val mediaId = p.currentMediaItem?.mediaId ?: return@takeIf false
+            if (item.kind != ItemKind.LIVE || item.isCatchup) {
+                return@takeIf CurrentStreamReturn.canReusePlayer(item, mediaId, false, null, null)
+            }
+            val session = target.app.livePlayback
+            val fresh = session.rememberedStream() ?: return@takeIf false
+            // Metadata changed by a refresh needs the normal launch/PIN path, not an old activity's grant.
+            CurrentStreamReturn.canReusePlayer(item, mediaId, target.sharedPlayer && session.owns(p), session.current, fresh)
+        }
+
+        fun hasCurrentStream(): Boolean = returnTarget() != null
+
+        fun returnToCurrentStream(a: android.app.Activity): Boolean {
+            val target = returnTarget() ?: return false
+            if (target.isLive && target.sharedPlayer) target.adoptLiveSession()
+            target.refreshCurrentMetadataForReturn()
+            if (target === a) {
+                target.showCurrentStreamFullscreen()
+            } else {
+                // Extras also make an unexpected new instance safe if Android has removed the old activity.
+                YourIptvApp.playQueue = target.queue
+                a.startActivity(Intent(a, PlayerActivity::class.java)
+                    .putExtra(EXTRA_INDEX, target.index)
+                    .putExtra(EXTRA_RETURN_TO_STREAM, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            }
+            return true
+        }
 
         // Kept in preferences so it survives the process being killed in the background.
         private fun session(c: android.content.Context) =

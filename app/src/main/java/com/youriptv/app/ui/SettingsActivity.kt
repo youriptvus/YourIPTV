@@ -479,13 +479,14 @@ class SettingsActivity : ListActivity() {
                 }
                 if (groups.isEmpty()) { Dialogs.toast(this@SettingsActivity, "The active playlist has no groups yet"); return@launch }
                 val checked = BooleanArray(groups.size) { groups[it] in s.lockedGroups }
-                androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity).setTitle("Locked groups")
+                val dialog = androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity).setTitle("Locked groups")
                     .setMultiChoiceItems(groups.toTypedArray(), checked) { _, i, v -> checked[i] = v }
                     .setPositiveButton("Save") { _, _ ->
                         val other = s.lockedGroups - groups.toSet()
                         s.lockedGroups = other + groups.filterIndexed { i, _ -> checked[i] }
                         refresh()
                     }.setNegativeButton("Cancel", null).show()
+                RemoteBack.bind(dialog, this@SettingsActivity)
             }
         }
     }

@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.youriptv.app.R
 import com.youriptv.app.YourIptvApp
@@ -19,7 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Adds or edits an M3U / Xtream Codes playlist. Credentials stay on this device only. */
-class PlaylistEditActivity : AppCompatActivity() {
+class PlaylistEditActivity : RemoteActivity() {
 
     private val app get() = YourIptvApp.instance
     private var editing: Playlist? = null

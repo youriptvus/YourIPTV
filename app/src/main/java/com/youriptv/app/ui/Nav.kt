@@ -18,8 +18,44 @@ import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
 object Nav {
+    /** The shortcut follows playback state; the currently highlighted guide row is never consulted. */
+    fun hasCurrentStream(a: Activity): Boolean {
+        val app = YourIptvApp.instance
+        if (!app.isTrustedBuild || a.isFinishing || a.isDestroyed) return false
+        if (PlayerActivity.hasCurrentStream()) return true
+        val item = app.livePlayback.rememberedStream() ?: return false
+        return !app.settings.isGroupHidden(item.group)
+    }
+
+    fun returnToCurrentStream(a: Activity): Boolean {
+        val app = YourIptvApp.instance
+        if (!app.isTrustedBuild || a.isFinishing || a.isDestroyed) return false
+        if (PlayerActivity.returnToCurrentStream(a)) {
+            markStreamReturn(a)
+            return true
+        }
+        val session = app.livePlayback
+        val item = session.rememberedStream() ?: return false
+        if (app.settings.isGroupHidden(item.group)) return false
+        if (Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
+            Dialogs.toast(a, "This provider's only connection is being used by a recording.")
+            return true
+        }
+        val playing = session.current
+        if (playing?.playlistId == item.playlistId && playing.url == item.url && session.isCurrentAuthorized(item)) {
+            return fullscreenPreview(a).also { if (it) markStreamReturn(a) }
+        }
+        // A released player needs a normal launch and a fresh parental check; remembered PIN grants are not kept.
+        open(a, item, session.rememberedQueue(item)) { markStreamReturn(a) }
+        return true
+    }
+
+    private fun markStreamReturn(a: Activity) {
+        if (a is MainActivity) a.markReturningFromCurrentStream()
+    }
+
     /** Opens an item: series go to the episode screen, everything else plays. Locked groups ask for the PIN. */
-    fun open(a: Activity, item: MediaItem, list: List<MediaItem>) {
+    fun open(a: Activity, item: MediaItem, list: List<MediaItem>, onOpened: (() -> Unit)? = null) {
         val s = YourIptvApp.instance.settings
         val locked = s.isGroupLocked(item.group)
         // Only a group whose PIN was just entered counts as unlocked in the player.
@@ -41,6 +77,7 @@ object Nav {
                 }
                 else -> play(a, listOf(item), 0, unlocked)
             }
+            onOpened?.invoke()
         }
         if (locked) Dialogs.requirePin(a, "\"${item.group}\" is locked") { go() } else go()
     }

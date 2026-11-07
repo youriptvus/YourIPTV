@@ -45,6 +45,7 @@ object Dialogs {
             b.setItems(options.toTypedArray()) { _, i -> onPick(i) }
         }
         val d = b.show()
+        RemoteBack.bind(d, a)
         if (checked in options.indices) d.listView?.let { lv ->
             lv.setSelection(checked)
             lv.post { lv.requestFocus(); lv.setSelection(checked) }
@@ -54,12 +55,14 @@ object Dialogs {
     /** Information dialog whose OK button has focus, so one remote OK press closes it. */
     fun message(a: Activity, title: String, message: String) {
         val d = AlertDialog.Builder(a).setTitle(title).setMessage(message).setPositiveButton("OK", null).show()
+        RemoteBack.bind(d, a)
         d.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
     }
 
     fun confirm(a: Activity, title: String, message: String, onYes: () -> Unit) {
         val d = AlertDialog.Builder(a).setTitle(title).setMessage(message)
             .setPositiveButton("OK") { _, _ -> onYes() }.setNegativeButton("Cancel", null).show()
+        RemoteBack.bind(d, a)
         // On TV nothing is focused by default, so OK on the remote would do nothing; default to the safe choice.
         d.getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
     }
@@ -78,11 +81,12 @@ object Dialogs {
             setSingleLine()
         }
         var done = false
-        AlertDialog.Builder(a).setTitle(title).setView(et)
+        val dialog = AlertDialog.Builder(a).setTitle(title).setView(et)
             .setPositiveButton("OK") { _, _ -> done = true; onDone(et.text.toString()) }
             .setNegativeButton("Cancel", null)
             .setOnDismissListener { if (!done) onCancel?.invoke() }
             .show()
+        RemoteBack.bind(dialog, a)
         et.requestFocus()
     }
 

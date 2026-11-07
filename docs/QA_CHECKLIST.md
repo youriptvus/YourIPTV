@@ -1,5 +1,30 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.5.3 return to playback and update changelog (version code 27)
+
+- [x] Full offline unit suite: 198 tests in 30 classes, no failures, errors or skips.
+- [x] Signed release assembly and release vital lint pass. APK is `com.youriptv.app`, YourIPTV,
+      0.5.3 / code 27, minSdk 23, targetSdk 36; official certificate and seven permissions match 0.5.2.
+- [x] Ten gesture tests cover short release, 600 ms holds without repeats, repeated long events,
+      canceled presses, delayed timers, lost focus and rapid separate presses.
+- [x] Eleven stream-memory/return tests cover actual tuned channel, stale/disposed players, catch-up,
+      fresh metadata, deleted channels, changed credentials and playlist identity.
+- [x] Five update-receipt tests cover fresh install, failed/canceled update, compatibility with the
+      0.5.2 installation marker, pause/process recreation, acknowledgement and installed-version notes.
+- [x] Source review covers Activity and dialog dispatch, suppression of the held key's leftover
+      release, normal short Back forwarding, parental checks, and required-update screen exclusion.
+- [x] Archived and independently verified the original 0.5.2 repository, ZIP and release assets.
+- [x] Generated `update.json`: code 27, previous code 26; size and SHA-256 match the signed APK.
+- [ ] Full debug lint is clean: it still reports the existing 19 errors and 202 warnings
+      (1 GestureBackNavigation, 1 NewApi, 17 UnsafeOptInUsageError); no new lint errors.
+- [ ] Physical remote: hold Back in guide, categories, Settings, playlist editor, About and dialogs;
+      verify current stream full screen, unchanged short Back, no extra Back on release and no retuning
+      an already active stream. Check focus loss, software keyboard, channel list and player controls.
+- [ ] On-device in-app update from 0.5.2: verify the 0.5.3 confirmation and readable changelog;
+      pause/restart before acknowledgement, then Got it and reopen. Verify fresh installs and failed
+      updates never claim success, and required updates cannot be skipped by holding Back.
+- [ ] User reviews, commits and pushes the Repository changes, then publishes `v0.5.3` manually.
+
 ## 0.5.2 Settings lock protects playlist editing (version code 26)
 
 - [x] Full offline unit suite passes: 172 tests, no failures or skips; signed release build passes.

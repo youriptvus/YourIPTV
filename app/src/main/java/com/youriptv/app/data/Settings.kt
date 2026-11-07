@@ -101,7 +101,7 @@ class Settings(context: Context) {
         get() = sp.getString("last_update_info", null)
         set(v) = sp.edit().putString("last_update_info", v).apply()
 
-    /** versionCode being installed; the next start after it is installed shows "Updated to …" once. */
+    /** Install target retained after success until the installed-version changelog is acknowledged. */
     var pendingUpdateCode: Long
         get() = sp.getLong("pending_update_code", 0L)
         set(v) { sp.edit().putLong("pending_update_code", v).commit() } // synchronous: the update kills the process

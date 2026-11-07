@@ -257,7 +257,9 @@ class LiveGuideGrid(
                 Scheduler.toggleReminder(activity, channel, program); refreshMarks()
             }
         }
-        builder.show().getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
+        val dialog = builder.show()
+        RemoteBack.bind(dialog, activity)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
     }
 
     /** MENU on a guide cell: programme actions first, then the channel's own options. */

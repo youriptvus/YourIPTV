@@ -7,14 +7,13 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.youriptv.app.R
 import com.youriptv.app.YourIptvApp
 
 /** Base for simple full-screen list screens (playlists, settings, episodes) sharing activity_list.xml. */
-abstract class ListActivity : AppCompatActivity() {
+abstract class ListActivity : RemoteActivity() {
     protected val app get() = YourIptvApp.instance
     protected lateinit var listTitle: TextView
     protected lateinit var listSubtitle: TextView

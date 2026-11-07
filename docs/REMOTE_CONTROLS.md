@@ -11,7 +11,14 @@ the onn. Streaming Device 4K Pro. A connected keyboard may send equivalent Andro
 | Left / Right | Move between navigation, groups, and content panes |
 | OK / Select | Open the focused item or activate the focused option |
 | Back | Return to the previous pane or screen; a second Back on the navigation rail exits |
+| Hold Back (about 0.6 seconds) | Return to the stream being watched in full screen, from app screens, the guide, or app dialogs; release does not also navigate Back |
 | Menu / long-press OK | Open item or playback options where supported |
+
+A short Back press keeps its usual action. Holding Back uses the channel actually watched, not the
+highlighted guide row. An active player is reused; if leaving TV already released it, the last tuned
+live channel is reopened after checking the current playlist and parental restrictions. With no stream
+to return to, Back keeps its normal behavior. Android's system screens and required update screen keep
+their own Back behavior.
 
 The TV guide is part of the TV section (there is no separate guide item in the main menu). On
 the tested Google TV device, the remote's dedicated GUIDE key is intercepted by the system; use
@@ -45,6 +52,7 @@ parental PIN. The two PINs must differ.
 | Guide | Hold Left | Browse earlier (past) programmes |
 | Guide | OK | Current programme: start the channel in the preview; select the same channel again to open full screen. Past programme with catch-up: play from the archive. Future programme: details |
 | Guide | Back | If browsing other times, jump back to "now"; otherwise return to the categories with the active category focused |
+| Guide | Hold Back | Open the current channel in full screen, even when another channel or programme is highlighted |
 | Guide | Menu / long-press OK | Programme options (reminder, recording, jump ±1 day / now, search this guide) and channel options |
 | Guide | Channel / Page Up or Down | Move by a page of channels; FF / REW jump ±3 hours |
 | Full screen | Back | Return to the guide on the playing channel and category, with the preview playing |
@@ -65,6 +73,7 @@ locked message while browsing; OK asks for the parental PIN.
 | Options > Audio delay | LEFT/RIGHT: ±50 ms, DOWN: reset to 0, OK: done |
 | Options > Record this channel | Choose a duration; the recording appears under Recordings |
 | Back | Leave playback |
+| Hold Back | Hide the channel list, controls, information banner and number entry; keep the current stream in full screen |
 | Digits | Enter a channel number; tuning occurs after the entry timeout |
 | Last channel | Return to the previous channel |
 

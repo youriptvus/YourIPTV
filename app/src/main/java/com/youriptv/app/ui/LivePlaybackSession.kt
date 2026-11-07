@@ -33,6 +33,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     private val io = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val owners = HashSet<Any>()
     private val observers = LinkedHashSet<() -> Unit>()
+    private val streamMemory = LiveStreamMemory()
     private var target: PlayerView? = null
     private var fullScreen = false
     private var playerPlaylistId: Long? = null
@@ -233,6 +234,24 @@ class LivePlaybackSession(private val app: YourIptvApp) {
 
     fun owns(p: ExoPlayer) = player === p
 
+    /** Revalidate the last tuned channel even after leaving TV released its player. */
+    fun rememberedStream(): MediaItem? {
+        val key = streamMemory.key ?: return null
+        val fresh = streamMemory.resolve(app.repo.playlist(key.playlistId), app.repo.itemByUrl(key.playlistId, key.url))
+        val playing = current
+        if (playing?.playlistId == key.playlistId && playing.url == key.url &&
+            (fresh == null || fresh.group != playing.group || !isCurrentAuthorized(fresh))) {
+            // A provider refresh can change a category without changing the parental preference stamp.
+            // Stop stale playback before any PIN prompt; cancelling must not leave a restricted stream playing.
+            stop()
+        }
+        return fresh
+    }
+
+    fun rememberedQueue(item: MediaItem): List<MediaItem> = streamMemory.queue(
+        item, app.repo.items(item.playlistId, ItemKind.LIVE, null).filter { !app.settings.isGroupHidden(it.group) },
+    )
+
     fun obtain(item: MediaItem): ExoPlayer {
         require(item.kind == ItemKind.LIVE && !item.isCatchup)
         val existing = player
@@ -290,6 +309,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         retries = 0
         current = item
         queue = liveQueue(item, items)
+        streamMemory.remember(item, queue, app.repo.playlist(item.playlistId))
         authorizationStamp = app.settings.restrictionStamp()
         authorizedGroup = unlockedGroup
         status = "Loading preview..."
@@ -312,6 +332,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         if (current?.url != item.url || current?.playlistId != item.playlistId) bufferingRecoveryReset()
         current = item
         queue = items
+        streamMemory.remember(item, queue, app.repo.playlist(item.playlistId))
         authorizationStamp = stamp
         authorizedGroup = item.group.takeIf {
             app.settings.isGroupLocked(it) && stamp == app.settings.restrictionStamp() && it in unlockedGroups

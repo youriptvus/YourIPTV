@@ -20,7 +20,6 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import android.transition.ChangeBounds
 import android.transition.TransitionManager
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.doOnNextLayout
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
@@ -47,7 +46,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : RemoteActivity() {
 
     enum class Section(val label: String) {
         SEARCH("Search"), TV("TV"), MOVIES("Movies"), SHOWS("Shows"),
@@ -245,8 +244,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Entering the nav rail with LEFT lands on the active section, not the geometrically nearest item.
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (!app.isTrustedBuild) return super.dispatchKeyEvent(event)
+    override fun dispatchAppKeyEvent(event: KeyEvent): Boolean {
+        if (!app.isTrustedBuild) return super.dispatchAppKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN) userInputGeneration++
         val focused = currentFocus
         if (section == Section.TV && focused != null && isInside(focused, itemsView) && liveGrid.handleKey(event)) {
@@ -281,8 +280,10 @@ class MainActivity : AppCompatActivity() {
                 if (next != null && navViews.values.any { it === next }) return true
             }
         }
-        return super.dispatchKeyEvent(event)
+        return super.dispatchAppKeyEvent(event)
     }
+
+    internal fun markReturningFromCurrentStream() { returningFromPreviewPlayer = true }
 
     // ---------------- Live TV levels (menu / categories / guide) ----------------
 

@@ -15,7 +15,7 @@ Website: [youriptv.us](https://youriptv.us)
 
 | | |
 |---|---|
-| Current project version | **0.5.2** (`versionCode` 26), application ID `com.youriptv.app` |
+| Current project version | **0.5.3** (`versionCode` 27), application ID `com.youriptv.app` |
 | Stage | Under active development and testing |
 | Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
@@ -55,7 +55,8 @@ which is the distribution address for the in-app updater. See the technician set
 - Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
   is silent (no Android prompt). The app then closes briefly and restarts by itself. Failures show
   **Update failed** plus the reason, with Retry (and Close when not required). After a restart a
-  one-time "updated to version X" message is shown.
+  confirmation shows the installed version and its changelog. Choose **Got it** to acknowledge it;
+  the confirmation remains pending if the app is closed before acknowledgement.
 - When the technician allowed update installs, customers never see permission prompts. Playlists,
   credentials, PINs, settings and permission grants are kept (in-place update).
 
@@ -74,9 +75,10 @@ rejected, so a permission change always needs a technician install.
 
 **Publishing a release** (in `youriptvus/YourIPTV`):
 
-1. Raise `versionCode`/`versionName` in `app/build.gradle.kts` and build the signed release.
+1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
+   `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 0.5.2, use `--previous 25`: 0.5.1 devices may Install or Ignore. Devices below that code are
+   For 0.5.3, use `--previous 26`: 0.5.2 devices may Install or Ignore. Devices below that code are
    two or more releases behind and must update.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
@@ -233,6 +235,9 @@ All of the following are implemented. Their device-test status is recorded in
 - The app appears in the Leanback launcher with a TV banner; a touchscreen is not required.
 - Every screen works with the D-pad, OK/Select and Back, and some screens also use MENU,
   long-press OK, digits, CH+/CH−, FF/REW and media keys.
+- Hold **Back** for about 0.6 seconds in the app or guide to return to the current stream in full
+  screen. It follows the channel actually watched rather than the highlighted guide row. Short Back
+  presses keep their usual action; parental restrictions still apply.
 - Every focusable element shows a visible focus highlight.
 - Pressing Back on the main menu asks you to press Back again before the app closes.
 - Google TV intercepts the remote's dedicated **GUIDE** key, so it opens the system's own guide.
@@ -397,7 +402,7 @@ install apps.
 .\gradlew.bat testDebugUnitTest
 ```
 
-- The suite has **127 JVM unit tests in 20 test classes** (`app\src\test\java\com\youriptv\app`).
+- The suite has **198 JVM unit tests in 30 test classes** (`app\src\test\java\com\youriptv\app`).
   They cover:
   - the M3U and XMLTV parsers, Xtream URLs and catch-up URL building;
   - the connection-limit logic;
