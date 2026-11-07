@@ -170,6 +170,10 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun editCurrentPlaylist() {
+        if (s.isSettingsLocked()) {
+            Dialogs.toast(this, PlaylistEditActivity.SETTINGS_LOCK_MESSAGE)
+            return
+        }
         if (app.repo.playlist(s.activePlaylistId) == null) {
             Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
             return
@@ -277,7 +281,10 @@ class SettingsActivity : ListActivity() {
             }),
         )
         SettingsCategory.PLAYLISTS -> listOf(
-            Entry("Edit current playlist", { app.repo.playlist(s.activePlaylistId)?.name ?: "No active playlist" }, { editCurrentPlaylist() }),
+            Entry("Edit current playlist", {
+                if (s.isSettingsLocked()) "Disabled while Settings lock is on"
+                else app.repo.playlist(s.activePlaylistId)?.name ?: "No active playlist"
+            }, { editCurrentPlaylist() }),
             number("Auto-update playlist and guide every", "hours (0 = off)", { s.autoRefreshHours }, 0, 168) { s.autoRefreshHours = it },
         )
         SettingsCategory.PLAYBACK -> listOf(

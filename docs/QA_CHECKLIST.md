@@ -1,5 +1,24 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.5.2 Settings lock protects playlist editing (version code 26)
+
+- [x] Full offline unit suite passes: 172 tests, no failures or skips; signed release build passes.
+- [x] Signed APK is `com.youriptv.app`, label YourIPTV, version 0.5.2 / code 26, minSdk 23,
+      targetSdk 36; official signing certificate and all seven requested permissions match 0.5.1.
+- [x] Generated `update.json` has code 26 and `previousVersionCode` 25; size and SHA-256 match.
+- [x] Source review confirms the editor checks Settings lock before loading credentials, on resume,
+      and before saving; both Playlists edit actions and the Settings shortcut also enforce it.
+- [x] Archived the original 0.5.1 repository and verified its ZIP, APK, metadata, and secret exclusions.
+- [ ] Full debug lint is clean. Current result: 19 existing errors and 202 warnings. Error sources
+      (`PlayerActivity`, `Repository`, `AudioDelayProcessor`, `LiveTsExtractors`) are unchanged by this fix.
+- [ ] On a TV and phone, enable Settings lock with parental playlist locking off; verify Edit current,
+      the playlist menu's Edit action, and the temporarily unlocked Settings shortcut cannot open editing.
+- [ ] Open an existing editor with Settings lock off, enable the lock from another Settings visit,
+      and confirm returning to the editor cannot save changes. Also check M3U confirmation callbacks.
+- [ ] Turn Settings lock off and verify M3U/Xtream editing works, the independent parental playlist
+      lock still applies, and Add playlist plus playlist/EPG refresh remain available.
+- [ ] User reviews, commits and pushes the Repository changes, then publishes `v0.5.2` manually.
+
 ## 0.5.0 version-only release (version code 24)
 
 - [x] Full offline unit suite passes: 171 tests, no failures or skips; signed release build passes.

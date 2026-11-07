@@ -43,6 +43,7 @@ class PlaylistEditActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (blockLockedEdit()) return
         setContentView(R.layout.activity_playlist_edit)
         findViewById<android.widget.TextView>(R.id.edit_free_notice).text = Branding.freeNotice(this)
         name = findViewById(R.id.f_name)
@@ -80,6 +81,19 @@ class PlaylistEditActivity : AppCompatActivity() {
         (if (editing == null) btnXtream else name).requestFocus()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!isFinishing) blockLockedEdit()
+    }
+
+    /** Settings lock also protects existing playlist credentials, including during an unlocked Settings visit. */
+    private fun blockLockedEdit(): Boolean {
+        if (intent.getLongExtra(EXTRA_ID, 0L) == 0L || !app.settings.isSettingsLocked()) return false
+        Dialogs.toast(this, SETTINGS_LOCK_MESSAGE)
+        finish()
+        return true
+    }
+
     private fun setType(t: SourceType) {
         type = t
         btnXtream.isActivated = t == SourceType.XTREAM
@@ -90,7 +104,7 @@ class PlaylistEditActivity : AppCompatActivity() {
     }
 
     private fun save() {
-        if (busy) return
+        if (busy || blockLockedEdit()) return
         var t = type
         var server = url.text.toString().trim()
         var username = user.text.toString().trim()
@@ -159,6 +173,7 @@ class PlaylistEditActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_ID = "playlist_id"
+        const val SETTINGS_LOCK_MESSAGE = "Playlist editing is disabled while Settings lock is on. Turn off Settings lock to edit playlists."
 
         fun editIntent(context: Context, id: Long): Intent =
             Intent(context, PlaylistEditActivity::class.java).putExtra(EXTRA_ID, id)

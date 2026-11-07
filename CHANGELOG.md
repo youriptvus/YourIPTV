@@ -4,6 +4,12 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 0.5.2 (version code 26)
+
+- Disable editing existing playlists while Settings lock is on, including during a temporary Settings
+  unlock. Turn off Settings lock to edit; adding playlists and refreshing channels or EPG still work.
+- Devices on 0.5.1 can Install or Ignore; devices on version code 24 or below must update.
+
 ## 0.5.1 (version code 25)
 
 - **Automatic updates are On by default** and no longer depend on any other setting: no Settings PIN
