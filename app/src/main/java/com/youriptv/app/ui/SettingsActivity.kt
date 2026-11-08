@@ -366,7 +366,7 @@ class SettingsActivity : ListActivity() {
                     s.automaticAppUpdates = true
                     refresh()
                     Dialogs.message(this, "Automatic updates enabled",
-                        "Every time the app opens it checks the latest ${Branding.displayName(this)} release on GitHub. Customers choose Install or Ignore; " +
+                        "Every time the app opens it checks the latest ${Branding.displayName(this)} release on GitHub, using youriptv.us if GitHub is unavailable. Customers choose Install or Ignore; " +
                             "once the box is two releases behind, the update is required. " +
                             (if (!AppUpdates.installationAuthorized(this)) "Android asks once to allow installs from this app unless “Allow update installs” is set here first."
                             else if (!AppUpdates.silentInstallSupported) "This Android version shows one Install confirmation for each update."

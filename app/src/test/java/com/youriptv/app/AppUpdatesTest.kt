@@ -72,10 +72,14 @@ class AppUpdatesTest {
         val local = json(apk = "http://127.0.0.1:8765/YourIPTV.apk")
         assertThrows(UpdateException::class.java) { UpdateRelease.parse(local) }
         assertEquals(15L, UpdateRelease.parse(local, "http://127.0.0.1:8765/").versionCode)
+        assertEquals(15L, UpdateRelease.parse(local, "", "http://127.0.0.1:8765/").versionCode)
+        assertThrows(UpdateException::class.java) {
+            UpdateRelease.parse(json(apk = "http://127.0.0.1:8765/primary/../private/YourIPTV.apk"), "http://127.0.0.1:8765/primary/")
+        }
     }
 
     @Test
-    fun networkStaysOnGithubHttps() {
+    fun networkStaysOnOfficialGithubOrWebsiteHttps() {
         assertTrue(UpdateRelease.allowedNetworkUrl("https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"))
         assertTrue(UpdateRelease.allowedNetworkUrl("https://release-assets.githubusercontent.com/x"))
         assertFalse(UpdateRelease.allowedNetworkUrl("http://github.com/x"))
@@ -83,6 +87,45 @@ class AppUpdatesTest {
         assertFalse(UpdateRelease.allowedNetworkUrl("https://user@github.com/x"))
         assertFalse(UpdateRelease.allowedNetworkUrl("https://github.com:8443/x"))
         assertFalse(UpdateRelease.allowedNetworkUrl("http://127.0.0.1:8765/update.json"))
+        assertTrue(UpdateRelease.allowedNetworkUrl("https://youriptv.us/updates/update.json"))
+        assertTrue(UpdateRelease.allowedNetworkUrl("https://youriptv.us/updates/YourIPTV-0.5.6-release.apk"))
+        for (url in listOf(
+            "http://youriptv.us/updates/update.json", "https://youriptv.us.evil.example/updates/update.json",
+            "https://user@youriptv.us/updates/update.json", "https://youriptv.us:8443/updates/update.json",
+            "https://youriptv.us/private/update.json", "https://youriptv.us/updates/../private/update.json",
+            "https://youriptv.us/updates/%2e%2e/private/update.json", "https://youriptv.us/updates%2fupdate.json",
+            "https://youriptv.us/updates/update.json#private",
+        )) assertFalse(url, UpdateRelease.allowedNetworkUrl(url))
+    }
+
+    @Test
+    fun officialMirrorMustIdentifyTheExactReleaseAndSurvivesCaching() {
+        val website = "https://youriptv.us/updates/YourIPTV-0.4.0-release.apk"
+        val r = UpdateRelease.parse(json(apk = website))
+        assertEquals(r, UpdateRelease.parse(r.encode()))
+        assertEquals(listOf(website), r.downloadUrls())
+        assertEquals(listOf(UpdateRelease.parse(json()).url, website), UpdateRelease.parse(json()).downloadUrls())
+        for (url in listOf(
+            "https://youriptv.us/updates/YourIPTV-0.3.9-release.apk",
+            "https://youriptv.us/updates/YourIPTV.apk", "$website?download=1", "$website#anything",
+            "https://youriptv.us/updates/../updates/YourIPTV-0.4.0-release.apk",
+        )) assertThrows(url, UpdateException::class.java) { UpdateRelease.parse(json(apk = url)) }
+    }
+
+    @Test
+    fun staleMirrorCannotLowerKnownVersionOrRequiredUpdateFloor() {
+        val latest = UpdateRelease.parse(json(code = 30, name = "0.5.6", previous = 29))
+        val stale = UpdateRelease.parse(json(code = 29, name = "0.5.5", previous = 27))
+        val selected = stale.preservingKnownRelease(latest)
+        assertEquals(latest, selected)
+        assertTrue("A stale mirror must preserve the cached required update", selected.isRequiredFor(27))
+        assertEquals(latest, UpdateRelease.parse(json(code = 27, previous = 26)).preservingKnownRelease(latest))
+        assertEquals(latest, latest.preservingKnownRelease(stale))
+        assertEquals(latest, latest.preservingKnownRelease(null))
+        assertEquals(latest, latest.copy(sha256 = "b".repeat(64)).preservingKnownRelease(latest))
+        assertEquals(latest, latest.copy(previousVersionCode = 0).preservingKnownRelease(latest))
+        val sameReleaseOnMirror = latest.copy(url = "https://youriptv.us/updates/YourIPTV-0.5.6-release.apk")
+        assertEquals(sameReleaseOnMirror, sameReleaseOnMirror.preservingKnownRelease(latest))
     }
 
     @Test

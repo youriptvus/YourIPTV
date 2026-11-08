@@ -12,17 +12,25 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 0.5.3: hold Back to return to playback; show installed-version changelog after updates.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 27
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.3"
+        // 0.5.6: fall back to the official website when GitHub updates are unavailable.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 30
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.6"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
+        val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
             "https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json"
         } else {
             "${updateTestOrigin}update.json"
         }
+        val backupManifest = when {
+            updateTestBackupOrigin.isNotEmpty() -> "${updateTestBackupOrigin}update.json"
+            updateTestOrigin.isNotEmpty() -> ""
+            else -> "https://youriptv.us/updates/update.json"
+        }
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$updateManifest\"")
+        buildConfigField("String", "UPDATE_BACKUP_MANIFEST_URL", "\"$backupManifest\"")
         buildConfigField("String", "UPDATE_TEST_ORIGIN", "\"$updateTestOrigin\"")
+        buildConfigField("String", "UPDATE_TEST_BACKUP_ORIGIN", "\"$updateTestBackupOrigin\"")
     }
 
     // Release signing is read from the untracked keystore.properties at the project root.

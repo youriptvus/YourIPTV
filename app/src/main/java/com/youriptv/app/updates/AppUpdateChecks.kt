@@ -59,7 +59,8 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
         check?.cancel()
         check = scope.launch {
             try {
-                val release = withContext(Dispatchers.IO) { AppUpdates.latest() }
+                val fetched = withContext(Dispatchers.IO) { AppUpdates.latest() }
+                val release = fetched.preservingKnownRelease(cached())
                 app.settings.lastUpdateInfo = release.encode()
                 if (!gate.isForeground(token) || !app.settings.automaticAppUpdates) return@launch
                 decide(release)
@@ -67,14 +68,14 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Customers are not interrupted when GitHub is unreachable; a cached required update still applies.
+                // Customers are not interrupted when both servers are unreachable; a cached required update still applies.
                 Log.w("YourIPTV-Updates", "Update check failed: ${AppUpdates.errorMessage(e)}")
             }
         }
     }
 
     private fun cached(): UpdateRelease? = app.settings.lastUpdateInfo?.let {
-        runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN) }.getOrNull()
+        runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN, BuildConfig.UPDATE_TEST_BACKUP_ORIGIN) }.getOrNull()
     }
 
     private fun decide(release: UpdateRelease) {

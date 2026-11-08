@@ -6,6 +6,15 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        30L to Release("0.5.6", listOf(
+            "Use the official youriptv.us backup update server when GitHub update checks or APK downloads fail.",
+            "Verify backup downloads with the same checksum, package, version and signing checks before installation.",
+        )),
+        28L to Release("0.5.4", listOf(
+            "Version-only release of the 0.5.3 features, with a new Android version code.",
+            "Hold Back in the app or TV guide to return to the current stream in full screen; a short Back press keeps its usual action.",
+            "After an in-app update, show the installed version and its changelog until acknowledged.",
+        )),
         27L to Release("0.5.3", listOf(
             "Hold Back in the app or TV guide to return to the current stream in full screen; a short Back press keeps its usual action.",
             "After an in-app update, show the installed version and its changelog until acknowledged.",

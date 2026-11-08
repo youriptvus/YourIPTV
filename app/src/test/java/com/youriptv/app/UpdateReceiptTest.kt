@@ -57,8 +57,14 @@ class UpdateReceiptTest {
         assertEquals(26L, confirmation.completedTargetCode)
         assertTrue(confirmation.changes.any { it.contains("Hold Back") })
         assertTrue(confirmation.changes.any { it.contains("changelog") })
-        // A future or differently named build must not borrow 0.5.3's notes.
-        assertTrue(receipt(Store(28), code = 28, name = "0.5.4").current()!!.changes.isEmpty())
+        val skippedRelease = receipt(Store(28), code = 28, name = "0.5.4").current()!!
+        assertTrue(skippedRelease.changes.any { it.contains("Hold Back") })
+        assertTrue(skippedRelease.changes.any { it.contains("changelog") })
+        val mirroredRelease = receipt(Store(30), code = 30, name = "0.5.6").current()!!
+        assertTrue(mirroredRelease.changes.any { it.contains("youriptv.us") })
+        assertTrue(mirroredRelease.changes.any { it.contains("checksum") })
+        // A future or differently named build must not borrow another release's notes.
+        assertTrue(receipt(Store(31), code = 31, name = "0.5.7").current()!!.changes.isEmpty())
         assertTrue(receipt(Store(27), name = "0.5.3-test").current()!!.changes.isEmpty())
     }
 }

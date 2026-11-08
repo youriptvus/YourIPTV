@@ -12,16 +12,17 @@ import com.youriptv.app.BuildConfig
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONException
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 
 internal object AppUpdates {
     private const val TAG = "YourIPTV-Updates"
     private const val FOLDER = "app-updates"
+    private val transport = UpdateTransport(
+        BuildConfig.UPDATE_MANIFEST_URL, BuildConfig.UPDATE_BACKUP_MANIFEST_URL,
+        BuildConfig.UPDATE_TEST_ORIGIN, BuildConfig.UPDATE_TEST_BACKUP_ORIGIN,
+    )
 
     val installedCode: Long get() = BuildConfig.VERSION_CODE.toLong()
 
@@ -39,11 +40,7 @@ internal object AppUpdates {
     fun restartsAutomatically(context: Context): Boolean =
         Build.VERSION.SDK_INT < 29 || Build.VERSION.SDK_INT < 35 && Settings.canDrawOverlays(context)
 
-    suspend fun latest(): UpdateRelease {
-        val output = ByteArrayOutputStream()
-        transfer(BuildConfig.UPDATE_MANIFEST_URL, UpdateRelease.MAX_MANIFEST_BYTES) { bytes, length -> output.write(bytes, 0, length) }
-        return UpdateRelease.parse(output.toString(Charsets.UTF_8.name()), BuildConfig.UPDATE_TEST_ORIGIN)
-    }
+    suspend fun latest(): UpdateRelease = transport.latest()
 
     suspend fun download(context: Context, release: UpdateRelease, progress: (Int) -> Unit): File {
         val folder = File(context.cacheDir, FOLDER)
@@ -51,18 +48,7 @@ internal object AppUpdates {
         val partial = File(folder, "download.part")
         val apk = File(folder, "YourIPTV.apk")
         try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            var total = 0L
-            partial.outputStream().use { output ->
-                transfer(release.url, release.size) { bytes, length ->
-                    output.write(bytes, 0, length)
-                    digest.update(bytes, 0, length)
-                    total += length
-                    progress((total * 100 / release.size).toInt())
-                }
-            }
-            release.verifyDownload(total, digest.digest().joinToString("") { "%02x".format(it) })
-            verifyArchive(context, partial, release)
+            transport.download(release, partial, progress) { verifyArchive(context, it, release) }
             if (apk.exists() && !apk.delete()) throw UpdateException("Could not replace the old cached update.")
             if (!partial.renameTo(apk)) throw UpdateException("Could not save the verified update.")
             return apk
@@ -143,51 +129,6 @@ internal object AppUpdates {
         return signatures.orEmpty().map {
             MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) }
         }.toSet()
-    }
-
-    // Provider HTTP helpers permit arbitrary redirects; updates must stay on GitHub HTTPS.
-    private suspend fun transfer(url: String, limit: Long, write: (ByteArray, Int) -> Unit) {
-        var current = url
-        repeat(6) {
-            currentCoroutineContext().ensureActive()
-            if (!UpdateRelease.allowedNetworkUrl(current, BuildConfig.UPDATE_TEST_ORIGIN)) {
-                throw UpdateException("The update server redirected outside GitHub HTTPS.")
-            }
-            val connection = URL(current).openConnection() as HttpURLConnection
-            try {
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 15_000
-                connection.instanceFollowRedirects = false
-                connection.useCaches = false
-                connection.setRequestProperty("User-Agent", "YourIPTV-Updater")
-                val code = connection.responseCode
-                if (code in setOf(301, 302, 303, 307, 308)) {
-                    val location = connection.getHeaderField("Location") ?: throw UpdateException("Missing update redirect.")
-                    current = URL(URL(current), location).toString()
-                    return@repeat
-                }
-                if (code == 404) throw UpdateException("No update information is published yet.")
-                if (code !in 200..299) throw UpdateException("The update server returned HTTP $code.")
-                val contentLength = if (Build.VERSION.SDK_INT >= 24) connection.contentLengthLong else connection.contentLength.toLong()
-                if (contentLength > limit) throw UpdateException("The update response is too large.")
-                connection.inputStream.use { input ->
-                    val bytes = ByteArray(64 * 1024)
-                    var total = 0L
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val n = input.read(bytes)
-                        if (n < 0) break
-                        total += n
-                        if (total > limit) throw UpdateException("The update response is too large.")
-                        write(bytes, n)
-                    }
-                }
-                return
-            } finally {
-                connection.disconnect()
-            }
-        }
-        throw UpdateException("Too many update redirects.")
     }
 
     fun errorMessage(error: Throwable): String {

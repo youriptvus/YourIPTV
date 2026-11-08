@@ -1,5 +1,48 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 0.5.6 release without pending companion integration (version code 30)
+
+The owner confirmed this version is private staging, installed only on the authorized
+ADB test box. This clean source retains the website updater fallback and excludes the
+pending companion implementation, issuer pin, importer, UI and build prerequisite.
+Companion work is preserved separately for the planned 0.5.7; it is not part of this release.
+
+- [x] Clean-source offline unit suite: 210 tests in 31 classes, zero failures/errors/skips. Signed release vital lint and assembly pass.
+- [x] Native verification passed: official package/label/signer, 0.5.6/code 30, minSdk 23, targetSdk 36 and unchanged seven permissions.
+- [x] Compiled manifest/resources and R8 mapping contain no companion importer, branding contract, public issuer pin or companion classes.
+- [x] Generate GitHub and website metadata from this exact verified APK and confirm chosen
+      previously published version code with the owner (confirmed: 0.5.3 / code 27).
+- [x] Desktop release files and Repository source updated only after matching verification.
+- [ ] User reviews, commits/pushes Repository and publishes the matching GitHub release manually.
+
+Verified clean APK: 3640367 bytes; SHA-256 `f9905297a3854421d14176c1bd58d252c6c59affde822e86277c6d95054b24b6`.
+
+Previous 233-test/device/website results described the earlier companion-inclusive binary
+(ed82733616e16dbf4e7b92b591365b70e5396a1d1c12f15251d5a09c845bc470), not this cleaned APK.
+Those source/artifact records were preserved before cleanup. No device installation or
+website publication of the new cleaned APK is claimed here. Do not use automatic updating
+to replace an already installed code 30 with different code-30 bytes; that test box needs
+an explicit technician installation. Preserve app data and cached update policy.
+
+## 0.5.4 version-only release (version code 28, previous unfinished work)
+
+- [ ] Full offline unit suite and signed release assembly pass; record the final test totals.
+- [ ] Verify the signed APK as `com.youriptv.app`, label YourIPTV, version 0.5.4 / code 28,
+      minSdk 23 and targetSdk 36; compare the official certificate and all seven requested permissions
+      with 0.5.3. Player behavior and features should remain unchanged.
+- [ ] Generate `update.json` with code 28 and `previousVersionCode` 27; verify the 0.5.4 APK URL,
+      byte size and SHA-256 against the signed release file.
+- [x] Source and existing updater tests verify direct-update policy: 0.5.3 / code 27 may Install or Ignore; 0.5.2 / code 26 and older
+      supported updaters must update and do not require an intermediate 0.5.3 installation.
+- [x] Archived original Repository 0.5.3 and independently verified its ZIP, APK, metadata and secret exclusions
+      before syncing the new release into Repository.
+- [ ] Install 0.5.4 on the authorized TV over network ADB using `install -r`, without USB, uninstalling
+      or clearing data. Verify installed version/code, retained configuration and working playback.
+- [ ] Test an in-app update from 0.5.2 after the user publishes the matching 0.5.4 release assets;
+      verify the installed-version changelog and acknowledgement behavior.
+- [ ] User reviews, commits and pushes Repository changes, then publishes `v0.5.4` with the matching
+      `YourIPTV.apk` and `update.json` assets manually.
+
 ## 0.5.3 return to playback and update changelog (version code 27)
 
 - [x] Full offline unit suite: 198 tests in 30 classes, no failures, errors or skips.

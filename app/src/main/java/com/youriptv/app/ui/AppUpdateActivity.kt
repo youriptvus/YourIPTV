@@ -50,7 +50,7 @@ class AppUpdateActivity : ListActivity() {
             handleStatus(intent)
             return
         }
-        release = intent.getStringExtra(EXTRA_RELEASE)?.let { runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN) }.getOrNull() }
+        release = intent.getStringExtra(EXTRA_RELEASE)?.let { runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN, BuildConfig.UPDATE_TEST_BACKUP_ORIGIN) }.getOrNull() }
         required = intent.getBooleanExtra(EXTRA_REQUIRED, false)
         val r = release ?: run { finish(); return }
         listTitle.text = "${Branding.displayName(this)} ${r.versionName}"
@@ -131,7 +131,7 @@ class AppUpdateActivity : ListActivity() {
 
     private fun handleStatus(intent: Intent) {
         if (release == null) {
-            release = intent.getStringExtra(EXTRA_RELEASE)?.let { runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN) }.getOrNull() }
+            release = intent.getStringExtra(EXTRA_RELEASE)?.let { runCatching { UpdateRelease.parse(it, BuildConfig.UPDATE_TEST_ORIGIN, BuildConfig.UPDATE_TEST_BACKUP_ORIGIN) }.getOrNull() }
             required = intent.getBooleanExtra(EXTRA_REQUIRED, false)
         }
         when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {

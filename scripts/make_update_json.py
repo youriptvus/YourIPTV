@@ -1,7 +1,8 @@
-"""Write update.json for a YourIPTV GitHub release (run with: py scripts/make_update_json.py --previous N).
+"""Write update.json for a YourIPTV release (run with: py scripts/make_update_json.py --previous N).
 
 Upload the result next to YourIPTV.apk on the release. Installed apps read it from
 https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json
+Use --mirror for the website's backup manifest; both hosts must serve the same APK bytes.
 """
 import argparse
 import hashlib
@@ -27,16 +28,23 @@ def main():
                    help="versionCode of the release published before this one (devices below it must update)")
     p.add_argument("--version-code", type=int, default=code)
     p.add_argument("--version-name", default=name)
-    p.add_argument("--apk-url", help="Override the APK URL (local device tests only)")
+    source = p.add_mutually_exclusive_group()
+    source.add_argument("--mirror", action="store_true",
+                        help="Use the versioned APK on https://youriptv.us/updates/ for the website manifest")
+    source.add_argument("--apk-url", help="Override the APK URL (local device tests only)")
     p.add_argument("--out", default="update.json")
     a = p.parse_args()
     if not 0 <= a.previous < a.version_code:
         p.error("--previous must be lower than the new versionCode")
+    apk_url = a.apk_url or (
+        f"https://youriptv.us/updates/YourIPTV-{a.version_name}-release.apk" if a.mirror else
+        f"https://github.com/youriptvus/YourIPTV/releases/download/v{a.version_name}/YourIPTV.apk"
+    )
     data = open(a.apk, "rb").read()
     info = {
         "versionCode": a.version_code,
         "versionName": a.version_name,
-        "apk": a.apk_url or f"https://github.com/youriptvus/YourIPTV/releases/download/v{a.version_name}/YourIPTV.apk",
+        "apk": apk_url,
         "size": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
         "previousVersionCode": a.previous,

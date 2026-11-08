@@ -1,5 +1,30 @@
 # Release notes
 
+## 0.5.6 (version code 30)
+
+- Keep GitHub as the primary update source and check `https://youriptv.us/updates/update.json`
+  if GitHub's update metadata is unavailable or invalid.
+- Retry an unavailable GitHub APK from `https://youriptv.us/updates/` using the same release's
+  versioned filename. Both hosts must serve identical APK bytes; size, SHA-256, package, version,
+  signing certificate, app label, Android compatibility and requested-permission checks still apply.
+- Preserve a newer cached release if either server is stale. A same-version response cannot
+  replace the cached version name, size, SHA-256 or required-update threshold.
+- Keep playlists, settings and the official package/signing key during in-place
+  updates. No new permissions or changes to player features.
+- Add website manifest generation with `scripts/make_update_json.py --mirror` and backup-server
+  publishing instructions in `docs/UPDATE_SERVER.md`. Existing apps need to receive 0.5.6 through
+  GitHub or a technician install before website fallback is available.
+
+## 0.5.4 (version code 28)
+
+- Version-only release; player and playlist features are unchanged from 0.5.3, including hold Back
+  to return to playback and the installed-version changelog after in-app updates.
+- Package ID, official signing key, requested permissions, settings and production update URL are
+  unchanged. Compatible earlier versions can update directly; installing each intervening version
+  is not required.
+- Once published with previous version code 27, devices on 0.5.3 can Install or Ignore; devices on
+  version code 26 or below must update.
+
 ## 0.5.3 (version code 27)
 
 - Hold Back in the app or TV guide to return to the current stream in full screen. Short Back presses

@@ -15,16 +15,18 @@ Website: [youriptv.us](https://youriptv.us)
 
 | | |
 |---|---|
-| Current project version | **0.5.3** (`versionCode` 27), application ID `com.youriptv.app` |
+| Current project version | **0.5.6** (`versionCode` 30), application ID `com.youriptv.app`; release preparation |
 | Stage | Under active development and testing |
-| Distribution | Side-loaded APK via GitHub Releases. No Google Play listing |
+| Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
 
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
 [the stable APK URL](https://github.com/youriptvus/YourIPTV/releases/latest/download/YourIPTV.apk),
-which is the distribution address for the in-app updater. See the technician setup below.
+which is the primary distribution address for the in-app updater. Starting with 0.5.6, the updater
+can use [youriptv.us](https://youriptv.us/updates/update.json) when GitHub fails. See the technician
+setup below and [backup-server setup](docs/UPDATE_SERVER.md).
 
 ### Customer-box automatic updates (0.4.0 and newer)
 
@@ -46,12 +48,20 @@ which is the distribution address for the in-app updater. See the technician set
 
 **Customer experience:**
 
-- Every time the app is opened it reads `update.json` from the latest GitHub release. If a newer
+- Every time the app is opened it reads `update.json` from the latest GitHub release. Starting with
+  0.5.6, unavailable or invalid GitHub metadata triggers a check of
+  `https://youriptv.us/updates/update.json`. If a newer
   version exists the customer sees **Install** or **Ignore**. Ignore is not remembered: the offer
   returns at every opening until the app is current.
 - Once the box is **2 or more releases behind** (installed `versionCode` < `previousVersionCode`), the
-  update is required: a full screen offers only **Install update**; Back closes the app. The last
-  `update.json` seen is cached, so this is still enforced when GitHub is unreachable.
+  update is required: a full screen offers only **Install update**; Back closes the app. Accepted
+  metadata is cached, so this is still enforced when both update servers are unreachable. An older
+  server response cannot replace a newer cached release, and a same-version response cannot
+  replace its version name, size, SHA-256 or required-update threshold.
+- Compatible earlier versions can update directly to the latest release; installing each intervening
+  version is not required. For example, 0.5.2 can update directly to a compatible 0.5.6 release.
+  Apps older than 0.5.6 need that first update through GitHub or a technician install before they
+  can use the website fallback.
 - Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
   is silent (no Android prompt). The app then closes briefly and restarts by itself. Failures show
   **Update failed** plus the reason, with Retry (and Close when not required). After a restart a
@@ -68,7 +78,9 @@ which is the distribution address for the in-app updater. See the technician set
 - Without the install permission, Android shows its own prompt to allow installs from YourIPTV during
   an update; without the restart permission, the customer reopens the app after an update.
 
-**Download checks:** HTTPS only, from `github.com` or its release download hosts. Checks include
+**Download checks:** HTTPS only, from `github.com`, its release download hosts, or `youriptv.us`.
+If the GitHub APK download is unavailable, 0.5.6 can try the versioned APK on the website using
+the selected release's size and SHA-256; it cannot substitute a different release. Checks include
 size, SHA-256 from `update.json`, package name, version code, signing certificate, app label, minSdk,
 and an **identical requested-permission set**. Any release that adds or removes a permission is
 rejected, so a permission change always needs a technician install.
@@ -78,16 +90,25 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 0.5.3, use `--previous 26`: 0.5.2 devices may Install or Ignore. Devices below that code are
-   two or more releases behind and must update.
+   For this release use `--previous 27`: the owner confirmed customers have 0.5.3.
+   Those devices may Install or Ignore; devices below code 27 must update. Unpublished
+   0.5.5 is not an intermediate installation requirement.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
    `https://github.com/youriptvus/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
 4. Boxes read `https://github.com/youriptvus/YourIPTV/releases/latest/download/update.json`. This is not
    rate-limited like `api.github.com`, and no token or customer data is sent.
+5. Generate a second manifest from the same signed APK with `--mirror --out update-website.json`.
+   Upload `YourIPTV-<versionName>-release.apk` to the website's `/updates/` folder first, verify it,
+   then upload the website manifest as `/updates/update.json`. Serve the manifest with
+   `Cache-Control: no-cache`. See [docs/UPDATE_SERVER.md](docs/UPDATE_SERVER.md) for staging,
+   validation and hosting details.
 
 Testing builds can point at a local server:
 `-PupdateTestOrigin=http://127.0.0.1:8765/ -PupdateTestVersionCode=N -PupdateTestVersionName=0.4.0-testN`.
+To exercise fallback, configure a separate `-PupdateTestBackupOrigin=http://127.0.0.1:8765/backup/`.
+Setting the primary test origin without a backup test origin disables the website backup for that
+build, so a local test does not accidentally contact the production mirror.
 Do not distribute those APKs. Automatic updates are excluded from backup imports.
 
 See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the changelog.
@@ -382,11 +403,16 @@ excludes them.
 
 ## Installing on a device
 
+The current project targets **0.5.6 (version code 30)**. Build and verify the matching signed APK
+before distributing it. A compatible official update retains app data; no publication is implied.
+
 1. Enable **Developer options → USB debugging** (or **Wireless/network debugging** on Android
    TV).
 2. Connect, then install or update while keeping the app's data:
 
 ```powershell
+# For network debugging on a TV, connect without USB first:
+adb connect <device-ip:port>
 adb devices
 adb -s <device-serial-or-ip:port> install -r app\build\outputs\apk\release\app-release.apk
 ```
