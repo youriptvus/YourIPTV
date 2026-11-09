@@ -182,7 +182,7 @@ class Settings(context: Context) {
 
     // ---- PINs ----
     // The parental PIN and the Settings PIN are independent and must differ (see PinVault).
-    // The Settings lock is on exactly while a Settings PIN exists, or while a legacy shared-PIN lock awaits migration.
+    // Settings protection is permanent. The stored Settings PIN is an optional additional credential.
 
     val pins = PinVault(object : StringStore {
         override fun get(key: String): String? = sp.getString(key, null)
@@ -195,7 +195,7 @@ class Settings(context: Context) {
 
     fun hasPin() = pins.has(PinKind.PARENTAL)
 
-    fun isSettingsLocked() = pins.has(PinKind.SETTINGS) || isLegacySettingsLock()
+    fun isSettingsLocked() = true
 
     /** True for an install upgraded from the build that locked Settings with the parental PIN; see [ParentalRules.legacySettingsLockPending]. */
     fun isLegacySettingsLock(): Boolean {

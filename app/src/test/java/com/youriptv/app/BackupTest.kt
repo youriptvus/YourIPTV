@@ -134,7 +134,12 @@ class BackupTest {
         assertTrue(ui.contains("withPlaylistPermission(reason: String = \"restore playlists\", then: () -> Unit)"))
         assertTrue(ui.contains("if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason)"))
         assertTrue(ui.contains("withPlaylistPermission { loadAndConfirm"))
-        assertTrue(ui.contains("withPlaylistPermission { pickingFile = true; importDoc.launch"))
+        val picker = ui.substringAfter("private fun importBackup()").substringBefore("private fun backupFileName()")
+        assertTrue(picker.contains("withPlaylistPermission"))
+        assertTrue(picker.contains("filePickerToken = authorizedToken() ?: return@withPlaylistPermission"))
+        assertTrue(picker.contains("pickingFile = true") && picker.contains("importDoc.launch"))
+        val permissions = ui.substringAfter("private fun openRestartAuthorization()").substringBefore("private fun guideStatus()")
+        assertFalse("Android permission screens must not retain Settings authorization", permissions.contains("pickingFile = true"))
         assertTrue(ui.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))
     }
 }

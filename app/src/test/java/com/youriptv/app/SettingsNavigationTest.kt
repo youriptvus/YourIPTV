@@ -49,7 +49,28 @@ class SettingsNavigationTest {
         assertTrue(source.contains("if (category != null) showPage(null, categoryFocus) else finish()"))
         assertTrue(source.contains("list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus()"))
         assertTrue(source.contains("outState.putString(STATE_CATEGORY, category?.name)"))
-        assertTrue(source.contains("!intent.getBooleanExtra(EXTRA_UNLOCKED, false)"))
+        assertTrue(source.contains("Dialogs.requireSettingsPin(this, \"unlock Settings\""))
+        assertTrue(source.contains("if (isFinishing || !visit.authorize(token))"))
+        assertFalse(source.contains("EXTRA_UNLOCKED"))
         assertTrue(source.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))
+    }
+
+    @Test
+    fun settingsStayProtectedAndOnlyMasterCanManageTheOptionalCustomPin() {
+        val management = source.substringAfter("private fun settingsLockAction()")
+            .substringBefore("private fun lockedGroups()")
+        assertTrue(management.contains("Dialogs.requireSettingsMaster"))
+        assertTrue(management.contains("val token = authorizedToken() ?: return"))
+        assertTrue(management.contains("canSave = { hasAuthorization(token) }"))
+        assertTrue(management.contains("s.pins.set(PinKind.SETTINGS, null)"))
+        assertFalse(management.contains("Turn off Settings lock"))
+        val data = listOf(File("src/main/java/com/youriptv/app/data/Settings.kt"), File("app/src/main/java/com/youriptv/app/data/Settings.kt"))
+            .first { it.exists() }.readText()
+        assertTrue(data.contains("fun isSettingsLocked() = true"))
+        val dialogs = listOf(File("src/main/java/com/youriptv/app/ui/UiUtil.kt"), File("app/src/main/java/com/youriptv/app/ui/UiUtil.kt"))
+            .first { it.exists() }.readText().substringAfter("fun createPin(")
+        val guard = "if (a.isFinishing || a.isDestroyed || !canSave())"
+        assertTrue("An expired PIN dialog must not consume parental attempts", dialogs.indexOf(guard) in 0 until dialogs.indexOf("vault.screenNew"))
+        assertEquals("Both PIN-entry steps must reject expired authorization", 2, Regex(Regex.escape(guard)).findAll(dialogs).count())
     }
 }

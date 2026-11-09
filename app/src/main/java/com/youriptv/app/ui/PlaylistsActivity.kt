@@ -40,17 +40,15 @@ class PlaylistsActivity : ListActivity() {
         val all = app.repo.playlists()
         adapter.submit(all)
         setEditCurrentEnabled(!busy && all.any { it.id == app.settings.activePlaylistId })
-        if (!busy) listSubtitle.text = if (app.settings.isSettingsLocked()) {
+        if (!busy) listSubtitle.text =
             "${PlaylistEditActivity.SETTINGS_LOCK_MESSAGE} OK selects a playlist; MENU or long-press OK shows more options."
-        } else "Edit current opens the active playlist settings. OK selects a playlist; MENU or long-press OK shows more options."
         setEmpty(if (all.isEmpty()) "No playlists yet. Choose \"Add playlist\" to enter an M3U URL or Xtream Codes login." else null)
         if (all.isEmpty()) actions.getChildAt(0)?.requestFocus() else list.post { list.getChildAt(0)?.requestFocus() }
     }
 
     private fun setEditCurrentEnabled(enabled: Boolean) {
-        val canEdit = enabled && !app.settings.isSettingsLocked()
-        editCurrent.isEnabled = canEdit
-        editCurrent.alpha = if (canEdit) 1f else 0.5f
+        editCurrent.isEnabled = enabled
+        editCurrent.alpha = if (enabled) 1f else 0.5f
     }
 
     private fun describe(p: Playlist): Pair<String, String> {
@@ -85,11 +83,6 @@ class PlaylistsActivity : ListActivity() {
     }
 
     private fun edit(p: Playlist) {
-        if (app.settings.isSettingsLocked()) {
-            Dialogs.toast(this, PlaylistEditActivity.SETTINGS_LOCK_MESSAGE)
-            reload()
-            return
-        }
         startActivity(PlaylistEditActivity.editIntent(this, p.id))
     }
 

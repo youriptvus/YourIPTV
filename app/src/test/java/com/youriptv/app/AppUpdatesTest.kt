@@ -18,17 +18,17 @@ class AppUpdatesTest {
         """{"versionCode":$code,"versionName":"$name","apk":"$apk","size":$size,"sha256":"$hash","previousVersionCode":$previous}"""
 
     @Test
-    fun stable100CanBeOfferedDirectlyToEveryEarlierVersionCode() {
-        val release = UpdateRelease.parse(json(code = 31, name = "1.0.0", previous = 30))
-        for (installed in 1L..30L) {
+    fun stable101CanBeOfferedDirectlyToEveryEarlierVersionCode() {
+        val release = UpdateRelease.parse(json(code = 32, name = "1.0.1", previous = 31))
+        for (installed in 1L..31L) {
             assertTrue("Direct update from code $installed", release.isNewerThan(installed))
-            assertEquals(installed < 30L, release.isRequiredFor(installed))
+            assertEquals(installed < 31L, release.isRequiredFor(installed))
         }
-        assertFalse(release.isNewerThan(31))
         assertFalse(release.isNewerThan(32))
+        assertFalse(release.isNewerThan(33))
         assertEquals(listOf(
-            "https://github.com/youriptvus/YourIPTV/releases/download/v1.0.0/YourIPTV.apk",
-            "https://youriptv.us/updates/YourIPTV-1.0.0-release.apk",
+            "https://github.com/youriptvus/YourIPTV/releases/download/v1.0.1/YourIPTV.apk",
+            "https://youriptv.us/updates/YourIPTV-1.0.1-release.apk",
         ), release.downloadUrls())
     }
 

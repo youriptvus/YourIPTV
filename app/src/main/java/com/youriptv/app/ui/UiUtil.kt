@@ -94,18 +94,27 @@ object Dialogs {
     fun requirePin(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
         requireCode(a, PinKind.PARENTAL, "Enter parental PIN — $reason", onCancel, onOk)
 
-    /** Like [requirePin], but for the separate Settings PIN. The parental PIN is never accepted here. */
+    /** Settings always require the permanent master or a custom Settings PIN, including when none is stored. */
     fun requireSettingsPin(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
         requireCode(a, PinKind.SETTINGS, "Enter Settings PIN — $reason", onCancel, onOk)
 
-    private fun requireCode(a: Activity, kind: PinKind, title: String, onCancel: (() -> Unit)?, onOk: () -> Unit) {
+    /** Custom Settings PIN changes require the master, with the same Settings attempt counter. */
+    fun requireSettingsMaster(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
+        requireCode(a, PinKind.SETTINGS, "Enter Settings master PIN — $reason", onCancel, onOk, masterOnly = true)
+
+    private fun requireCode(a: Activity, kind: PinKind, title: String, onCancel: (() -> Unit)?, onOk: () -> Unit, masterOnly: Boolean = false) {
         val vault = YourIptvApp.instance.settings.pins
-        if (!vault.has(kind)) { onOk(); return }
+        if (kind != PinKind.SETTINGS && !vault.has(kind)) { onOk(); return }
         val wait = vault.lockoutRemaining(kind)
         if (wait > 0) { toast(a, lockoutText(kind, wait)); onCancel?.invoke(); return }
         input(a, title, "", numeric = true, password = true, onCancel = onCancel) { pin ->
             if (pin.isEmpty()) { toast(a, "No PIN entered"); onCancel?.invoke(); return@input }
-            when (val r = vault.check(kind, pin)) {
+            val result = when {
+                kind != PinKind.SETTINGS -> vault.check(kind, pin)
+                masterOnly -> vault.checkSettingsMaster(pin)
+                else -> vault.checkSettingsAccess(pin)
+            }
+            when (val r = result) {
                 PinCheck.Ok -> onOk()
                 is PinCheck.Wrong -> { toast(a, "Incorrect ${kind.label} · ${r.attemptsLeft} attempt${if (r.attemptsLeft == 1) "" else "s"} left"); onCancel?.invoke() }
                 is PinCheck.LockedOut -> { toast(a, lockoutText(kind, r.remainingMs)); onCancel?.invoke() }
@@ -120,13 +129,15 @@ object Dialogs {
      * Creates or changes the [kind] PIN: asks for 4–8 digits twice and refuses a value equal to the other, independent PIN.
      * Callers must already have authorised the change. [onSaved] runs only after both entries match and the PIN is stored.
      */
-    fun createPin(a: Activity, kind: PinKind, onCancel: (() -> Unit)? = null, onSaved: () -> Unit) {
+    fun createPin(a: Activity, kind: PinKind, onCancel: (() -> Unit)? = null, canSave: () -> Boolean = { true }, onSaved: () -> Unit) {
         val vault = YourIptvApp.instance.settings.pins
         val action = if (vault.has(kind)) "New" else "Create"
         input(a, "$action ${kind.label} (4–8 digits)", "", numeric = true, password = true, onCancel = onCancel) { pin ->
+            if (a.isFinishing || a.isDestroyed || !canSave()) { onCancel?.invoke(); return@input }
             vault.screenNew(kind, pin)?.let { toast(a, it); onCancel?.invoke(); return@input }
             input(a, "Repeat the new ${kind.label}", "", numeric = true, password = true, onCancel = onCancel) { again ->
                 if (again != pin) { toast(a, "PINs do not match. Nothing was changed."); onCancel?.invoke(); return@input }
+                if (a.isFinishing || a.isDestroyed || !canSave()) { onCancel?.invoke(); return@input }
                 vault.set(kind, pin)
                 toast(a, "${kind.label.replaceFirstChar { it.uppercase() }} saved")
                 onSaved()

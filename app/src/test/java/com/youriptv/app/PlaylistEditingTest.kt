@@ -39,7 +39,7 @@ class PlaylistEditingTest {
     }
 
     @Test
-    fun settingsShortcutRequiresPlaylistPermissionAndRechecksTheActiveId() {
+    fun settingsShortcutUsesAnAuthorizedVisitAndTargetEditorEnforcesBothPermissions() {
         val settings = ui("SettingsActivity.kt")
         val entries = settings.substringAfter("SettingsCategory.PLAYLISTS -> listOf(")
             .substringBefore("SettingsCategory.PLAYBACK")
@@ -47,10 +47,16 @@ class PlaylistEditingTest {
         assertTrue(entries.contains("editCurrentPlaylist()"))
         val handler = settings.substringAfter("private fun editCurrentPlaylist()")
             .substringBefore("private fun restoreFromFolder()")
-        assertTrue(handler.contains("withPlaylistPermission(\"edit playlists\")"))
+        assertTrue(handler.contains("if (!visit.isAuthorized) return"))
         assertTrue(handler.contains("PlaylistEditActivity.editIntent(this, current.id)"))
         assertEquals(2, Regex("app\\.repo\\.playlist\\(s\\.activePlaylistId\\)").findAll(handler).count())
         assertTrue(settings.contains("if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason)"))
+        val editor = ui("PlaylistEditActivity.kt")
+        val authentication = editor.substringAfter("override fun onResume()").substringBefore("override fun onPause()")
+        assertTrue(authentication.contains("app.settings.isPlaylistsLocked()"))
+        assertTrue(authentication.contains("Dialogs.requirePin"))
+        assertTrue(authentication.contains("Dialogs.requireSettingsPin"))
+        assertTrue(authentication.contains("authorization.allowSettings(visit)"))
     }
 
     @Test
@@ -73,7 +79,8 @@ class PlaylistEditingTest {
     @Test
     fun missingOrDeletedPlaylistsDoNotBecomeNewOrSuccessfulEdits() {
         val editor = ui("PlaylistEditActivity.kt")
-        val open = editor.substringAfter("val id = intent.getLongExtra").substringBefore("editing?.let")
+        val open = editor.substringAfter("private fun loadAuthorizedPlaylist()").substringBefore("editing?.let")
+        assertTrue(open.indexOf("if (!authorization.isAuthorized") in 0 until open.indexOf("app.repo.playlist(id)"))
         assertTrue(open.contains("id != 0L && editing == null"))
         assertTrue(open.contains("This playlist no longer exists."))
         assertTrue(open.contains("finish()"))

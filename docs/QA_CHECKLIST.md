@@ -1,5 +1,44 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 1.0.1 Settings security update (version code 32) - November 8, 2026
+
+The owner approved permanent Settings protection for new and existing installations, a fixed
+Settings master, preserved optional custom Settings PINs, master-only custom PIN management,
+independent parental controls, public About navigation and authorized existing-playlist editing.
+The release is based on clean 1.0.0. It does not resume buffer or companion rebranding work.
+GitHub publication, website deployment and device installation are outside this local preparation.
+
+- [x] Final full offline player unit suite: **241 tests in 35 classes**, zero failures/errors/skips.
+      Coverage includes Settings master/custom policy, migration, persistent shared lockouts,
+      visit/token authorization, protected playlist editing and public About navigation.
+- [x] Final signed release assembly and release vital lint passed: **5m 23s, 72 tasks**
+      (15 executed, 57 up-to-date). An earlier preliminary build was cancelled during review;
+      the final full run above is the completed result. Full debug lint was not run.
+- [x] Native verification of the exact signed APK: official package `com.youriptv.app`, label
+      `YourIPTV`, version **1.0.1 / code 32**, unchanged official certificate, minSdk 23,
+      targetSdk 36 and unchanged seven requested permissions compared with clean 1.0.0.
+- [x] Both existing production update addresses are present. Compiled manifest/resources and
+      R8 mapping checks found no companion integration. APK checks found no forbidden private
+      filenames or private-key text markers; these limited scans do not prove arbitrary secrets absent.
+- [x] Eleven archived updater JVM checks passed with zero failures/errors/skips. Ten current-channel
+      fixtures, including 1.0.0, accept the exact 1.0.1 GitHub metadata and verified package identity;
+      the eleventh confirms the retired 0.4.0 route is rejected. This is offline compatibility
+      evidence, not installed-device update testing. Separate XML is saved in `legacy-unit-results`.
+- [ ] Physical installation, Settings migration on a device, app-data retention, live automatic
+      update, playback and phone/TV focus checks: not performed for 1.0.1. Unit/source checks
+      do not establish device behavior. Earlier device evidence below remains historical.
+- [ ] Publication or website deployment: not performed. The backup website still serves
+      1.0.0 / code 31; preparing local 1.0.1 files does not deploy them.
+
+Verified 1.0.1 APK: **3,644,379 bytes**, SHA-256
+`f4b42074d1f04673c8159c0e4682b90422013fce31dd2c3c78cb86297aa3be2d`.
+Local evidence: `D:\APK\work\YourIPTV-1.0.1-verification`; final main suite XML is preserved in
+`main-unit-results`. The release manifest uses `previousVersionCode: 31`: compatible code 31
+clients can Install or Ignore, while lower supported codes receive the existing required-update
+prompt. Correct-channel official clients from 0.4.1 onward need no intermediate install; older
+retired-route clients require a manual in-place install. Read [the migration policy](SETTINGS_SECURITY.md).
+Preserve all earlier QA evidence below as historical release results.
+
 ## 1.0.0 stable promotion (version code 31) - November 8, 2026
 
 The owner requested a separate testing branch and stable 1.0, with local changes

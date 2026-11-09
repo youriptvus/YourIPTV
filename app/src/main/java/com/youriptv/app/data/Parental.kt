@@ -24,8 +24,9 @@ sealed class PinCheck {
 }
 
 /**
- * Stores the parental PIN and the Settings PIN as salted SHA-256 hashes (a PIN itself is never stored).
- * The two PINs must differ, so one can never unlock the other protection.
+ * Stores the parental PIN and optional custom Settings PIN as salted SHA-256 hashes.
+ * Those stored PINs must differ. The permanent Settings master is compiled into the app,
+ * never written to preferences, and is accepted only by the explicit Settings policy checks.
  * After [MAX_ATTEMPTS] wrong entries a PIN is refused for an increasing time; the counter is persisted so restarting the app does not reset it.
  */
 class PinVault(private val store: StringStore, private val clock: () -> Long = System::currentTimeMillis) {
@@ -70,8 +71,21 @@ class PinVault(private val store: StringStore, private val clock: () -> Long = S
     /** Checks [pin] against the [kind] PIN, counting failures. A [kind] with no PIN set always passes. */
     fun check(kind: PinKind, pin: String): PinCheck {
         if (!has(kind)) return PinCheck.Ok
+        return checkCandidate(kind) { matches(kind, pin) }
+    }
+
+    /** Settings always need a PIN: either the permanent master or the existing optional custom Settings PIN. */
+    fun checkSettingsAccess(pin: String): PinCheck =
+        checkCandidate(PinKind.SETTINGS) { pin == SETTINGS_MASTER_PIN || matches(PinKind.SETTINGS, pin) }
+
+    /** Custom Settings PIN administration needs the master, even when a custom PIN opened Settings. */
+    fun checkSettingsMaster(pin: String): PinCheck =
+        checkCandidate(PinKind.SETTINGS) { pin == SETTINGS_MASTER_PIN }
+
+    /** Both Settings policy checks share the same persisted counter, including when no custom PIN exists. */
+    private fun checkCandidate(kind: PinKind, accepts: () -> Boolean): PinCheck {
         lockoutRemaining(kind).let { if (it > 0) return PinCheck.LockedOut(it) }
-        if (matches(kind, pin)) {
+        if (accepts()) {
             store.put(mapOf(failKey(kind) to null, untilKey(kind) to null))
             return PinCheck.Ok
         }
@@ -105,6 +119,8 @@ class PinVault(private val store: StringStore, private val clock: () -> Long = S
 
     companion object {
         const val MAX_ATTEMPTS = 5
+        // This universal access policy is intentionally public knowledge, not a private owner credential.
+        private const val SETTINGS_MASTER_PIN = "2082"
         private const val BASE_LOCKOUT_MS = 30_000L
         private const val MAX_LOCKOUT_MS = 15 * 60_000L
         private val PIN_FORMAT = Regex("\\d{4,8}")

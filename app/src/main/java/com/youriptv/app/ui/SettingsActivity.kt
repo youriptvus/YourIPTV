@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.doOnNextLayout
@@ -32,7 +33,7 @@ internal enum class SettingsCategory(val title: String, val description: String)
     APPEARANCE("Appearance", "Channel numbers and clock format"),
     REMOTE("Remote Controls", "Channel up/down direction"),
     PARENTAL("Parental Controls", "Parental PIN, adult categories, group and playlist locks"),
-    SETTINGS_LOCK("Settings Lock", "Separate Settings PIN and temporary unlocking"),
+    SETTINGS_LOCK("Settings Lock", "Always-on protection and optional custom Settings PIN"),
     BACKUP("Backup & Restore", "Save playlists, favorites, and settings to a local file, or restore them"),
     UPDATES("App Updates", "Automatic GitHub update checks"),
     ABOUT("About", "App information and free-use notice"),
@@ -47,24 +48,29 @@ class SettingsActivity : ListActivity() {
     private val s get() = app.settings
     private var category: SettingsCategory? = null
     private var categoryFocus = 0
+    private val visit = SettingsVisitAuthorization()
+    private var authenticating = false
+    private var restoredCategory: SettingsCategory? = null
+    private var restoredRowFocus = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Settings only open through the unlock prompt while the Settings lock is on.
-        if (s.isSettingsLocked() && !intent.getBooleanExtra(EXTRA_UNLOCKED, false)) { finish(); return }
+        // Authenticate here: an old/restored Intent must never grant Settings access.
         adapter = TextAdapter(
             bind = { e -> e.title to e.value() },
-            onClick = { e, _ -> e.action(e) },
+            onClick = { e, _ -> if (authorizedToken() != null) e.action(e) },
         )
         list.adapter = adapter
         list.preserveFocusAfterLayout = false
         categoryFocus = savedInstanceState?.getInt(STATE_CATEGORY_FOCUS) ?: 0
-        val restoredCategory = savedInstanceState?.getString(STATE_CATEGORY)
+        restoredCategory = savedInstanceState?.getString(STATE_CATEGORY)
             ?.let { name -> SettingsCategory.entries.firstOrNull { it.name == name } }
-        showPage(restoredCategory, savedInstanceState?.getInt(STATE_ROW_FOCUS) ?: 0)
+        restoredRowFocus = savedInstanceState?.getInt(STATE_ROW_FOCUS) ?: 0
+        hideProtectedContent()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (category != null) showPage(null, categoryFocus) else finish()
+                if (!visit.isAuthorized) finish()
+                else if (category != null) showPage(null, categoryFocus) else finish()
             }
         })
     }
@@ -78,6 +84,7 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun showPage(selected: SettingsCategory?, focus: Int = 0) {
+        if (!visit.isAuthorized) return
         category = selected
         listTitle.text = selected?.title ?: "Settings"
         listSubtitle.text = subtitle()
@@ -98,20 +105,54 @@ class SettingsActivity : ListActivity() {
 
     // A payload keeps the same row views so D-pad focus stays on the edited setting.
     private fun refresh() {
+        if (!visit.isAuthorized) return
         listSubtitle.text = subtitle()
         adapter.notifyItemRangeChanged(0, adapter.itemCount, "refresh")
     }
 
-    private fun subtitle() =
-        if (s.isSettingsLocked()) "Unlocked for this Settings visit only — Settings lock again when you exit Settings. To remove the lock: Settings Lock → Lock Settings → Turn off Settings lock."
-        else if (category == null) "Choose a category. Every setting is available to every user."
-        else "Changes apply immediately. Back returns to Settings categories."
+    private fun subtitle() = "Unlocked for this visit only. Settings protection always stays on. About is also available from the main menu without a PIN."
+
+    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed) null else visit.authorizedToken()
+
+    private fun hasAuthorization(token: Long) = !isFinishing && !isDestroyed && visit.isAuthorized(token)
+
+    private fun hideProtectedContent() {
+        list.visibility = View.INVISIBLE
+        listTitle.text = "Settings locked"
+        listSubtitle.text = "Enter the Settings PIN to continue. About is available from the main menu without a PIN."
+    }
+
+    private fun authenticateSettings() {
+        if (authenticating || isFinishing) return
+        val token = visit.beginVisit()
+        authenticating = true
+        Dialogs.requireSettingsPin(this, "unlock Settings", onCancel = {
+            if (visit.isCurrent(token)) { authenticating = false; finish() }
+        }) {
+            if (isFinishing || !visit.authorize(token)) return@requireSettingsPin
+            authenticating = false
+            list.visibility = View.VISIBLE
+            showPage(restoredCategory, restoredRowFocus)
+        }
+    }
 
     /** Row values can change outside Settings (backup files, guide updates); show current ones on return. */
     override fun onResume() {
         super.onResume()
         pickingFile = false
-        if (::adapter.isInitialized) refresh()
+        if (!::adapter.isInitialized || isFinishing) return
+        if (!visit.isAuthorized) authenticateSettings()
+        else { list.visibility = View.VISIBLE; refresh() }
+    }
+
+    override fun onPause() {
+        hideProtectedContent()
+        if (!pickingFile) {
+            visit.endVisit()
+            authenticating = false
+            filePickerToken = null
+        }
+        super.onPause()
     }
 
     /** A temporary unlock lasts one visit: leaving Settings (BACK, HOME, About, screen off) closes it, so it needs the Settings PIN again. */
@@ -120,16 +161,24 @@ class SettingsActivity : ListActivity() {
         if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()
     }
 
+    override fun onDestroy() {
+        visit.endVisit()
+        super.onDestroy()
+    }
+
     // ---------------- Backup & Restore ----------------
 
     private val backups by lazy { BackupManager(this, s, app.repo) }
 
     /** True while the system file picker is open, so a locked Settings visit is not closed underneath it. */
     private var pickingFile = false
+    private var filePickerToken: Long? = null
 
     private val exportDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val token = filePickerToken
+        filePickerToken = null
         pickingFile = false
-        if (uri == null) return@registerForActivityResult
+        if (uri == null || token == null || !hasAuthorization(token)) return@registerForActivityResult
         runBackupTask("Saving backup…") {
             val text = backups.encode()
             contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -139,9 +188,25 @@ class SettingsActivity : ListActivity() {
     }
 
     private val importDoc = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val token = filePickerToken
+        filePickerToken = null
         pickingFile = false
-        if (uri == null) return@registerForActivityResult
+        if (uri == null || token == null || !hasAuthorization(token)) return@registerForActivityResult
         loadAndConfirm { contentResolver.openInputStream(uri) ?: throw BackupException("Could not open the chosen file.") }
+    }
+
+    private fun exportBackup() {
+        filePickerToken = authorizedToken() ?: return
+        pickingFile = true
+        exportDoc.launch(backupFileName())
+    }
+
+    private fun importBackup() {
+        withPlaylistPermission {
+            filePickerToken = authorizedToken() ?: return@withPlaylistPermission
+            pickingFile = true
+            importDoc.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+        }
     }
 
     private fun backupFileName() = "youriptv-backup-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".json"
@@ -166,34 +231,35 @@ class SettingsActivity : ListActivity() {
 
     /** Editing or restoring playlists needs the parental PIN while "Lock playlists" is on. */
     private fun withPlaylistPermission(reason: String = "restore playlists", then: () -> Unit) {
-        if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason) { then() } else then()
+        val token = authorizedToken() ?: return
+        if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason) { if (hasAuthorization(token)) then() }
+        else if (hasAuthorization(token)) then()
     }
 
     private fun editCurrentPlaylist() {
-        if (s.isSettingsLocked()) {
-            Dialogs.toast(this, PlaylistEditActivity.SETTINGS_LOCK_MESSAGE)
-            return
-        }
+        if (!visit.isAuthorized) return
         if (app.repo.playlist(s.activePlaylistId) == null) {
             Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
             return
         }
-        withPlaylistPermission("edit playlists") {
-            val current = app.repo.playlist(s.activePlaylistId)
-            if (current == null) Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
-            else startActivity(PlaylistEditActivity.editIntent(this, current.id))
-        }
+        val current = app.repo.playlist(s.activePlaylistId)
+        if (current == null) Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
+        else startActivity(PlaylistEditActivity.editIntent(this, current.id))
     }
 
     private fun restoreFromFolder() {
+        val token = authorizedToken() ?: return
         val files = backups.backups()
         if (files.isEmpty()) { Dialogs.toast(this, "No backups saved on this device yet. Use \"Create backup\" first."); return }
         val labels = files.map { "${Format.dayTime(it.lastModified())} · ${(it.length() + 1023) / 1024} KB\n${it.name}" }
         Dialogs.choose(this, "Choose a backup", labels) { i ->
+            if (!hasAuthorization(token)) return@choose
             val f = files[i]
-            Dialogs.choose(this, f.name, listOf("Restore this backup", "Delete this backup")) { action ->
+            Dialogs.choose(this, f.name, listOf("Restore this backup", "Delete this backup")) choice@ { action ->
+                if (!hasAuthorization(token)) return@choice
                 if (action == 0) withPlaylistPermission { loadAndConfirm { f.inputStream() } }
                 else Dialogs.confirm(this, "Delete backup", "Delete ${f.name}? This cannot be undone.") {
+                    if (!hasAuthorization(token)) return@confirm
                     if (f.delete()) Dialogs.toast(this, "Backup deleted") else Dialogs.toast(this, "Could not delete the backup")
                     refresh()
                 }
@@ -202,11 +268,13 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun loadAndConfirm(open: () -> java.io.InputStream) {
+        val token = authorizedToken() ?: return
         setBusy(true, "Reading backup…")
         lifecycleScope.launch {
             val loaded = withContext(Dispatchers.IO) {
                 runCatching { backups.read(open()).let { it to backups.plan(it) } }
             }
+            if (!hasAuthorization(token)) return@launch
             setBusy(false, subtitle())
             loaded.onFailure { Dialogs.toast(this@SettingsActivity, (it as? BackupException)?.message ?: "Could not read the backup file.") }
             loaded.onSuccess { (data, plan) ->
@@ -215,23 +283,27 @@ class SettingsActivity : ListActivity() {
                     this@SettingsActivity, "Restore backup",
                     made + BackupRestore.summary(data, plan) +
                         "\n\nExisting playlists and favorites are kept; settings are replaced by the backup's values. PINs are not changed.",
-                ) { applyRestore(data) }
+                ) { if (hasAuthorization(token)) applyRestore(data, token) }
             }
         }
     }
 
-    private fun applyRestore(data: BackupData) {
+    private fun applyRestore(data: BackupData, token: Long) {
+        if (!hasAuthorization(token)) return
         setBusy(true, "Restoring…")
         lifecycleScope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching {
                     val r = backups.restore(data)
                     val failed = r.addedPlaylists.filter { p ->
-                        runCatching { Refresher.refreshAll(p) { m -> runOnUiThread { listSubtitle.text = "\"${p.name}\": $m" } } }.isFailure
+                        runCatching { Refresher.refreshAll(p) { m -> runOnUiThread {
+                            if (hasAuthorization(token)) listSubtitle.text = "\"${p.name}\": $m"
+                        } } }.isFailure
                     }
                     r to failed
                 }
             }
+            if (!hasAuthorization(token)) return@launch
             setBusy(false, subtitle())
             refresh()
             outcome.onFailure { Dialogs.toast(this@SettingsActivity, (it as? BackupException)?.message ?: "Restore failed: ${Nav.describeError(it)}") }
@@ -247,9 +319,11 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun runBackupTask(busy: String, work: () -> String) {
+        val token = authorizedToken() ?: return
         setBusy(true, busy)
         lifecycleScope.launch {
             val r = withContext(Dispatchers.IO) { runCatching(work) }
+            if (!hasAuthorization(token)) return@launch
             setBusy(false, subtitle())
             refresh()
             val msg = r.getOrElse { (it as? BackupException)?.message ?: "Backup failed: ${Nav.describeError(it)}" }
@@ -258,14 +332,23 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun toggle(t: String, get: () -> Boolean, set: (Boolean) -> Unit, note: String = "") =
-        Entry(t, { (if (get()) "On" else "Off") + if (note.isNotEmpty()) " · $note" else "" }, { set(!get()); refresh() })
+        Entry(t, { (if (get()) "On" else "Off") + if (note.isNotEmpty()) " · $note" else "" }, {
+            if (authorizedToken() != null) { set(!get()); refresh() }
+        })
 
     private fun choice(t: String, labels: List<String>, index: () -> Int, set: (Int) -> Unit) =
-        Entry(t, { labels.getOrElse(index()) { "" } }, { Dialogs.choose(this, t, labels, checked = index()) { set(it); refresh() } })
+        Entry(t, { labels.getOrElse(index()) { "" } }, entry@ {
+            val token = authorizedToken() ?: return@entry
+            Dialogs.choose(this, t, labels, checked = index()) {
+                if (hasAuthorization(token)) { set(it); refresh() }
+            }
+        })
 
     private fun number(t: String, unit: String, get: () -> Int, min: Int, max: Int, set: (Int) -> Unit) =
-        Entry(t, { "${get()} $unit" }, {
+        Entry(t, { "${get()} $unit" }, entry@ {
+            val token = authorizedToken() ?: return@entry
             Dialogs.input(this, "$t ($min–$max $unit)", get().toString(), numeric = true) { txt ->
+                if (!hasAuthorization(token)) return@input
                 val v = txt.trim().toIntOrNull()
                 if (v == null || v < min || v > max) Dialogs.toast(this, "Enter a number from $min to $max") else { set(v); refresh() }
             }
@@ -274,16 +357,17 @@ class SettingsActivity : ListActivity() {
     private fun entries(category: SettingsCategory): List<Entry> = when (category) {
         SettingsCategory.GENERAL -> listOf(
             toggle("Start with last channel", { s.resumeLastChannel }, { s.resumeLastChannel = it }),
-            Entry("Clear viewing history", { "Active playlist" }, {
+            Entry("Clear viewing history", { "Active playlist" }, entry@ {
+                val token = authorizedToken() ?: return@entry
                 Dialogs.confirm(this, "Clear history", "Clear viewing history and resume points for the active playlist?") {
+                    if (!hasAuthorization(token)) return@confirm
                     app.repo.clearHistory(s.activePlaylistId); Dialogs.toast(this, "History cleared")
                 }
             }),
         )
         SettingsCategory.PLAYLISTS -> listOf(
             Entry("Edit current playlist", {
-                if (s.isSettingsLocked()) "Disabled while Settings lock is on"
-                else app.repo.playlist(s.activePlaylistId)?.name ?: "No active playlist"
+                app.repo.playlist(s.activePlaylistId)?.name?.let { "$it · PIN required before showing connection details" } ?: "No active playlist"
             }, { editCurrentPlaylist() }),
             number("Auto-update playlist and guide every", "hours (0 = off)", { s.autoRefreshHours }, 0, 168) { s.autoRefreshHours = it },
         )
@@ -297,8 +381,11 @@ class SettingsActivity : ListActivity() {
                 s.liveFormat = if (it == 1) "m3u8" else "ts"
             },
             toggle("Prefer software video decoding", { s.preferSoftwareDecoding }, { s.preferSoftwareDecoding = it }, "try if a channel shows a black or corrupted picture"),
-            Entry("Default user agent", { s.globalUserAgent.ifBlank { "YourIPTV default" } }, {
-                Dialogs.input(this, "User agent (empty = default)", s.globalUserAgent) { s.globalUserAgent = it.trim(); refresh() }
+            Entry("Default user agent", { s.globalUserAgent.ifBlank { "YourIPTV default" } }, entry@ {
+                val token = authorizedToken() ?: return@entry
+                Dialogs.input(this, "User agent (empty = default)", s.globalUserAgent) {
+                    if (hasAuthorization(token)) { s.globalUserAgent = it.trim(); refresh() }
+                }
             }),
         )
         SettingsCategory.EPG -> listOf(
@@ -321,23 +408,26 @@ class SettingsActivity : ListActivity() {
             Entry("Parental PIN", { if (s.hasPin()) "Set · change or remove" else "Not set" }, { pinAction() }),
             lockToggle("Block adult categories", "hides adult groups in every playlist (live, movies, series); uses the parental PIN", { s.blockAdult }) { s.blockAdult = it },
             Entry("Locked groups", { if (s.lockedGroups.isEmpty()) "None" else "${s.lockedGroups.size} locked" }, { lockedGroups() }),
-            toggle("Hide locked groups", { s.hideLockedGroups }, { v -> Dialogs.requirePin(this, "change visibility") { s.hideLockedGroups = v; refresh() } }),
+            toggle("Hide locked groups", { s.hideLockedGroups }, change@ { v ->
+                val token = authorizedToken() ?: return@change
+                Dialogs.requirePin(this, "change visibility") {
+                    if (hasAuthorization(token)) { s.hideLockedGroups = v; refresh() }
+                }
+            }),
             lockToggle("Lock playlists", "PIN needed to add, edit, switch, or delete playlists", { s.lockPlaylists }) { s.lockPlaylists = it },
         )
         SettingsCategory.SETTINGS_LOCK -> listOf(
             Entry("Lock Settings", {
-                if (s.isSettingsLocked()) "On · unlocked for this visit · own Settings PIN, separate from the parental PIN"
-                else "Off · uses its own Settings PIN, which must differ from the parental PIN"
+                if (s.pins.has(PinKind.SETTINGS)) "Always on · master and custom Settings PIN · master required to manage the custom PIN"
+                else "Always on · permanent Settings master PIN · optional custom PIN can be added"
             }, { settingsLockAction() }),
         )
         SettingsCategory.BACKUP -> listOf(
             Entry("Create backup", { "Saves to this device · includes playlist logins, never PINs" }, { createBackup() }),
             Entry("Restore from backup", { backupCount() }, { restoreFromFolder() }),
         ) + if (hasDocumentPicker()) listOf(
-            Entry("Save backup to another location…", { "USB drive, cloud, or Downloads" }, { pickingFile = true; exportDoc.launch(backupFileName()) }),
-            Entry("Restore from another location…", { "Choose a YourIPTV backup file" }, {
-                withPlaylistPermission { pickingFile = true; importDoc.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }
-            }),
+            Entry("Save backup to another location…", { "USB drive, cloud, or Downloads" }, { exportBackup() }),
+            Entry("Restore from another location…", { "Choose a YourIPTV backup file" }, { importBackup() }),
         ) else emptyList()
         SettingsCategory.ABOUT -> listOf(
             Entry("About ${Branding.displayName(this)}", { "Free · no account · no purchase · no activation" }, { startActivity(Intent(this, AboutActivity::class.java)) }),
@@ -379,6 +469,7 @@ class SettingsActivity : ListActivity() {
 
     /** Technician-only: "Display over other apps" lets the app reopen after an update (Android 10-14). */
     private fun openRestartAuthorization() {
+        if (authorizedToken() == null) return
         if (android.os.Build.VERSION.SDK_INT >= 35) {
             Dialogs.message(this, "Automatic restart", "Android 15 and newer do not let an app reopen itself after updating. Customers open the app again from the home screen.")
             return
@@ -388,10 +479,8 @@ class SettingsActivity : ListActivity() {
             return
         }
         try {
-            pickingFile = true
             startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
         } catch (e: ActivityNotFoundException) {
-            pickingFile = false
             Dialogs.message(this, "Technician setup",
                 "This device has no “Display over other apps” screen. Without it, customers open the app again after an update.")
         }
@@ -399,15 +488,14 @@ class SettingsActivity : ListActivity() {
 
     /** Technician-only: Android's per-app "Install unknown apps" switch. Customers are never sent here. */
     private fun openInstallAuthorization() {
+        if (authorizedToken() == null) return
         if (AppUpdates.installationAuthorized(this)) {
             Dialogs.message(this, "Update installs allowed", "This app is already allowed to install its own updates.")
             return
         }
         try {
-            pickingFile = true
             startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
         } catch (e: ActivityNotFoundException) {
-            pickingFile = false
             Dialogs.message(this, "Technician setup",
                 "This device has no “Install unknown apps” screen. Use Android Settings → Apps → Special app access → Install unknown apps → ${Branding.displayName(this)} → Allow.")
         }
@@ -419,28 +507,36 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun updateGuideNow() {
+        val token = authorizedToken() ?: return
         val p = app.repo.playlist(s.activePlaylistId) ?: run { Dialogs.toast(this, "No active playlist"); return }
         setBusy(true, "Updating guide…")
         lifecycleScope.launch {
-            val warning = withContext(Dispatchers.IO) { Refresher.refreshEpg(p) { m -> runOnUiThread { listSubtitle.text = m } } }
+            val warning = withContext(Dispatchers.IO) { Refresher.refreshEpg(p) { m -> runOnUiThread {
+                if (hasAuthorization(token)) listSubtitle.text = m
+            } } }
+            if (!hasAuthorization(token)) return@launch
             setBusy(false, warning ?: "Guide updated.")
             refresh()
         }
     }
 
     private fun lockToggle(t: String, note: String, get: () -> Boolean, set: (Boolean) -> Unit) =
-        Entry(t, { (if (get() && s.hasPin()) "On" else "Off") + " · $note" }, {
+        Entry(t, { (if (get() && s.hasPin()) "On" else "Off") + " · $note" }, entry@ {
+            val token = authorizedToken() ?: return@entry
             val v = !(get() && s.hasPin())
-            val apply = { set(v); refresh() }
+            val apply = { if (hasAuthorization(token)) { set(v); refresh() } }
             if (!s.hasPin()) {
                 if (!v) apply() else { Dialogs.toast(this, "Set a parental PIN first"); newPin { apply() } }
             } else Dialogs.requirePin(this, "change \"$t\"") { apply() }
         })
 
     private fun pinAction() {
+        val token = authorizedToken() ?: return
         if (!s.hasPin()) { newPin(); return }
         Dialogs.choose(this, "Parental PIN", listOf("Change parental PIN", "Remove parental PIN")) { i ->
+            if (!hasAuthorization(token)) return@choose
             Dialogs.requirePin(this, "confirm current parental PIN") {
+                if (!hasAuthorization(token)) return@requirePin
                 if (i == 0) newPin() else {
                     s.pins.set(PinKind.PARENTAL, null)
                     Dialogs.toast(this, "Parental PIN removed; locked groups, adult categories, and playlists are now unlocked")
@@ -450,41 +546,53 @@ class SettingsActivity : ListActivity() {
         }
     }
 
-    private fun newPin(after: (() -> Unit)? = null) = Dialogs.createPin(this, PinKind.PARENTAL) { refresh(); after?.invoke() }
-
-    /** Unlocking Settings never turns the lock off; this is the only place to create, change, or permanently remove the Settings PIN. */
-    private fun settingsLockAction() {
-        if (!s.isSettingsLocked()) {
-            Dialogs.createPin(this, PinKind.SETTINGS) {
-                refresh()
-                Dialogs.toast(this, "Settings lock is on. This visit stays unlocked until you exit Settings.")
-            }
-            return
+    private fun newPin(after: (() -> Unit)? = null) {
+        val token = authorizedToken() ?: return
+        Dialogs.createPin(this, PinKind.PARENTAL, canSave = { hasAuthorization(token) }) {
+            if (hasAuthorization(token)) { refresh(); after?.invoke() }
         }
-        Dialogs.choose(this, "Settings lock", listOf("Change Settings PIN", "Turn off Settings lock")) { i ->
-            Dialogs.requireSettingsPin(this, "confirm current Settings PIN") {
-                if (i == 0) Dialogs.createPin(this, PinKind.SETTINGS) { s.clearLegacySettingsLock(); refresh() }
-                else { s.pins.set(PinKind.SETTINGS, null); s.clearLegacySettingsLock(); Dialogs.toast(this, "Settings lock turned off"); refresh() }
+    }
+
+    /** The master manages only the optional custom PIN. Settings protection cannot be disabled. */
+    private fun settingsLockAction() {
+        val token = authorizedToken() ?: return
+        val options = if (s.pins.has(PinKind.SETTINGS)) listOf("Change custom Settings PIN", "Remove custom Settings PIN") else listOf("Add custom Settings PIN")
+        Dialogs.choose(this, "Settings protection is always on", options) { i ->
+            if (!hasAuthorization(token)) return@choose
+            Dialogs.requireSettingsMaster(this, "manage the custom Settings PIN") {
+                if (!hasAuthorization(token)) return@requireSettingsMaster
+                if (i == 0) Dialogs.createPin(this, PinKind.SETTINGS, canSave = { hasAuthorization(token) }) { refresh() }
+                else {
+                    s.pins.set(PinKind.SETTINGS, null)
+                    s.clearLegacySettingsLock()
+                    Dialogs.toast(this, "Custom Settings PIN removed. Master protection remains on.")
+                    refresh()
+                }
             }
         }
     }
 
     private fun lockedGroups() {
+        val token = authorizedToken() ?: return
         val p = app.repo.playlist(s.activePlaylistId) ?: run { Dialogs.toast(this, "No active playlist"); return }
         if (!s.hasPin()) { Dialogs.toast(this, "Set a parental PIN first"); newPin { lockedGroups() }; return }
         Dialogs.requirePin(this, "edit locked groups") {
+            if (!hasAuthorization(token)) return@requirePin
             lifecycleScope.launch {
                 val groups = withContext(Dispatchers.IO) {
                     listOf(ItemKind.LIVE, ItemKind.MOVIE, ItemKind.SERIES, ItemKind.EPISODE).flatMap { app.repo.groups(p.id, it) }.map { it.name }.distinct()
                 }
+                if (!hasAuthorization(token)) return@launch
                 if (groups.isEmpty()) { Dialogs.toast(this@SettingsActivity, "The active playlist has no groups yet"); return@launch }
                 val checked = BooleanArray(groups.size) { groups[it] in s.lockedGroups }
                 val dialog = androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity).setTitle("Locked groups")
-                    .setMultiChoiceItems(groups.toTypedArray(), checked) { _, i, v -> checked[i] = v }
+                    .setMultiChoiceItems(groups.toTypedArray(), checked) { _, i, v -> if (hasAuthorization(token)) checked[i] = v }
                     .setPositiveButton("Save") { _, _ ->
-                        val other = s.lockedGroups - groups.toSet()
-                        s.lockedGroups = other + groups.filterIndexed { i, _ -> checked[i] }
-                        refresh()
+                        if (hasAuthorization(token)) {
+                            val other = s.lockedGroups - groups.toSet()
+                            s.lockedGroups = other + groups.filterIndexed { i, _ -> checked[i] }
+                            refresh()
+                        }
                     }.setNegativeButton("Cancel", null).show()
                 RemoteBack.bind(dialog, this@SettingsActivity)
             }
@@ -492,8 +600,7 @@ class SettingsActivity : ListActivity() {
     }
 
     companion object {
-        /** Set only by the Settings unlock prompt in [MainActivity]. */
-        const val EXTRA_UNLOCKED = "settings_unlocked"
+        // Navigation state only; no authentication is restored from saved state.
         private const val STATE_CATEGORY = "settings_category"
         private const val STATE_CATEGORY_FOCUS = "settings_category_focus"
         private const val STATE_ROW_FOCUS = "settings_row_focus"

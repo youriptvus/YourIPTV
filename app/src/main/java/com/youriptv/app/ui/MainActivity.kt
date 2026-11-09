@@ -50,7 +50,7 @@ class MainActivity : RemoteActivity() {
 
     enum class Section(val label: String) {
         SEARCH("Search"), TV("TV"), MOVIES("Movies"), SHOWS("Shows"),
-        FAVORITES("Favorites"), HISTORY("History"), RECORDINGS("Recordings"), PLAYLISTS("Playlists"), SETTINGS("Settings"),
+        FAVORITES("Favorites"), HISTORY("History"), RECORDINGS("Recordings"), PLAYLISTS("Playlists"), SETTINGS("Settings"), ABOUT("About"),
     }
 
     private data class GroupEntry(val info: GroupInfo, val special: String? = null)
@@ -574,32 +574,18 @@ class MainActivity : RemoteActivity() {
                 else showSection(s, requestFocus = true)
             Section.PLAYLISTS -> openLocked(app.settings.isPlaylistsLocked(), "Playlists are locked", PlaylistsActivity::class.java)
             Section.SETTINGS -> unlockSettings()
+            Section.ABOUT -> startActivity(Intent(this, AboutActivity::class.java))
             else -> showSection(s, requestFocus = true)
         }
     }
 
-    /**
-     * The rail's Settings item reads "Unlock Settings" while the Settings lock is on and always stays reachable with the remote.
-     * Only the separate Settings PIN opens it, for one visit; the lock itself stays on until turned off inside Settings.
-     */
+    /** Settings authenticates its own visit before showing protected values, including after process recreation. */
     private fun unlockSettings() {
-        val s = app.settings
-        val open = { startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_UNLOCKED, true)) }
-        when {
-            !s.isSettingsLocked() -> startActivity(Intent(this, SettingsActivity::class.java))
-            s.isLegacySettingsLock() -> Dialogs.requirePin(this, "Settings are locked with the old shared PIN") {
-                // One-time upgrade: the old shared PIN must be replaced by a separate Settings PIN (or the lock turned off).
-                Dialogs.choose(this, "Settings lock now has its own PIN", listOf("Create a separate Settings PIN", "Turn off Settings lock")) { i ->
-                    if (i == 0) Dialogs.createPin(this, PinKind.SETTINGS) { s.clearLegacySettingsLock(); updateSettingsLabel(); open() }
-                    else { s.clearLegacySettingsLock(); updateSettingsLabel(); Dialogs.toast(this, "Settings lock turned off"); open() }
-                }
-            }
-            else -> Dialogs.requireSettingsPin(this, "unlock Settings") { open() }
-        }
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     private fun updateSettingsLabel() {
-        navViews[Section.SETTINGS]?.text = if (app.settings.isSettingsLocked()) "Unlock Settings" else Section.SETTINGS.label
+        navViews[Section.SETTINGS]?.text = "Unlock Settings"
     }
 
     private fun openLocked(locked: Boolean, reason: String, target: Class<*>) {

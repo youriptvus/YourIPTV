@@ -4,6 +4,26 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 1.0.1 (version code 32)
+
+- Keep Settings protection always enabled on new and existing installations, including installations
+  where it was previously off. The permanent Settings master cannot be changed or removed.
+- Preserve existing custom Settings PINs as another way to open Settings. Require the master to
+  add, change or remove a custom Settings PIN. Removing a custom PIN leaves master protection on.
+  Master and custom attempts share persistent Settings lockouts; neither bypasses a lockout.
+- End legacy shared-parental access to Settings. Parental PINs, restrictions and failure counters
+  remain independent and unchanged; the Settings master never overrides them.
+- Make About directly available from the main menu on phones and TV without a Settings PIN.
+  Opening About does not unlock Settings. Version information, free-use notices and credits remain.
+- Allow editing existing playlist connections after Settings authentication, with any additional
+  parental playlist lock still enforced. Check authorization before displaying connection details
+  and saving changes; the authorization ends when the protected visit ends.
+- Keep playback, package identity, official signing identity, requested permissions and update
+  addresses unchanged. All player features remain free. Buffer and companion rebranding work stay paused.
+- Local release preparation only. No 1.0.1 publication, website deployment or device testing is
+  implied. A fixed shared master can be learned and shared; it is not owner-specific authentication
+  or an anti-copy mechanism. See [Settings security and migration](docs/SETTINGS_SECURITY.md).
+
 ## 1.0.0 (version code 31)
 
 - Stable version-only promotion of the owner-accepted clean 0.5.6 baseline. No new features or

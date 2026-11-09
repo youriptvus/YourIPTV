@@ -75,13 +75,14 @@ object Branding {
 FREE FOR EVERYONE
 • Every feature in $name is available to every user.
 • No $name account, registration, purchase, activation code, licence key, trial, or subscription exists or is required.
-• There are no premium screens, locked settings, or artificial limits on playlists, favorites, or devices.
+• There are no paid feature locks or artificial limits on playlists, favorites, or devices. Settings PIN protection is a configuration safeguard.
 
 WHAT STILL APPLIES (NOT APP LICENSING)
 • IPTV provider: $name contains no channels. You need a playlist URL or Xtream Codes login from your own provider, and the provider's account status, expiry date, and maximum simultaneous connections apply. If a provider allows one connection, another app or device using the account can block playback here.
 • Device: available codecs, resolution, frame rate, HDR, and picture-in-picture depend on your device and Android version.
 • Android: some features (such as picture-in-picture) require Android 8.0 or newer.
-• Parental PIN: if you set a PIN, locked groups require it. "Block adult categories" hides adult groups in every playlist, and playlist management can be locked too. Settings has its own, separate Settings PIN. PINs are stored only as salted hashes on this device.
+• Parental PIN: if you set a PIN, locked groups require it. "Block adult categories" hides adult groups in every playlist, and playlist management can be locked too. Parental and custom Settings PINs are stored as salted hashes on this device.
+• Settings: protection is always on. A permanent shared master or an optional custom Settings PIN opens Settings; only the master can manage the custom PIN. The master is built into the app and is not a private owner credential or a parental override. About is available without a PIN from the main menu.
 
 PRIVACY
 • Playlists, credentials, favorites, history, and guide data are stored only on this device and sent only to the provider servers you configure.

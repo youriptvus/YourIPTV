@@ -24,6 +24,10 @@ class PlaylistEditActivity : RemoteActivity() {
     private var editing: Playlist? = null
     private var type = SourceType.XTREAM
     private var busy = false
+    private lateinit var editor: View
+    private var editorVisit = 0L
+    private val playlistId get() = intent.getLongExtra(EXTRA_ID, 0L)
+    private val authorization by lazy { PlaylistEditAuthorization(existingPlaylist = playlistId != 0L) }
     /** Set once the user has chosen to keep a get.php link with embedded login as a plain M3U playlist. */
     private var keepAsM3u = false
 
@@ -42,8 +46,11 @@ class PlaylistEditActivity : RemoteActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (blockLockedEdit()) return
         setContentView(R.layout.activity_playlist_edit)
+        editor = findViewById(android.R.id.content)
+        // Provider credentials must never reappear from Android's saved view hierarchy before a PIN check.
+        editor.isSaveFromParentEnabled = false
+        editor.visibility = View.INVISIBLE
         findViewById<android.widget.TextView>(R.id.edit_free_notice).text = Branding.freeNotice(this)
         name = findViewById(R.id.f_name)
         url = findViewById(R.id.f_url)
@@ -57,13 +64,21 @@ class PlaylistEditActivity : RemoteActivity() {
         btnXtream = findViewById(R.id.type_xtream)
         btnM3u = findViewById(R.id.type_m3u)
         btnSave = findViewById(R.id.btn_save)
+        listOf(name, url, user, pass, epg, ua).forEach { it.isSaveEnabled = false }
 
         btnXtream.setOnClickListener { setType(SourceType.XTREAM) }
         btnM3u.setOnClickListener { setType(SourceType.M3U) }
         btnSave.setOnClickListener { save() }
         findViewById<Button>(R.id.btn_cancel).setOnClickListener { finish() }
+    }
 
-        val id = intent.getLongExtra(EXTRA_ID, 0L)
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(Bundle(savedInstanceState).apply { remove("android:viewHierarchyState") })
+    }
+
+    private fun loadAuthorizedPlaylist() {
+        if (!authorization.isAuthorized || isFinishing) return
+        val id = playlistId
         editing = if (id != 0L) app.repo.playlist(id) else null
         if (id != 0L && editing == null) {
             Dialogs.toast(this, "This playlist no longer exists.")
@@ -77,20 +92,46 @@ class PlaylistEditActivity : RemoteActivity() {
             type = p.type
         }
         setType(type)
+        btnSave.isEnabled = !busy
+        editor.visibility = View.VISIBLE
         (if (editing == null) btnXtream else name).requestFocus()
     }
 
     override fun onResume() {
         super.onResume()
-        if (!isFinishing) blockLockedEdit()
+        if (isFinishing) return
+        val visit = authorization.beginVisit().also { editorVisit = it }
+        val afterParental = afterParental@{
+            if (!authorization.allowParental(visit) || isFinishing) return@afterParental
+            if (playlistId == 0L) loadAuthorizedPlaylist()
+            else Dialogs.requireSettingsPin(this, "edit playlist connection", onCancel = {
+                if (authorization.isCurrent(visit)) finish()
+            }) {
+                if (authorization.allowSettings(visit)) loadAuthorizedPlaylist()
+            }
+        }
+        if (app.settings.isPlaylistsLocked()) {
+            Dialogs.requirePin(this, "add or edit playlists", onCancel = {
+                if (authorization.isCurrent(visit)) finish()
+            }, onOk = afterParental)
+        } else afterParental()
     }
 
-    /** Settings lock also protects existing playlist credentials, including during an unlocked Settings visit. */
-    private fun blockLockedEdit(): Boolean {
-        if (intent.getLongExtra(EXTRA_ID, 0L) == 0L || !app.settings.isSettingsLocked()) return false
-        Dialogs.toast(this, SETTINGS_LOCK_MESSAGE)
-        finish()
-        return true
+    override fun onPause() {
+        authorization.endVisit()
+        if (::editor.isInitialized) {
+            editor.visibility = View.INVISIBLE
+            if (playlistId != 0L || app.settings.isPlaylistsLocked()) {
+                listOf(name, url, user, pass, epg, ua).forEach { it.text.clear() }
+                editing = null
+                keepAsM3u = false
+                type = SourceType.XTREAM
+                status.text = ""
+                // Close a protected visit rather than retaining an old PIN dialog underneath a new one.
+                if (!isChangingConfigurations) finish()
+            }
+        }
+        super.onPause()
     }
 
     private fun setType(t: SourceType) {
@@ -103,7 +144,7 @@ class PlaylistEditActivity : RemoteActivity() {
     }
 
     private fun save() {
-        if (busy || blockLockedEdit()) return
+        if (busy || isFinishing || !authorization.isAuthorized) return
         var t = type
         var server = url.text.toString().trim()
         var username = user.text.toString().trim()
@@ -114,10 +155,15 @@ class PlaylistEditActivity : RemoteActivity() {
         // series, account status, catch-up) or kept as a plain M3U playlist; the user decides once.
         if (t == SourceType.M3U && !keepAsM3u && (editing?.type != SourceType.M3U || editing?.url != server)) {
             if (XtreamUrls.parseLogin(server) != null) {
+                val visit = editorVisit
                 Dialogs.choose(this, "This link contains an Xtream Codes login", listOf(
                     "Use as Xtream Codes (recommended: series, account status, catch-up)",
                     "Keep as M3U playlist",
-                )) { i -> if (i == 0) setType(SourceType.XTREAM) else keepAsM3u = true; save() }
+                )) { i ->
+                    if (!authorization.isCurrent(visit) || !authorization.isAuthorized) return@choose
+                    if (i == 0) setType(SourceType.XTREAM) else keepAsM3u = true
+                    save()
+                }
                 return
             }
         }
@@ -172,7 +218,7 @@ class PlaylistEditActivity : RemoteActivity() {
 
     companion object {
         const val EXTRA_ID = "playlist_id"
-        const val SETTINGS_LOCK_MESSAGE = "Playlist editing is disabled while Settings lock is on. Turn off Settings lock to edit playlists."
+        const val SETTINGS_LOCK_MESSAGE = "Editing an existing playlist requires the Settings PIN."
 
         fun editIntent(context: Context, id: Long): Intent =
             Intent(context, PlaylistEditActivity::class.java).putExtra(EXTRA_ID, id)

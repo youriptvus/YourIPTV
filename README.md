@@ -11,25 +11,77 @@ from a separate launcher.
 
 Website: [youriptv.us](https://youriptv.us)
 
+## Download and install
+
+**[Download the latest YourIPTV APK](https://github.com/youriptvus/YourIPTV/releases/latest/download/YourIPTV.apk)**
+
+You can also open the [latest release page](https://github.com/youriptvus/YourIPTV/releases/latest)
+and choose **YourIPTV.apk** under **Assets**. These links use the release marked Latest on GitHub;
+local source changes do not become available there until the owner publishes the matching release.
+YourIPTV supports Android phones and Android TV running Android 6.0 or newer.
+
+### Android phone or tablet
+
+1. Open the download link on your Android device and download **YourIPTV.apk**.
+2. Open the file from your browser's downloads or the device's **Files / Downloads** app.
+3. If Android asks, allow **Install unknown apps** for the browser or file manager opening the APK,
+   then return to the installer. Wording varies by Android version. Follow Android's prompts;
+   a managed device may prevent installation.
+4. Choose **Install**, then **Open**. YourIPTV includes no channels; add a playlist URL or Xtream
+   Codes login from a provider you are authorized to use. Keep those details inside the app.
+
+### Android TV or Google TV
+
+1. Download **YourIPTV.apk** using a browser on the TV, or download it on a phone/PC and copy it
+   to a USB drive or transfer it to the TV. Open the APK using the TV's file manager.
+2. If prompted, allow that browser or file manager to **Install unknown apps** in Android Settings.
+   Return to the APK and choose **Install**. Android's device restrictions still apply.
+3. Open **YourIPTV** from the TV's app list and add your authorized provider playlist.
+
+### Updating an existing installation
+
+With **Automatic updates** enabled, YourIPTV checks for updates when opened and offers the
+available update. Android may require installation permission or confirmation. To update manually,
+download and open the latest APK, then accept Android's update/install prompt. **Do not uninstall
+YourIPTV or clear its data**: a compatible in-place update keeps playlists and local app data.
+The 1.0.1 update deliberately turns Settings protection on for all installations; read the
+[Settings migration details](docs/SETTINGS_SECURITY.md).
+
+If Android reports a signing conflict or refuses an older version, keep the existing app and its
+data and contact the maintainer. Do not uninstall it to force the update. See the
+[upgrade guide](docs/UPGRADING_TO_1_0.md) for older-version exceptions and the technician setup below
+for the app's automatic-update permissions.
+
 ## Release status
 
 | | |
 |---|---|
-| Current project version | **1.0.0** (`versionCode` 31), application ID `com.youriptv.app`; local release preparation |
-| Stage | Stable baseline promoted from clean 0.5.6; signed local APK verified offline |
+| Current project version | **1.0.1** (`versionCode` 32), application ID `com.youriptv.app`; local release preparation |
+| Stage | Settings security update based on clean 1.0.0; signed local APK verified offline |
 | Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
 
-1.0.0 is a version-only promotion of the owner-accepted clean 0.5.6 baseline. It adds no
-features or playback fixes; known occasional stream interruptions remain possible. Package,
-official signing identity, permissions and updater behavior are unchanged. Buffer changes and
-companion rebranding are not included. This local preparation does not publish a release, and
-a higher-version in-app installation has not yet been tested.
+1.0.1 makes Settings protection permanent on new and existing installations, preserves optional
+custom Settings PINs, and adds a directly accessible About entry. Existing playlist connections
+can be edited after Settings authentication. See [Settings security and migration](docs/SETTINGS_SECURITY.md)
+before upgrading: the fixed master can open Settings even when a custom PIN exists, and only the
+master can manage custom Settings PINs. This shared master is discoverable and is not a private
+owner identity or protection against copying the APK.
 
-The owner confirmed the published release is 0.5.6 / code 30. The 1.0.0 manifest
-uses `previousVersionCode: 30`; official clients on the current update channel can
-upgrade directly. See [direct-upgrade compatibility and exceptions](docs/UPGRADING_TO_1_0.md).
+Package identity, official signing identity, permissions, update addresses and playback are unchanged.
+Known occasional stream interruptions remain possible. Buffer changes and companion rebranding
+are not included. Local preparation does not publish 1.0.1 or establish device-test results.
+
+The final local signed build, release vital lint and **241 JVM tests in 35 classes** passed.
+Native checks confirm the official package/certificate, version and unchanged Android requirements
+and permissions. See [1.0.1 QA evidence and unperformed device checks](docs/QA_CHECKLIST.md).
+
+The website backup currently serves 1.0.0 / code 31. The staged 1.0.1 manifest uses
+`previousVersionCode: 31`; GitHub publication remains manual and its current state was not checked
+from workspace tools. Publishing the website copy is a separate step and has not been performed
+for 1.0.1. Official clients on the current update channel can upgrade directly when the matching
+release is published. See [direct-upgrade compatibility and exceptions](docs/UPGRADING_TO_1_0.md).
 
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
@@ -43,18 +95,19 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
 **Technician setup (once per box, at install time):**
 
 1. Install the current version with the official release key (`adb install -r` or a file manager).
-   Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of 1.0.0 because
+   Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of the current release because
    the update source moved to `youriptvus/YourIPTV`; older versions also need a technician install
    because 0.4.0 added updater permissions.
-2. **Automatic updates** are **On by default** and do not depend on any other setting (no Settings
-   PIN or permission is required to turn them on or keep them working). For the smoothest updates,
-   open **Settings → App Updates** once:
+2. **Automatic updates** are **On by default**. Normal update checks and installation do not ask
+   for the Settings PIN. Changing their configuration requires opening protected Settings.
+   For the smoothest updates, authenticate and open **Settings → App Updates** once:
    - **Allow update installs (technician)** opens Android's *Install unknown apps* page; allow YourIPTV.
      (Google TV shows the full app list; scroll to YourIPTV.) Without it, Android asks once during
      the first update to allow installs from YourIPTV.
    - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
      YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
-   - Optionally set a **Settings PIN** so customers cannot turn **Automatic updates** Off.
+   - Settings protection is always enabled in 1.0.1. Keep the master with the responsible
+     technician; an optional custom Settings PIN can also authorize Settings access.
 
 **Customer experience:**
 
@@ -70,7 +123,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
   version is not required. Official 0.4.1 and later releases using the current GitHub update address
-  can update directly to compatible 1.0.0 / code 31; 0.5.2 and 0.5.3 need no intermediate install.
+  can update directly to compatible 1.0.1 / code 32; 0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
   can use the website fallback.
 - Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
@@ -79,7 +132,8 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   confirmation shows the installed version and its changelog. Choose **Got it** to acknowledge it;
   the confirmation remains pending if the app is closed before acknowledgement.
 - When the technician allowed update installs, customers never see permission prompts. Playlists,
-  credentials, PINs, settings and permission grants are kept (in-place update).
+  credentials, existing custom PINs and permission grants are kept (in-place update). In 1.0.1,
+  Settings protection becomes enabled even if it was previously off; parental protection is unchanged.
 
 **Limits:**
 
@@ -101,7 +155,7 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 1.0.0 use `--previous 30`, based on the owner's published 0.5.6 confirmation.
+   For the staged 1.0.1 release use `--previous 31`, following 1.0.0 / code 31.
    For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
    devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
@@ -140,9 +194,9 @@ offering associated with YourIPTV. A company or customer can receive a customize
 app name, logos and branding images, phone launcher icons, Android TV icon/banner, and About-screen
 company and support/contact details.
 
-- Rebranding is done by a **separate, authorized rebranding tool** (not part of this repository and
-  not yet built). The app itself contains no payment screens, "Unlock Premium" buttons, or branding
-  controls.
+- Rebranding work is held in a **separate, authorized rebranding tool** outside this repository.
+  Its unfinished companion integration remains paused and is excluded from 1.0.1. The app itself
+  contains no payment screens, "Unlock Premium" buttons, or branding controls.
 - A rebranded app is **never** more capable than the standard app, and the standard app is never
   reduced. Payment covers the custom branding only. It never unlocks, limits, or restricts any player
   feature, including playback, playlists, Xtream Codes, M3U, the EPG/guide, recording, catch-up,
@@ -168,14 +222,18 @@ restriction.
   limit.
 - **Android and hardware limits:** codec support, decoder performance, display refresh modes,
   picture-in-picture availability, storage space, and system key handling depend on the device.
-- **Parental-control PIN and Settings-lock PIN:** these are two separate, independent security
-  controls, and the two PINs must be different.
+- **Parental controls and Settings protection:** these are separate security controls.
   - The parental PIN protects locked groups, adult categories, protected playback and,
     optionally, playlist management.
-  - The Settings PIN protects the Settings screens.
-  - Wrong entries are throttled.
-  - There is no in-app PIN recovery. Resetting a forgotten PIN requires clearing the app's data,
-    which also removes its playlists.
+  - Settings protection is always enabled. The permanent master and any preserved or optional
+    custom Settings PIN can open Settings; only the master can add, change or remove a custom PIN.
+    New custom Settings PINs must be different from the parental PIN.
+  - Master and custom Settings attempts share persistent failed-attempt limits. The master cannot
+    bypass a Settings lockout. Parental counters and restrictions remain independent.
+  - The master offers intentional Settings recovery; it never overrides parental checks. Legacy
+    shared-parental access to Settings ends in 1.0.1. There is no in-app parental PIN recovery.
+  - About is available from the main menu without a PIN and does not unlock Settings. See
+    [the complete Settings policy](docs/SETTINGS_SECURITY.md).
 
 ## Features
 
@@ -242,9 +300,10 @@ All of the following are implemented. Their device-test status is recorded in
   - parental PIN and locked groups;
   - blocking of adult categories across the playlist;
   - an optional PIN for playlist management;
-  - a separate Settings lock with its own PIN.
+  - permanent Settings protection with a fixed master and optional custom Settings PIN.
 - **Settings:** grouped into categories: General, Playlists, TV Guide / EPG, Playback, Appearance,
-  Remote Controls, Parental Controls, Settings Lock, Backup & Restore, and About.
+  Remote Controls, Parental Controls, Settings Lock, Backup & Restore, and About. About is also
+  directly accessible from the main menu without opening Settings.
 - **Local backup and restore** of playlists, favorites and settings, saved as a JSON file in the
   app's folder.
   - Backups contain playlist logins but never PINs. Treat backup files as private.
@@ -257,7 +316,8 @@ All of the following are implemented. Their device-test status is recorded in
 - **Background reminders and recordings:** reminders and scheduled recordings run only while
   YourIPTV is running. By design there is no background service, alarm, notification or boot
   permission.
-- **In-app PIN recovery:** not provided.
+- **In-app parental PIN recovery:** not provided. Settings access can use the permanent master,
+  subject to the normal Settings lockout.
 - **Company branding:** a possible future offering only (see above). Not implemented.
 
 ## Device support
@@ -289,9 +349,10 @@ All of the following are implemented. Their device-test status is recorded in
 
 ### Permissions
 
-The only permissions are `INTERNET` and `ACCESS_NETWORK_STATE`. The app declares no services,
+The app requests network access and the existing Android install/restart permissions used by
+automatic updates. 1.0.1 adds or removes no requested permissions. It declares no services,
 broadcast receivers or content providers, and no HOME launcher category. The automated test
-`StandaloneAppAuditTest` enforces this.
+`StandaloneAppAuditTest` checks that the player remains a standalone app.
 
 ## Setting up a provider
 
@@ -302,10 +363,12 @@ Open **Playlists** in the main menu and add a playlist. The EPG URL and a custom
 optional fields on the same screen.
 
 To change the active playlist, choose **Playlists → Edit current** or
-**Settings → Playlists → Edit current playlist**. Edit its URL, Xtream username and password,
-name, guide URL, or user agent, then choose **Save and load**. If playlist locking is enabled,
-the parental PIN is required. Editing another playlist remains available through its MENU or
-long-press options.
+**Settings → Playlists → Edit current playlist**. Settings authentication is required before
+existing connection details are displayed and before changes can be saved. Edit its URL, Xtream
+username and password, name, guide URL, or user agent, then choose **Save and load**. If playlist
+locking is enabled, its parental check also applies. Editing another playlist remains available
+through its MENU or long-press options. Authorization lasts only for the protected visit; leaving
+it requires authenticating again. Editing no longer requires disabling Settings protection.
 
 Changes to the playlist source, login, or guide URL start a reload. If loading fails, the new
 settings remain saved; correct them and choose **Save** again, or refresh later from Playlists.
@@ -414,7 +477,7 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **1.0.0 (version code 31)**. Build and verify the matching signed APK
+The current project targets **1.0.1 (version code 32)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
 The higher-version in-app installation path has not yet been tested for this release.
 
@@ -440,7 +503,9 @@ install apps.
 .\gradlew.bat testDebugUnitTest
 ```
 
-- The suite has **198 JVM unit tests in 30 test classes** (`app\src\test\java\com\youriptv\app`).
+- The final 1.0.1 offline suite passed **241 JVM tests in 35 classes**, with zero failures,
+  errors or skips. Sources are in `app\src\test\java\com\youriptv\app`; exact evidence and
+  device-test limits are recorded in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
   They cover:
   - the M3U and XMLTV parsers, Xtream URLs and catch-up URL building;
   - the connection-limit logic;
@@ -454,7 +519,7 @@ install apps.
 Limitations of automated testing:
 
 - There are no instrumented (on-device) or UI tests. Navigation, focus, playback, provider
-  behaviour and device-specific decoding were verified **by hand on real devices**. Those results
+  behaviour and device-specific decoding require real-device testing. Historical manual results
   and their limits are recorded in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) and
   [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md).
 - The tests use no network and no real provider. Optional manual-test settings belong in a
@@ -537,7 +602,9 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog by version (0.1.1 → 0.3.9) |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.1 |
+| [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Always-on Settings protection, custom PINs and migration |
+| [docs/UPGRADING_TO_1_0.md](docs/UPGRADING_TO_1_0.md) | Direct upgrades, older-version exceptions and publication |
 | [docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md) | Requirements and implementation status |
 | [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) | Full hands-on QA pass |
 | [docs/REMOTE_CONTROLS.md](docs/REMOTE_CONTROLS.md) | Remote-control key map |

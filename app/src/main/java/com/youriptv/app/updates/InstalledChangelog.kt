@@ -6,6 +6,12 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        32L to Release("1.0.1", listOf(
+            "Settings protection stays on for new and existing installations, with a permanent Settings master PIN.",
+            "Existing custom Settings PINs still open Settings; the master is required to add, change or remove a custom PIN.",
+            "Open About directly from the main menu without entering a PIN.",
+            "Editing an existing playlist asks for authorization before showing connection details.",
+        )),
         31L to Release("1.0.0", listOf(
             "Stable release of the accepted 0.5.6 player; no new playback changes.",
             "All player features remain free. Existing playlists and settings are retained during a normal update.",

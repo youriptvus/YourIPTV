@@ -181,10 +181,12 @@ class ParentalControlTest {
     fun settingsRelockWhenLeftAndOnlyOpenThroughTheUnlockPrompt() {
         val settings = src("SettingsActivity.kt")
         assertTrue(settings.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))
-        assertTrue(settings.contains("!intent.getBooleanExtra(EXTRA_UNLOCKED, false)"))
+        assertTrue(settings.contains("Dialogs.requireSettingsPin(this, \"unlock Settings\""))
+        assertTrue(settings.contains("visit.endVisit()"))
+        assertFalse(settings.contains("EXTRA_UNLOCKED"))
         val main = src("MainActivity.kt")
         assertTrue(main.contains("\"Unlock Settings\""))
-        assertTrue(main.contains("Dialogs.requireSettingsPin(this, \"unlock Settings\")"))
+        assertTrue(main.contains("startActivity(Intent(this, SettingsActivity::class.java))"))
     }
 
     @Test
