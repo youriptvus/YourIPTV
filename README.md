@@ -11,15 +11,25 @@ from a separate launcher.
 
 Website: [youriptv.us](https://youriptv.us)
 
-## Development status
+## Release status
 
 | | |
 |---|---|
-| Current project version | **0.5.6** (`versionCode` 30), application ID `com.youriptv.app`; release preparation |
-| Stage | Under active development and testing |
+| Current project version | **1.0.0** (`versionCode` 31), application ID `com.youriptv.app`; local release preparation |
+| Stage | Stable baseline promoted from clean 0.5.6; signed local APK verified offline |
 | Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
+
+1.0.0 is a version-only promotion of the owner-accepted clean 0.5.6 baseline. It adds no
+features or playback fixes; known occasional stream interruptions remain possible. Package,
+official signing identity, permissions and updater behavior are unchanged. Buffer changes and
+companion rebranding are not included. This local preparation does not publish a release, and
+a higher-version in-app installation has not yet been tested.
+
+The owner confirmed the published release is 0.5.6 / code 30. The 1.0.0 manifest
+uses `previousVersionCode: 30`; official clients on the current update channel can
+upgrade directly. See [direct-upgrade compatibility and exceptions](docs/UPGRADING_TO_1_0.md).
 
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
@@ -33,7 +43,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
 **Technician setup (once per box, at install time):**
 
 1. Install the current version with the official release key (`adb install -r` or a file manager).
-   Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of 0.4.1 because
+   Never uninstall or clear data. Boxes on 0.4.0 need a one-time technician install of 1.0.0 because
    the update source moved to `youriptvus/YourIPTV`; older versions also need a technician install
    because 0.4.0 added updater permissions.
 2. **Automatic updates** are **On by default** and do not depend on any other setting (no Settings
@@ -59,7 +69,8 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   server response cannot replace a newer cached release, and a same-version response cannot
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
-  version is not required. For example, 0.5.2 can update directly to a compatible 0.5.6 release.
+  version is not required. Official 0.4.1 and later releases using the current GitHub update address
+  can update directly to compatible 1.0.0 / code 31; 0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
   can use the website fallback.
 - Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
@@ -90,9 +101,9 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For this release use `--previous 27`: the owner confirmed customers have 0.5.3.
-   Those devices may Install or Ignore; devices below code 27 must update. Unpublished
-   0.5.5 is not an intermediate installation requirement.
+   For 1.0.0 use `--previous 30`, based on the owner's published 0.5.6 confirmation.
+   For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
+   devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
    **`YourIPTV.apk`** and **`update.json`**. The APK URL inside `update.json` must be
    `https://github.com/youriptvus/YourIPTV/releases/download/v<versionName>/YourIPTV.apk`.
@@ -403,8 +414,9 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **0.5.6 (version code 30)**. Build and verify the matching signed APK
+The current project targets **1.0.0 (version code 31)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
+The higher-version in-app installation path has not yet been tested for this release.
 
 1. Enable **Developer options → USB debugging** (or **Wireless/network debugging** on Android
    TV).

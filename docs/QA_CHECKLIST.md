@@ -1,11 +1,58 @@
 # YourIPTV — QA checklist (full hands-on pass)
 
+## 1.0.0 stable promotion (version code 31) - November 8, 2026
+
+The owner requested a separate testing branch and stable 1.0, with local changes
+only. Published customer baseline is owner-confirmed **0.5.6 / code 30**;
+`previousVersionCode` is 30. The release promotes the clean accepted 0.5.6 source
+at `24467e5`, changing version declarations, bundled release notes, documentation
+and two update regression tests. Playback, updater policy, signing behavior,
+permissions and provider limits are unchanged. Buffer and rebranding work remain
+paused, with no assigned future version.
+
+- [x] Full offline unit suite: 212 tests in 31 classes, zero failures/errors/skips.
+- [x] Signed release assembly and release vital lint completed: 72 tasks, 13m 58s.
+      Full debug lint was not run.
+- [x] Native candidate verification: package, label, official certificate, version,
+      unchanged Android requirements/permissions and absence of companion integration.
+- [x] Native audit of 11 retained official APKs: matching package, label, certificate,
+      minimum Android version and seven requested permissions. No 0.5.4 APK was available.
+- [x] Ten archived updater JVM checks pass: nine fixtures accept the exact generated
+      1.0.0 GitHub metadata and verified candidate identity; the tenth confirms that
+      0.4.0 rejects the current channel. These are source tests, not installed old-device tests.
+- [x] Existing pre-cleanup 0.5.6 archive retained; additional clean source/artifact snapshot
+      saved at `D:\APK\github\YourIPTV\clean-before-1.0.0-20261108\0.5.6`.
+- [ ] Physical version-increasing installation and app-data retention: not performed
+      for 1.0.0; the owner requested local files only. Historical device checks below
+      remain 0.5.6 results. No ADB, app launch, live GitHub call or deployment in this task.
+
+Official clients from 0.4.1 onward on the current update route can skip intermediate
+versions. 0.4.0 uses a retired route; it and older clients need a one-time manual
+in-place installation. Code 31 cannot replace code 31 or higher. Separately branded,
+modified-label or differently signed packages are outside the official path.
+See [direct-upgrade details](UPGRADING_TO_1_0.md) and local evidence at
+`D:\APK\work\YourIPTV-1.0.0-verification`. Preserve the earlier QA history below.
+
+Verified 1.0.0 APK: **3,640,544 bytes**, SHA-256
+`66f65fceaa5df1255ec3a4f4529f06b10fcdf58ae177308971163801dfb5c3e3`.
+Main suite XML is preserved in `main-unit-results`; the separate 10-check legacy
+suite is in `legacy-unit-results`. The initial external test-discovery configuration
+was corrected before the successful legacy run; it did not modify the release APK.
+
 ## 0.5.6 release without pending companion integration (version code 30)
 
-The owner confirmed this version is private staging, installed only on the authorized
-ADB test box. This clean source retains the website updater fallback and excludes the
+At release preparation, the owner confirmed that the preceding mixed 0.5.6 build was
+private staging, installed only on the authorized ADB test box. Current publication
+status was not rechecked. This clean source retains the website updater fallback and excludes the
 pending companion implementation, issuer pin, importer, UI and build prerequisite.
-Companion work is preserved separately for the planned 0.5.7; it is not part of this release.
+Companion work is preserved separately with no assigned release version; it is not part of this release.
+
+Latest owner decision, November 8, 2026: **0.5.6 / code 30 is accepted stable for
+normal use with known occasional interruptions**. The stability investigation and
+phone connection attempts are closed. The Moto G did not connect and no phone
+diagnostics ran; the owner's mostly reliable hour of phone viewing is a user report.
+Server lag is the owner's explanation, not a confirmed cause. This decision adds no
+new tests or fixes. Buffer-change approval remains withdrawn; rebranding has not resumed.
 
 - [x] Clean-source offline unit suite: 210 tests in 31 classes, zero failures/errors/skips. Signed release vital lint and assembly pass.
 - [x] Native verification passed: official package/label/signer, 0.5.6/code 30, minSdk 23, targetSdk 36 and unchanged seven permissions.
@@ -13,16 +60,82 @@ Companion work is preserved separately for the planned 0.5.7; it is not part of 
 - [x] Generate GitHub and website metadata from this exact verified APK and confirm chosen
       previously published version code with the owner (confirmed: 0.5.3 / code 27).
 - [x] Desktop release files and Repository source updated only after matching verification.
-- [ ] User reviews, commits/pushes Repository and publishes the matching GitHub release manually.
+- [x] Exact clean APK installed on authorized onn. 4K pro `192.168.1.150:5555` with `adb install -r`;
+      same-code 30 technician replacement, not an automatic version-increasing update. Installed
+      hash matches; first-install time and existing install/restart permissions retained; no uninstall/data clear.
+- [x] Existing locally authorized test Settings PIN accepted through the normal prompt before and
+      after restart; empty and supplied incorrect entries rejected. No PIN values recorded. Settings
+      relocks, Edit current remains disabled while locked, and context-menu Edit stays outside the editor.
+- [x] About shows 0.5.6, the free-use notice and library credits. Automatic updates remains On;
+      existing locks, provider configuration and permissions were not changed.
+- [x] Home/reopen and three app cold starts pass; playlist/Settings lock retained, no false update
+      success/offer, and zero player crash-process/ANR records in the observed window. No TV reboot.
+- [x] Fresh offline updater-focused JVM suite: 29 tests, zero failures/errors/skips; source/unit
+      coverage only. The 210-test clean full-suite result above is the earlier build result.
+- [x] Final read-only health check: installed clean SHA-256 still matches; zero crash/ANR records
+      through the end of the observed QA window.
+- [x] Resumed playback and EPG after owner correction: latest guide has 5,802 live rows; changing
+      video and audio output processing verified on Bizarre Foods, Bosch and Bounce TV. Sampled
+      current/future programme titles, times, descriptions, channel association and Now/Next pass.
+- [x] Owner accepts 0.5.6 as stable for normal use with known occasional interruptions and
+      closes the diagnostic investigation. This acceptance performed no new test or fix.
+- [ ] Strict uninterrupted criterion is not established: Bizarre Foods recorded four ended-state events in 166 seconds;
+      regular live Bounce TV recorded one in 185 seconds. Bosch had none in its 80-second window.
+      Playback resumed after observed reconnections; every recovery completion was not individually
+      verified. Cause remains undetermined; acceptance does not establish zero interruptions on every device.
+- [x] Working-stream guide browse/return, launcher Home/reopen and one fresh cold app restart:
+      current channel retained with changing video/advancing audio. Synthetic ADB input does not
+      certify physical remote timing or the user's exact launcher tile. TiviMate was never opened.
+- [x] Fresh offline connection-limit tests: 5 passed; existing playback/recovery tests: 29 passed.
+      Together with the updater run, 63 focused tests passed; this is not a fresh full-suite run.
+      Explicit provider limits above one remain supported; no global one-stream cap was added.
+- [x] Latest read-only health: exact clean APK hash unchanged and zero observed player crash/ANR
+      records. No APK was installed during resumed playback tests. Bizarre Foods restored at end.
+- [ ] Longer playback soak, physical speaker audibility/A-V synchronization and PiP/recording
+      multi-connection behavior: not verified in this pass.
+- [ ] Parental enforcement: not physically tested; parental PIN was not set and was left unchanged.
+- [ ] Higher-version in-app update: not freshly tested; device is already code 30 and no downgrade
+      or higher-version build was authorized. A same-code technician install is not this test.
+- [ ] TV reboot persistence: not tested; app cold starts do not establish whole-device reboot behavior.
+- [ ] Initial empty-list navigation was interrupted without usable results. The owner subsequently
+      corrected the playlist and resumed testing; the working-stream results above supersede the
+      initial zero-channel/HTTP-401 blockers. No pass or failure is inferred from that old interruption.
+- [x] Owner committed the clean Repository at `24467e5` before this QA documentation update;
+      this QA made no commit or push.
+- [ ] Owner reviews the later QA documentation and handles any publication manually; current
+      owner publication status was not checked from this workspace.
 
 Verified clean APK: 3640367 bytes; SHA-256 `f9905297a3854421d14176c1bd58d252c6c59affde822e86277c6d95054b24b6`.
 
 Previous 233-test/device/website results described the earlier companion-inclusive binary
 (ed82733616e16dbf4e7b92b591365b70e5396a1d1c12f15251d5a09c845bc470), not this cleaned APK.
-Those source/artifact records were preserved before cleanup. No device installation or
-website publication of the new cleaned APK is claimed here. Do not use automatic updating
-to replace an already installed code 30 with different code-30 bytes; that test box needs
-an explicit technician installation. Preserve app data and cached update policy.
+Those source/artifact records were preserved before cleanup. The device pass above uses
+the exact cleaned APK; this QA performed no website publication, and the owner's current
+publication status was not checked. Evidence:
+`D:\APK\work\qa-clean-0.5.6-20261108\QA REPORT.md` (installation, runtime, restart and
+updater-focused JSON records). The owner permits the signed APK's normal public update
+checks during authorized tests; the GitHub restriction applies to VS Code/workspace calls,
+none of which were made. Source/resources/build/signing/version and release bytes were not
+changed for this pass. Do not use automatic updating to replace an installed code 30 with
+different code-30 bytes; this device replacement was explicitly technician-installed.
+Full 210-test XML evidence is preserved in
+`D:\APK\work\qa-clean-0.5.6-20261108\prior-unit-results`.
+Updater 29-test XML is preserved in `updater-unit-results`; connection-limit 5-test
+and playback/recovery 29-test snapshots are under `playback-resume`.
+The isolated project's current `app/build/test-results/testDebugUnitTest` contains
+only the four playback classes / 29 tests from the last focused run, not the original full suite.
+The owner's current Settings lock is Off after their playlist correction and was left Off;
+the earlier PIN/relocking checks above belong to the initial checkpoint. Current buffer 3000 ms,
+MPEG-TS, default user agent, software decoding Off and auto frame rate Off were left unchanged.
+An earlier temporary HLS comparison was restored to MPEG-TS before the working-playback phase.
+The owner reports more ordinary-live interruptions than TiviMate, while Bizarre Foods is known
+to interrupt in both. No comparative TiviMate test was performed and no second playback app was
+opened. Audio output processing is verified, not physical speaker audibility. See the report's
+latest resumed section and `playback-resume/resumed-results.json` for evidence and limits.
+The owner's practical pass does not certify uninterrupted stability or change the
+observed samples. Clean 0.5.6 / code 30 and release bytes are unchanged. The owner
+requested only an explanation of a possible future temporary buffer, not its
+implementation; future rebranding remains on hold with no assigned release version.
 
 ## 0.5.4 version-only release (version code 28, previous unfinished work)
 

@@ -50,6 +50,14 @@ class UpdateReceiptTest {
     }
 
     @Test
+    fun stable100ReceiptShowsInstalledVersionAndItsOwnNotes() {
+        val confirmation = receipt(Store(31), code = 31, name = "1.0.0").current()!!
+        assertEquals("1.0.0", confirmation.installedName)
+        assertTrue(confirmation.changes.any { it.contains("Stable release") })
+        assertTrue(confirmation.changes.any { it.contains("free") })
+    }
+
+    @Test
     fun confirmationDescribesTheActualInstalledVersionAndBundledChanges() {
         val confirmation = receipt(Store(26)).current()!!
         assertEquals(27L, confirmation.installedCode)

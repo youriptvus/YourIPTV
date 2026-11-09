@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 0.5.6: fall back to the official website when GitHub updates are unavailable.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 30
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "0.5.6"
+        // 1.0.0: stable version-only promotion of the accepted clean 0.5.6 player.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 31
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.0"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {

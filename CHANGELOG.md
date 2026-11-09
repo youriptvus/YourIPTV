@@ -4,6 +4,15 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 1.0.0 (version code 31)
+
+- Stable version-only promotion of the owner-accepted clean 0.5.6 baseline. No new features or
+  playback fixes; known occasional stream interruptions remain possible.
+- Keep the official package/signing identity, permissions, settings and updater behavior.
+  All player features remain free. Buffer changes and companion rebranding are not included.
+- Local release preparation only; publication is separate. A higher-version in-app installation
+  has not yet been tested for this release.
+
 ## 0.5.6 (version code 30)
 
 - Keep GitHub as the primary update source and check `https://youriptv.us/updates/update.json`
