@@ -2,10 +2,26 @@ package com.youriptv.app.updates
 
 /** Bundled release notes, selected by the installed APK rather than a remote update manifest. */
 internal object InstalledChangelog {
-    private data class Release(val name: String, val changes: List<String>)
+    private data class Release(val name: String, val changes: List<String>, val credit: String? = null)
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        34L to Release("1.0.3", listOf(
+            "Fit complete movie and show posters and captions on short phone screens.",
+            "Use a compact browsing header on short phone screens while retaining the full TV layout.",
+            "Restore the selected series episode and focus after playback with touch or remote controls.",
+            "Keep playback features free, subtitles off by default, and existing Settings and parental protections.",
+        ), credit = "Thanks to Dylan B. for the suggestions for the current build."),
+        33L to Release("1.0.2", listOf(
+            "Larger movie and show posters for easier browsing.",
+            "Movie details before playback.",
+            "Browse seasons up/down and episodes left/right, with your selection remembered.",
+            "Provider episode pictures, with series artwork when episode pictures are unavailable.",
+            "Improved artwork loading while browsing large libraries.",
+            "About remains accessible without a PIN. Its duplicate entry inside locked Settings has been removed.",
+            "All player features remain free. Settings and parental protections remain enabled.",
+            "Subtitles start off by default; you can turn them on in the player.",
+        ), credit = "Thanks to Dylan B. for the suggestions for the current build."),
         32L to Release("1.0.1", listOf(
             "Settings protection stays on for new and existing installations, with a permanent Settings master PIN.",
             "Existing custom Settings PINs still open Settings; the master is required to add, change or remove a custom PIN.",
@@ -33,4 +49,7 @@ internal object InstalledChangelog {
 
     fun changes(versionCode: Long, versionName: String): List<String> =
         releases[versionCode]?.takeIf { it.name == versionName }?.changes.orEmpty()
+
+    fun credit(versionCode: Long, versionName: String): String? =
+        releases[versionCode]?.takeIf { it.name == versionName }?.credit
 }

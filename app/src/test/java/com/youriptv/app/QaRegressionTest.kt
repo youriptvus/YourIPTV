@@ -308,10 +308,13 @@ class QaRegressionTest {
         assertFalse("the unguarded one-liner must not come back",
             main.contains("opts.add(\"Open in external player\" to { Nav.externalPlayer(this, item.url, item.name) })"))
         val series = ui("SeriesActivity.kt")
-        assertTrue(series.contains("else externalEpisode(e.url, e.title)"))
+        assertTrue(series.contains("else externalEpisode(row, index)"))
         val fn = series.substringAfter("private fun externalEpisode").substringBefore("companion object")
         assertTrue(fn.contains("app.settings.restrictionStamp() != openedStamp"))
-        assertTrue(fn.contains("Dialogs.requirePin("))
+        assertTrue(fn.contains("authenticateEntry") && fn.contains("withSeriesPermission"))
+        val entry = series.substringAfter("private fun authenticateEntry").substringBefore("private fun onAuthorized")
+        assertTrue(entry.contains("Dialogs.requirePin("))
+        assertTrue(entry.contains("settings.isGroupHidden(group)"))
     }
 
     @Test

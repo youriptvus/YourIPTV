@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+    android:paddingBottom="12dp" android:descendantFocusability="afterDescendants">
+    <TextView android:id="@+id/series_season_title" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:textSize="17sp" android:textStyle="bold"
+        android:paddingStart="6dp" android:paddingBottom="4dp" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/series_episode_rail"
+        android:layout_width="match_parent" android:layout_height="@dimen/series_episode_rail_height"
+        android:padding="4dp" android:clipToPadding="false" android:nestedScrollingEnabled="false" />
+</LinearLayout>

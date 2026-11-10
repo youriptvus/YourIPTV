@@ -58,6 +58,42 @@ class UpdateReceiptTest {
     }
 
     @Test
+    fun directUpgradeShows103PhoneNotesAndCreditUntilAcknowledged() {
+        val store = Store(30)
+        val updated = receipt(store, code = 34, name = "1.0.3")
+        val confirmation = updated.current()!!
+        assertEquals(34L, confirmation.installedCode)
+        assertEquals("1.0.3", confirmation.installedName)
+        assertEquals(listOf(
+            "Fit complete movie and show posters and captions on short phone screens.",
+            "Use a compact browsing header on short phone screens while retaining the full TV layout.",
+            "Restore the selected series episode and focus after playback with touch or remote controls.",
+            "Keep playback features free, subtitles off by default, and existing Settings and parental protections.",
+        ), confirmation.changes)
+        assertEquals("Thanks to Dylan B. for the suggestions for the current build.", confirmation.credit)
+        assertEquals(confirmation, receipt(store, code = 34, name = "1.0.3").current())
+        val differentlyNamed = receipt(Store(34), code = 34, name = "1.0.3-test").current()!!
+        assertTrue(differentlyNamed.changes.isEmpty())
+        assertNull(differentlyNamed.credit)
+        updated.acknowledge(confirmation)
+        assertNull(receipt(store, code = 34, name = "1.0.3").current())
+    }
+
+    @Test
+    fun directUpgradeShows102NotesAndCreditUntilAcknowledged() {
+        val store = Store(30)
+        val updated = receipt(store, code = 33, name = "1.0.2")
+        val confirmation = updated.current()!!
+        assertEquals("1.0.2", confirmation.installedName)
+        assertEquals("Thanks to Dylan B. for the suggestions for the current build.", confirmation.credit)
+        assertTrue(confirmation.changes.any { it.contains("seasons up/down") })
+        assertNull(receipt(Store(33), code = 33, name = "1.0.2-test").current()!!.credit)
+        assertEquals(confirmation, receipt(store, code = 33, name = "1.0.2").current())
+        updated.acknowledge(confirmation)
+        assertNull(receipt(store, code = 33, name = "1.0.2").current())
+    }
+
+    @Test
     fun confirmationDescribesTheActualInstalledVersionAndBundledChanges() {
         val confirmation = receipt(Store(26)).current()!!
         assertEquals(27L, confirmation.installedCode)

@@ -68,6 +68,9 @@ object PlaybackFactory {
             .setSeekBackIncrementMs(settings.skipSeconds * 1000L)
             .setSeekForwardIncrementMs(settings.skipSeconds * 1000L)
             .build()
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .build()
         return Created(player, ua)
     }
 

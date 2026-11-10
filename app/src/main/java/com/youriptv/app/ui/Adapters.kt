@@ -28,12 +28,22 @@ fun View.onOptions(action: () -> Unit) {
 class ItemAdapter(
     private val onClick: (MediaItem, Int) -> Unit,
     private val onOptions: (MediaItem, Int) -> Unit,
+    private val onFocus: ((MediaItem, Int) -> Unit)? = null,
 ) : RecyclerView.Adapter<ItemAdapter.VH>() {
 
     var items: List<MediaItem> = emptyList()
         private set
     var favorites: Set<String> = emptySet()
     private val nowCache = HashMap<String, Pair<Long, List<Program>>>()
+    var posterMode = false
+        set(value) { if (field != value) { field = value; notifyDataSetChanged() } }
+    private var posterSizing: VodGridPolicy.PosterSizing? = null
+
+    fun setPosterSizing(value: VodGridPolicy.PosterSizing) {
+        if (posterSizing == value) return
+        posterSizing = value
+        if (posterMode) notifyItemRangeChanged(0, itemCount, POSTER_SIZE)
+    }
 
     fun submit(list: List<MediaItem>, favs: Set<String>) {
         items = list
@@ -51,19 +61,38 @@ class ItemAdapter(
         val fav: ImageView = v.findViewById(R.id.fav)
     }
 
+    override fun getItemViewType(position: Int) = if (posterMode) 1 else 0
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(LayoutInflater.from(parent.context).inflate(R.layout.row_item, parent, false))
+        VH(LayoutInflater.from(parent.context).inflate(if (viewType == 1) R.layout.vod_poster_item else R.layout.row_item, parent, false))
 
     override fun getItemCount() = items.size
+
+    override fun onBindViewHolder(h: VH, position: Int, payloads: MutableList<Any>) {
+        if (payloads.isNotEmpty() && payloads.all { it === POSTER_SIZE }) applyPosterSizing(h)
+        else onBindViewHolder(h, position)
+    }
+
+    private fun applyPosterSizing(h: VH) {
+        val artwork = h.logo as? PosterImageView ?: return
+        val sizing = posterSizing ?: return
+        artwork.maxArtworkHeightPx = sizing.maxImageHeightPx
+        if (h.name.layoutParams.height != sizing.captionHeightPx) {
+            h.name.layoutParams = h.name.layoutParams.apply { height = sizing.captionHeightPx }
+        }
+        if (h.name.maxLines != sizing.captionLines) h.name.maxLines = sizing.captionLines
+    }
 
     override fun onBindViewHolder(h: VH, position: Int) {
         val item = items[position]
         val app = YourIptvApp.instance
+        applyPosterSizing(h)
         h.name.text = item.name
         h.number.visibility = if (item.kind == ItemKind.LIVE && app.settings.showChannelNumbers) View.VISIBLE else View.GONE
         h.number.text = if (item.number > 0) item.number.toString() else ""
-        ImageLoader.load(h.logo, item.logo, R.drawable.ic_channel)
-        h.fav.visibility = if (item.url in favorites) View.VISIBLE else View.GONE
+        ImageLoader.load(h.logo, item.logo, R.drawable.ic_channel, if (posterMode) 480 else 160)
+        h.subtitle.visibility = if (posterMode) View.GONE else View.VISIBLE
+        h.fav.visibility = if (item.url in favorites) View.VISIBLE else if (posterMode) View.INVISIBLE else View.GONE
         h.progress.visibility = View.GONE
         if (item.kind == ItemKind.LIVE) {
             val now = System.currentTimeMillis()
@@ -81,12 +110,19 @@ class ItemAdapter(
         } else {
             h.subtitle.text = item.group
         }
-        h.itemView.setOnClickListener { onClick(item, h.bindingAdapterPosition) }
-        h.itemView.onOptions { onOptions(item, h.bindingAdapterPosition) }
+        h.itemView.setOnClickListener { if (h.bindingAdapterPosition != RecyclerView.NO_POSITION) onClick(item, h.bindingAdapterPosition) }
+        h.itemView.onOptions { if (h.bindingAdapterPosition != RecyclerView.NO_POSITION) onOptions(item, h.bindingAdapterPosition) }
+        h.itemView.setOnFocusChangeListener { _, focused ->
+            if (focused && h.bindingAdapterPosition != RecyclerView.NO_POSITION) onFocus?.invoke(item, h.bindingAdapterPosition)
+        }
         h.itemView.contentDescription = item.name
     }
 
+    override fun onViewRecycled(holder: VH) { ImageLoader.clear(holder.logo); super.onViewRecycled(holder) }
+
     private fun shiftMs() = YourIptvApp.instance.settings.epgShiftHours * 3_600_000L
+
+    private companion object { val POSTER_SIZE = Any() }
 }
 
 class GroupAdapter(

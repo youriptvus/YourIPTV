@@ -91,4 +91,24 @@ data class Episode(
     val title: String,
     val url: String,
     val plot: String = "",
+    /** Optional provider/M3U artwork. Browsing never opens the video to manufacture a thumbnail. */
+    val artwork: String = "",
+)
+
+/** On-demand information; none of it changes persisted playlist identities or playback URLs. */
+data class SeriesDetails(
+    val episodes: List<Episode> = emptyList(),
+    val plot: String = "",
+    val cover: String = "",
+    val backdrop: String = "",
+)
+
+data class MovieDetails(
+    val plot: String = "",
+    val cover: String = "",
+    val backdrop: String = "",
+    val genre: String = "",
+    val year: String = "",
+    val duration: String = "",
+    val rating: String = "",
 )

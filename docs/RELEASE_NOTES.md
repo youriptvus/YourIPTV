@@ -1,5 +1,65 @@
 # Release notes
 
+## 1.0.3 (version code 34)
+
+- Fit complete movie and show posters and captions on short phone screens.
+- Use a compact browsing header on short phone screens while retaining the full TV layout.
+- Restore the selected series episode and focus after playback with touch or remote controls.
+- Keep playback features free, subtitles off by default, and existing Settings and parental protections.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+Compatible phone layout and Series-return focus corrections based on clean 1.0.2 / code 33.
+An earlier private candidate passed 282 tests in 40 classes but failed Series return focus;
+its evidence is preserved separately. The corrected final code passed **288 tests in 40 classes**
+with zero failures/errors/skips. Signed release assembly and release vital lint passed in 3m6s;
+13 archived updater checks and identity audits of 19 retained APKs passed. The exact final APK
+passed scoped Samsung SM-S166V/API 36 and onn. 4K Pro/API 34 checks, including plain/touch-menu
+Series returns to the selected E3 and subsequent remote Right to E4. Phone movie video/resume,
+normal/enlarged text, TV layout and Settings/About checks passed. A real automatic download/install
+and successful-update popup were not device-tested; the four-note receipt/credit has JVM and DEX
+coverage. Post-commit artifact/Repository/Desktop results belong in the publication notes/final audit.
+The official package/signing identity, update routes and requested permissions are retained.
+The complete APK supports direct upgrades from compatible official installations; no intermediate
+release is required. Planned predecessor code 33 controls optional/required prompts only.
+This work is authorized locally only: no 1.0.3 server upload or GitHub publication is included.
+
+See [phone/VOD behavior](VOD_NAVIGATION.md) and [QA evidence](QA_CHECKLIST.md).
+
+## 1.0.2 (version code 33)
+
+Later phone follow-up: the Samsung SM-S166V displayed five columns with clipped poster/caption
+cards on the short landscape Movies/Shows grid. Live video and movie details/buttons/favorites
+worked, but movie video/resume was not confirmed on that phone. The original verification below
+predates that session; 1.0.3 addresses the grid limitation and requires new checks.
+
+- Larger movie and show posters for easier browsing.
+- Movie details before playback.
+- Browse seasons up/down and episodes left/right, with your selection remembered.
+- Provider episode pictures, with series artwork when episode pictures are unavailable.
+- Improved artwork loading while browsing large libraries.
+- About remains accessible without a PIN. Its duplicate entry inside locked Settings has been removed.
+- All player features remain free. Settings and parental protections remain enabled.
+- Subtitles start off by default; you can turn them on in the player.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+This release is based on clean 1.0.1 / code 32. The full offline suite passed 275 tests in 40 classes,
+with zero failures/errors/skips. Signed release assembly, release vital lint, native APK checks,
+12 archived updater source checks and identity checks on 18 retained APKs passed. Scoped onn. 4K Pro
+checks passed on the exact installed APK for live TV/guide, VOD navigation/playback/resume,
+episode subtitles and Settings/About. The backup website serves the exact verified APK and
+metadata, deployed over certificate-verified FTPS/TLS 1.3 with independent HTTPS readback.
+Post-commit source/Repository/Desktop checks are recorded in the local publication instructions
+and final audit; GitHub publication remains manual.
+Physical-phone, process-recreation, failure-injection and live automatic-update checks were not
+performed. The successful-update popup has automated coverage only. See the QA checklist for scope.
+Compatible official installations can upgrade directly without intermediate versions. The
+predecessor code controls required versus optional updates, not the minimum installed version.
+Retired update addresses and older missing installation support require a manual in-place update.
+
+See [Movies/Shows navigation](VOD_NAVIGATION.md) and [QA status](QA_CHECKLIST.md).
+
 ## 1.0.1 (version code 32)
 
 - Keep Settings protection always enabled on new and existing installations, including installations

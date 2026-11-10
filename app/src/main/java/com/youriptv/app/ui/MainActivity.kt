@@ -1,11 +1,14 @@
 package com.youriptv.app.ui
 
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -14,6 +17,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -24,6 +28,7 @@ import androidx.core.view.doOnNextLayout
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.youriptv.app.R
 import com.youriptv.app.SigningStatus
@@ -40,6 +45,7 @@ import com.youriptv.app.data.Reminder
 import com.youriptv.app.data.SeriesNames
 import com.youriptv.app.data.SourceType
 import java.io.File
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -88,6 +94,16 @@ class MainActivity : RemoteActivity() {
     private var previewAttached = false
     private var portrait = false
     private var liveLevel = LiveLevel.MENU
+    private var vodLevel = LiveLevel.MENU
+    private var restoreVodGrid = false
+    private lateinit var vodHeader: View
+    private var vodHeaderItem: MediaItem? = null
+    private var vodLayoutPosted = false
+    private var vodForeground = false
+    private val vodLayoutUpdate = Runnable { vodLayoutPosted = false; updateVodColumns() }
+    private data class VodSelection(val key: String, val position: Int)
+    private val vodSelections = LinkedHashMap<String, VodSelection>()
+    private val vodGroups = HashMap<Section, String>()
     private var root: ViewGroup? = null
     private var navRail: View? = null
     private var contentColumn: View? = null
@@ -155,6 +171,19 @@ class MainActivity : RemoteActivity() {
         liveHeader = findViewById(R.id.live_header)
         liveTimeline = findViewById(R.id.live_timeline)
         previewPanel = PreviewPanel(findViewById(R.id.preview_frame))
+        vodHeader = findViewById(R.id.vod_header)
+        if (savedInstanceState != null) {
+            restoreVodGrid = savedInstanceState.getBoolean("vod_grid_focus")
+            section = savedInstanceState.getString("vod_section")?.let { name -> Section.entries.firstOrNull { it.name == name } } ?: Section.TV
+            savedInstanceState.getBundle("vod_groups")?.let { bundle ->
+                for (s in listOf(Section.MOVIES, Section.SHOWS)) bundle.getString(s.name)?.let { vodGroups[s] = it }
+            }
+            savedInstanceState.getBundle("vod_selections")?.let { bundle ->
+                for (key in bundle.keySet().take(64)) bundle.getBundle(key)?.let { value ->
+                    value.getString("key")?.let { vodSelections[key] = VodSelection(it, value.getInt("position")) }
+                }
+            }
+        }
 
         groupAdapter = GroupAdapter(
             portrait,
@@ -165,12 +194,22 @@ class MainActivity : RemoteActivity() {
         groupsView.layoutManager = LinearLayoutManager(this, if (portrait) RecyclerView.HORIZONTAL else RecyclerView.VERTICAL, false)
         groupsView.adapter = groupAdapter
         itemAdapter = ItemAdapter(
-            { item, _ -> if (section == Section.RECORDINGS) recordingClick(item) else Nav.open(this, item, itemAdapter.items) },
-            { item, _ -> if (section == Section.RECORDINGS) recordingOptions(item) else itemOptions(item) },
+            { item, position ->
+                rememberVodSelection(item, position)
+                if (section == Section.RECORDINGS) recordingClick(item) else Nav.open(this, item, itemAdapter.items)
+            },
+            { item, position ->
+                rememberVodSelection(item, position)
+                if (section == Section.RECORDINGS) recordingOptions(item) else itemOptions(item)
+            },
+            ::rememberVodSelection,
         )
         itemsView.layoutManager = LinearLayoutManager(this)
         itemsView.adapter = itemAdapter
         itemsView.setHasFixedSize(true)
+        // RecyclerView is still computing its layout during this callback. Apply the new span after panels resize.
+        itemsView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> scheduleVodLayout() }
+        (vodHeader.parent as View).addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> scheduleVodLayout() }
         liveGrid = LiveGuideGrid(
             this, itemsView, liveTimeline, findViewById(R.id.live_title), findViewById(R.id.live_meta),
             findViewById(R.id.live_desc),
@@ -192,6 +231,11 @@ class MainActivity : RemoteActivity() {
             override fun handleOnBackPressed() {
                 val f = currentFocus
                 when {
+                    vodMode() && !portrait && playlist != null -> when (vodLevel) {
+                        LiveLevel.GUIDE -> showVodCategories()
+                        LiveLevel.CATEGORIES -> showVodMenu()
+                        LiveLevel.MENU -> confirmExit()
+                    }
                     // Guide: first back to "now" if browsing other times, then to the categories; categories: to the menu.
                     section == Section.TV && playlist != null -> when (liveLevel) {
                         LiveLevel.GUIDE -> if (!liveGrid.isAtNow()) liveGrid.jumpToNow() else showCategories()
@@ -248,6 +292,7 @@ class MainActivity : RemoteActivity() {
         if (!app.isTrustedBuild) return super.dispatchAppKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN) userInputGeneration++
         val focused = currentFocus
+        if (vodMode() && !portrait && focused != null && event.action == KeyEvent.ACTION_DOWN && vodLevelKey(event, focused)) return true
         if (section == Section.TV && focused != null && isInside(focused, itemsView) && liveGrid.handleKey(event)) {
             return true
         }
@@ -317,12 +362,221 @@ class MainActivity : RemoteActivity() {
 
     /** Keeps the visible level in step with wherever focus lands (remote, touch, or a list reload). */
     private fun followFocus(view: View?) {
-        if (view == null || !tvLevels()) return
+        if (view == null) return
+        if (vodMode() && !portrait) {
+            when {
+                navViews.values.any { it === view } -> setVodLevel(LiveLevel.MENU)
+                isInside(view, groupsView) -> setVodLevel(LiveLevel.CATEGORIES)
+                isInside(view, itemsView) -> setVodLevel(LiveLevel.GUIDE)
+            }
+            return
+        }
+        if (!tvLevels()) return
         when {
             navViews.values.any { it === view } -> setLiveLevel(LiveLevel.MENU)
             isInside(view, groupsView) -> setLiveLevel(LiveLevel.CATEGORIES)
             isInside(view, itemsView) -> setLiveLevel(LiveLevel.GUIDE)
         }
+    }
+
+    private fun vodMode() = section == Section.MOVIES || section == Section.SHOWS
+
+    private fun vodCategoryKey(): String {
+        val group = groupEntries.getOrNull(selectedGroup)
+        return "${playlist?.id}:${section.name}:${group?.special ?: group?.info?.name.orEmpty()}"
+    }
+
+    private fun groupKey(entry: GroupEntry) = entry.special?.let { "special:$it" } ?: "group:${entry.info.name}"
+
+    private fun rememberVodSelection(item: MediaItem, position: Int) {
+        // Touch activation need not focus a view, so remember it before opening details/options too.
+        if (!vodMode()) return
+        vodSelections[vodCategoryKey()] = VodSelection(VodGridPolicy.key(item), position)
+        if (vodSelections.size > 64) vodSelections.remove(vodSelections.keys.first())
+        showVodSelection(item, position)
+    }
+
+    private fun showVodSelection(item: MediaItem?, position: Int = 0) {
+        vodHeaderItem = item
+        findViewById<TextView>(R.id.vod_title).text = item?.name ?: section.label
+        findViewById<TextView>(R.id.vod_meta).text = if (item == null) "Choose a category to browse" else
+            listOf(item.group, "${position + 1} / ${itemAdapter.itemCount}").filter { it.isNotBlank() }.joinToString("  ·  ")
+        val artwork = findViewById<ImageView>(R.id.vod_art)
+        if (artwork.visibility == View.VISIBLE) ImageLoader.load(artwork, item?.logo.orEmpty(), R.drawable.ic_channel, 640)
+        else ImageLoader.clear(artwork)
+    }
+
+    private fun scheduleVodLayout() {
+        if (vodLayoutPosted || !canUpdateVodLayout()) return
+        vodLayoutPosted = true
+        itemsView.postOnAnimation(vodLayoutUpdate)
+    }
+
+    private fun canUpdateVodLayout(): Boolean =
+        app.isTrustedBuild && ::itemsView.isInitialized && vodMode() && vodForeground && !isFinishing && !isDestroyed &&
+            lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) &&
+            itemsView.isAttachedToWindow && itemsView.isShown && itemsView.windowVisibility == View.VISIBLE
+
+    private fun stopVodLayoutUpdates() {
+        if (::itemsView.isInitialized) itemsView.removeCallbacks(vodLayoutUpdate)
+        vodLayoutPosted = false
+    }
+
+    /** Size only the VOD content against its actual visible window; no global orientation/inset policy changes. */
+    private fun visibleVodHeight(view: View): Int {
+        val frame = Rect()
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        view.getWindowVisibleDisplayFrame(frame)
+        val top = location[1] + view.paddingTop
+        val bottom = location[1] + view.height - view.paddingBottom
+        return if (frame.height() > 0) (minOf(bottom, frame.bottom) - maxOf(top, frame.top)).coerceAtLeast(0)
+        else (bottom - top).coerceAtLeast(0)
+    }
+
+    private fun updateVodColumns() {
+        if (!canUpdateVodLayout()) return
+        val layout = itemsView.layoutManager as? GridLayoutManager ?: return
+        if (itemsView.isComputingLayout) { scheduleVodLayout(); return }
+        val density = resources.displayMetrics.density
+        val column = vodHeader.parent as View
+        val columnHeight = visibleVodHeight(column)
+        if (columnHeight <= 0 || itemsView.width <= 0) return
+        val television = resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK == Configuration.UI_MODE_TYPE_TELEVISION
+        val header = VodGridPolicy.header((columnHeight / density).toInt(), television, portrait)
+        val geometryChanged = applyVodHeader(header)
+        val widthDp = ((itemsView.width - itemsView.paddingLeft - itemsView.paddingRight) / density).toInt()
+        val count = VodGridPolicy.columns(widthDp, television)
+        if (layout.spanCount != count) layout.spanCount = count
+        // Header changes first cause a new layout. Do not bind poster limits from the previous, shorter viewport.
+        if (geometryChanged || column.isLayoutRequested || itemsView.isLayoutRequested) { scheduleVodLayout(); return }
+        val viewport = visibleVodHeight(itemsView)
+        if (viewport > 0) {
+            val caption = (itemsView.findViewHolderForAdapterPosition((layout.findFirstVisibleItemPosition()).coerceAtLeast(0)) as? ItemAdapter.VH)
+                ?.name ?: return
+            itemAdapter.setPosterSizing(VodGridPolicy.posterSizing(viewport, density, caption.lineHeight, fontPadding(caption)))
+        }
+    }
+
+    private fun fontPadding(view: TextView): Int {
+        if (!view.includeFontPadding) return 0
+        val font = view.paint.fontMetricsInt
+        return (font.ascent - font.top).coerceAtLeast(0) + (font.bottom - font.descent).coerceAtLeast(0)
+    }
+
+    private fun applyVodHeader(presentation: VodGridPolicy.HeaderPresentation): Boolean {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).roundToInt()
+        var changed = false
+        fun visibility(view: View, value: Int) {
+            if (view.visibility != value) { view.visibility = value; changed = true }
+        }
+        val padding = dp(if (presentation.compact) 6 else 10)
+        if (vodHeader.paddingTop != padding || vodHeader.paddingBottom != padding) {
+            vodHeader.setPadding(padding, padding, padding, padding)
+            changed = true
+        }
+        val heading = findViewById<TextView>(R.id.vod_title)
+        val headingSp = if (presentation.compact) { if (presentation.heightDp < 56) 16f else 18f } else 25f
+        val headingPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, headingSp, resources.displayMetrics)
+        if (kotlin.math.abs(heading.textSize - headingPx) > 0.5f) { heading.textSize = headingSp; changed = true }
+        val lines = if (presentation.compact) 1 else 2
+        if (heading.maxLines != lines) { heading.maxLines = lines; changed = true }
+        // Font metrics are read after setting the text size, including Android's enlarged/nonlinear fonts.
+        val height = VodGridPolicy.headerHeightPx(presentation, density, heading.lineHeight, fontPadding(heading))
+        if (vodHeader.layoutParams.height != height) {
+            vodHeader.layoutParams = vodHeader.layoutParams.apply { this.height = height }
+            changed = true
+        }
+        val metadata = findViewById<TextView>(R.id.vod_meta)
+        val metadataSp = if (presentation.compact) 12f else 14f
+        val metadataPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, metadataSp, resources.displayMetrics)
+        if (kotlin.math.abs(metadata.textSize - metadataPx) > 0.5f) { metadata.textSize = metadataSp; changed = true }
+        if (metadata.maxLines != lines) { metadata.maxLines = lines; changed = true }
+        val metadataTop = dp(if (presentation.compact) 2 else 8)
+        if (metadata.paddingTop != metadataTop) {
+            metadata.setPadding(metadata.paddingLeft, metadataTop, metadata.paddingRight, metadata.paddingBottom)
+            changed = true
+        }
+        visibility(metadata, if (presentation.showMetadata) View.VISIBLE else View.GONE)
+        visibility(findViewById(R.id.vod_hint), if (presentation.showHint) View.VISIBLE else View.GONE)
+        val artwork = findViewById<ImageView>(R.id.vod_art)
+        val artVisibility = if (presentation.compact) View.GONE else View.VISIBLE
+        if (artwork.visibility != artVisibility) {
+            visibility(artwork, artVisibility)
+            if (artVisibility == View.VISIBLE) ImageLoader.load(artwork, vodHeaderItem?.logo.orEmpty(), R.drawable.ic_channel, 640)
+            else ImageLoader.clear(artwork)
+        }
+        // Keep the existing page heading/count placement: moving the count into the system status-bar
+        // area would require the separate global window-inset policy change excluded from this release.
+        visibility(title, View.VISIBLE)
+        visibility(status, View.VISIBLE)
+        val bottom = dp(if (presentation.compact) 8 else 24)
+        if (itemsView.paddingBottom != bottom) {
+            itemsView.setPadding(itemsView.paddingLeft, itemsView.paddingTop, itemsView.paddingRight, bottom)
+            changed = true
+        }
+        return changed
+    }
+
+    private fun setVodLevel(level: LiveLevel) {
+        vodLevel = level
+        if (portrait || !vodMode()) return
+        navRail?.visibility = if (level == LiveLevel.MENU) View.VISIBLE else View.GONE
+        groupsView.visibility = if (level == LiveLevel.GUIDE) View.GONE else View.VISIBLE
+        sizeContentColumn()
+    }
+
+    private fun showVodCategories() {
+        setVodLevel(LiveLevel.CATEGORIES)
+        if (groupEntries.isNotEmpty()) focusGroupAt(selectedGroup) else showVodMenu()
+    }
+
+    private fun showVodMenu() {
+        setVodLevel(LiveLevel.MENU)
+        navViews[section]?.requestFocus()
+    }
+
+    private fun vodLevelKey(event: KeyEvent, focus: View): Boolean {
+        if (isInside(focus, groupsView)) {
+            if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { showVodMenu(); return true }
+            if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                val pos = groupsView.findContainingViewHolder(focus)?.bindingAdapterPosition ?: return true
+                if (pos != RecyclerView.NO_POSITION) selectGroup(pos, focusItems = true)
+                return true
+            }
+        }
+        if (focus === navViews[section] && event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && groupEntries.isNotEmpty()) {
+            showVodCategories(); return true
+        }
+        if (!isInside(focus, itemsView)) return false
+        val at = itemsView.findContainingViewHolder(focus)?.bindingAdapterPosition ?: return false
+        if (at == RecyclerView.NO_POSITION) return false
+        val span = (itemsView.layoutManager as? GridLayoutManager)?.spanCount ?: return false
+        val next = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if (at % span == 0) { showVodCategories(); return true }
+                VodGridPolicy.move(at, itemAdapter.itemCount, span, horizontal = -1)
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> VodGridPolicy.move(at, itemAdapter.itemCount, span, horizontal = 1)
+            KeyEvent.KEYCODE_DPAD_UP -> VodGridPolicy.move(at, itemAdapter.itemCount, span, vertical = -1)
+            KeyEvent.KEYCODE_DPAD_DOWN -> VodGridPolicy.move(at, itemAdapter.itemCount, span, vertical = 1)
+            else -> return false
+        }
+        if (next != at && next >= 0) focusItemAt(next)
+        return true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (app.isTrustedBuild && ::itemAdapter.isInitialized) {
+            if (vodMode()) outState.putString("vod_section", section.name)
+            outState.putBoolean("vod_grid_focus", vodMode() && (portrait || vodLevel == LiveLevel.GUIDE))
+            outState.putBundle("vod_groups", Bundle().apply { vodGroups.forEach { (s, key) -> putString(s.name, key) } })
+            outState.putBundle("vod_selections", Bundle().apply { vodSelections.forEach { (category, selection) ->
+                putBundle(category, Bundle().apply { putString("key", selection.key); putInt("position", selection.position) })
+            } })
+        }
+        super.onSaveInstanceState(outState)
     }
 
     private fun setLiveLevel(level: LiveLevel) {
@@ -454,6 +708,7 @@ class MainActivity : RemoteActivity() {
     }
 
     override fun onStop() {
+        stopVodLayoutUpdates()
         detachPreview()
         super.onStop()
     }
@@ -477,6 +732,7 @@ class MainActivity : RemoteActivity() {
 
     override fun onResume() {
         super.onResume()
+        vodForeground = true
         if (!app.isTrustedBuild) return
         handler.post(clockTick)
         val active = app.repo.playlist(app.settings.activePlaylistId) ?: app.repo.playlists().firstOrNull()
@@ -493,6 +749,7 @@ class MainActivity : RemoteActivity() {
         if (changed || restrictionsChanged || itemAdapter.itemCount == 0) showSection(section, requestFocus = itemAdapter.itemCount == 0)
         else if (section == Section.RECORDINGS) refreshRecordingsInPlace()
         else if (section == Section.TV) liveGrid.refreshSettings()
+        else if (vodMode()) refreshVodFavorites()
         else itemAdapter.notifyItemRangeChanged(0, itemAdapter.itemCount)
         val before = channelAtPause
         channelAtPause = null
@@ -513,9 +770,17 @@ class MainActivity : RemoteActivity() {
             maybeResumeLastChannel(active)
             maybeAutoRefresh(active)
         }
+        scheduleVodLayout()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) scheduleVodLayout()
     }
 
     override fun onPause() {
+        vodForeground = false
+        stopVodLayoutUpdates()
         super.onPause()
         handler.removeCallbacks(clockTick)
         if (app.isTrustedBuild) channelAtPause = app.settings.lastChannelUrl
@@ -523,6 +788,23 @@ class MainActivity : RemoteActivity() {
 
     private var channelAtPause: String? = null
     private var revealAfterResume = false
+
+    private fun refreshVodFavorites() {
+        val entry = groupEntries.getOrNull(selectedGroup) ?: return
+        val hadFocus = currentFocus?.let { isInside(it, itemsView) } == true
+        if (entry.special == SPECIAL_FAV || entry.special == SPECIAL_HISTORY) {
+            selectGroup(selectedGroup, focusItems = hadFocus)
+            return
+        }
+        val pid = playlist?.id ?: return
+        val target = section
+        lifecycleScope.launch {
+            val favs = withContext(Dispatchers.IO) { app.repo.favorites(pid).map { it.url }.toHashSet() }
+            if (section != target || playlist?.id != pid) return@launch
+            itemAdapter.favorites = favs
+            itemAdapter.notifyItemRangeChanged(0, itemAdapter.itemCount)
+        }
+    }
 
     /** After returning from the player, puts focus on the channel that was last playing instead of the stale list position. */
     private fun revealChannel(p: Playlist, url: String) {
@@ -541,6 +823,16 @@ class MainActivity : RemoteActivity() {
 
     private fun focusItemAt(idx: Int) {
         if (section == Section.TV) { setLiveLevel(LiveLevel.GUIDE); liveGrid.focus(idx); return }
+        if (vodMode()) {
+            if (idx !in itemAdapter.items.indices) return
+            setVodLevel(LiveLevel.GUIDE)
+            val holder = itemsView.findViewHolderForAdapterPosition(idx)
+            if (!itemsView.isLayoutRequested && holder?.itemView?.isLaidOut == true && holder.itemView.requestFocus()) return
+            itemsView.scrollToPosition(idx)
+            itemsView.doOnNextLayout { itemsView.findViewHolderForAdapterPosition(idx)?.itemView?.requestFocus() }
+            itemsView.requestLayout()
+            return
+        }
         (itemsView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(idx, 0)
         itemsView.post { itemsView.findViewHolderForAdapterPosition(idx)?.itemView?.requestFocus() }
     }
@@ -601,6 +893,24 @@ class MainActivity : RemoteActivity() {
         loadedGroup = -1
         section = s
         if (s != Section.TV) setLiveLevel(LiveLevel.MENU)
+        if (!portrait) {
+            navRail?.visibility = View.VISIBLE
+            sizeContentColumn()
+        }
+        vodLevel = LiveLevel.MENU
+        vodHeader.visibility = if (vodMode()) View.VISIBLE else View.GONE
+        if (!vodMode()) {
+            vodHeaderItem = null
+            val pageVisibility = if (s == Section.TV && liveLevel != LiveLevel.MENU) View.GONE else View.VISIBLE
+            title.visibility = pageVisibility
+            status.visibility = pageVisibility
+            val bottom = (24 * resources.displayMetrics.density).roundToInt()
+            if (itemsView.paddingBottom != bottom) itemsView.setPadding(itemsView.paddingLeft, itemsView.paddingTop, itemsView.paddingRight, bottom)
+        } else scheduleVodLayout()
+        itemAdapter.posterMode = vodMode()
+        val wantsGrid = vodMode()
+        if (wantsGrid && itemsView.layoutManager !is GridLayoutManager) itemsView.layoutManager = GridLayoutManager(this, 2)
+        else if (!wantsGrid && itemsView.layoutManager is GridLayoutManager) itemsView.layoutManager = LinearLayoutManager(this)
         if (s == Section.TV && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) attachPreview()
         val desiredAdapter = if (s == Section.TV) liveGrid.adapter else itemAdapter
         if (itemsView.adapter !== desiredAdapter) itemsView.adapter = desiredAdapter
@@ -608,6 +918,7 @@ class MainActivity : RemoteActivity() {
         title.text = s.label
         searchBox.visibility = if (s == Section.SEARCH) View.VISIBLE else View.GONE
         status.text = ""
+        if (vodMode()) showVodSelection(null)
         val p = playlist
         liveHeader.visibility = if (s == Section.TV && p != null) View.VISIBLE else View.GONE
         liveTimeline.visibility = if (s == Section.TV && p != null) View.VISIBLE else View.GONE
@@ -666,7 +977,8 @@ class MainActivity : RemoteActivity() {
                 return@launch
             }
             val initial = if (kind == ItemKind.LIVE && allLabel != null) 1 else entries.indexOfFirst { it.special == null }.coerceAtLeast(0)
-            selectGroup(if (section == lastSection && selectedGroup in entries.indices) selectedGroup else initial, focusItems = false, onCancel = {
+            val restoredGroup = if (vodMode()) entries.indexOfFirst { groupKey(it) == vodGroups[section] }.takeIf { it >= 0 } else null
+            selectGroup(restoredGroup ?: if (section == lastSection && selectedGroup in entries.indices) selectedGroup else initial, focusItems = false, onCancel = {
                 if (section == targetSection && playlist?.id == p.id) {
                     val fallback = groupEntries.indexOfFirst { it.special == SPECIAL_ALL }
                         .takeIf { it >= 0 } ?: groupEntries.indexOfFirst { it.special == SPECIAL_FAV }
@@ -675,7 +987,7 @@ class MainActivity : RemoteActivity() {
                 }
             })
             lastSection = section
-            if (requestFocus) groupsView.post { focusGroups() }
+            if (requestFocus && !(vodMode() && restoreVodGrid)) groupsView.post { focusGroups() }
         }
     }
 
@@ -692,6 +1004,7 @@ class MainActivity : RemoteActivity() {
         val entry = groupEntries.getOrNull(pos) ?: return
         val doSelect = {
             selectedGroup = pos
+            if (vodMode()) vodGroups[section] = groupKey(entry)
             loadedGroup = pos
             val locks = if (app.settings.hasPin()) app.settings.lockedGroups else emptySet()
             if (groupAdapter.itemCount == groupEntries.size && groupAdapter.locked == locks) groupAdapter.select(pos)
@@ -718,25 +1031,32 @@ class MainActivity : RemoteActivity() {
         val p = playlist ?: return
         val targetSection = section
         val hadListFocus = currentFocus?.let { isInside(it, itemsView) } == true
+        val isVod = vodMode()
+        val saved = if (isVod) vodSelections[vodCategoryKey()] else null
         loadJob?.cancel()
         showState("Loading…", progress = true)
         loadJob = lifecycleScope.launch {
-            val (items, favs) = withContext(Dispatchers.IO) {
+            val (items, favs, at) = withContext(Dispatchers.IO) {
                 val list = query().filter { !app.settings.isGroupHidden(it.group) }
-                list to app.repo.favorites(p.id).map { it.url }.toHashSet()
+                val position = focusUrl?.let { u -> list.indexOfFirst { it.url == u } }?.takeIf { it >= 0 }
+                    ?: if (isVod) VodGridPolicy.restore(list, saved?.key, saved?.position ?: 0).coerceAtLeast(0) else 0
+                Triple(list, app.repo.favorites(p.id).map { it.url }.toHashSet(), position)
             }
             if (section != targetSection || playlist?.id != p.id) return@launch
             itemAdapter.submit(items, favs)
-            val at = focusUrl?.let { u -> items.indexOfFirst { it.url == u } }?.takeIf { it >= 0 } ?: 0
             if (section == Section.TV) liveGrid.submit(items, favs, at)
             (itemsView.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(at, 0)
             status.text = "${items.size} items"
+            if (vodMode()) showVodSelection(items.getOrNull(at), at)
             if (items.isEmpty()) showState(emptyText(), progress = false) else hideState()
             // An emptied list (e.g. the last favorite removed) would drop focus onto the first rail item.
             if (items.isEmpty() && (hadListFocus || currentFocus == null)) {
                 if (tvLevels() && groupEntries.isNotEmpty()) showCategories() else navViews[section]?.requestFocus()
             }
-            if (requestFocus && items.isNotEmpty()) focusItemAt(at)
+            if ((requestFocus || (vodMode() && restoreVodGrid)) && items.isNotEmpty()) {
+                restoreVodGrid = false
+                focusItemAt(at)
+            }
         }
     }
 
@@ -1028,6 +1348,7 @@ class MainActivity : RemoteActivity() {
 
     private fun focusGroups() {
         if (section == Section.TV) setLiveLevel(LiveLevel.CATEGORIES)
+        if (vodMode()) setVodLevel(LiveLevel.CATEGORIES)
         focusGroupAt(selectedGroup)
     }
 

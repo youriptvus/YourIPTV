@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="series_cover_width">90dp</dimen>
+    <dimen name="series_cover_height">128dp</dimen>
+    <dimen name="series_episode_width">184dp</dimen>
+    <dimen name="series_episode_image_height">99dp</dimen>
+    <dimen name="series_episode_rail_height">154dp</dimen>
+</resources>

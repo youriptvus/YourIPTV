@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_margin="4dp" android:padding="5dp" android:orientation="vertical"
+    android:background="@drawable/vod_poster_background" android:focusable="true" android:clickable="true">
+    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+        <com.youriptv.app.ui.PosterImageView android:id="@+id/logo" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:scaleType="centerCrop" android:importantForAccessibility="no"
+            android:src="@drawable/ic_channel" />
+        <ImageView android:id="@+id/fav" android:layout_width="16dp" android:layout_height="16dp"
+            android:layout_gravity="top|end" android:layout_margin="4dp" android:src="@android:drawable/btn_star_big_on"
+            android:contentDescription="Favorite" android:visibility="invisible" />
+    </FrameLayout>
+    <TextView android:id="@+id/name" android:layout_width="match_parent" android:layout_height="40dp"
+        android:textSize="14sp" android:textStyle="bold" android:maxLines="2" android:ellipsize="end"
+        android:gravity="center_vertical" android:paddingTop="4dp" />
+    <TextView android:id="@+id/subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:visibility="gone" />
+    <TextView android:id="@+id/number" android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone" />
+    <ProgressBar android:id="@+id/now_progress" android:layout_width="match_parent" android:layout_height="1dp" android:visibility="gone" />
+</LinearLayout>

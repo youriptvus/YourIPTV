@@ -124,9 +124,10 @@ internal class AppUpdateChecks(private val app: YourIptvApp) : Application.Activ
         val changes = confirmation.changes.takeIf { it.isNotEmpty() }
             ?.joinToString("\n\n") { "\u2022 $it" }
             ?: "Release notes are unavailable for this version."
+        val credit = confirmation.credit?.let { "\n\n$it" }.orEmpty()
         val shown = AlertDialog.Builder(activity)
             .setTitle("${Branding.displayName(activity)} updated to ${confirmation.installedName}")
-            .setMessage("Update installed successfully.\n\nWhat's new in ${confirmation.installedName}:\n\n$changes")
+            .setMessage("Update installed successfully.\n\nWhat's new in ${confirmation.installedName}:\n\n$changes$credit")
             .setCancelable(false)
             .setPositiveButton("Got it") { _, _ ->
                 receipt.acknowledge(confirmation)

@@ -75,6 +75,7 @@
         <activity android:name=".ui.PlaylistEditActivity" android:screenOrientation="sensorLandscape" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.SettingsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.SeriesActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
+        <activity android:name=".ui.MovieDetailsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.AboutActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.AppUpdateActivity" android:screenOrientation="sensorLandscape" android:exported="false"
             android:launchMode="singleTop"

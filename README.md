@@ -56,32 +56,59 @@ for the app's automatic-update permissions.
 
 | | |
 |---|---|
-| Current project version | **1.0.1** (`versionCode` 32), application ID `com.youriptv.app`; local release preparation |
-| Stage | Settings security update based on clean 1.0.0; signed local APK verified offline |
+| Current project version | **1.0.3** (`versionCode` 34), application ID `com.youriptv.app` |
+| Stage | Final signed APK, automated checks and scoped phone/TV verification passed; local publication preparation |
 | Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
-| Main test devices | onn. Streaming Device 4K Pro (Google TV); onn. Full HD Streaming Device; moto g 2025 phone (playback) |
+| Verified devices | Samsung SM-S166V / API 36 phone; onn. 4K Pro / API 34 TV, within the scope below |
 
-1.0.1 makes Settings protection permanent on new and existing installations, preserves optional
-custom Settings PINs, and adds a directly accessible About entry. Existing playlist connections
-can be edited after Settings authentication. See [Settings security and migration](docs/SETTINGS_SECURITY.md)
-before upgrading: the fixed master can open Settings even when a custom PIN exists, and only the
-master can manage custom Settings PINs. This shared master is discoverable and is not a private
-owner identity or protection against copying the APK.
+1.0.3 corrects the short landscape phone layout for Movies and Shows. A compact browsing header
+keeps the selected title/count while leaving room for a complete poster image and caption. Poster
+sizing considers usable height as well as width. The full TV presentation remains when enough
+height is available. It also corrects selected-episode/focus restoration when returning from
+Series playback with touch or remote controls. Movie details, season rows and episode cards remain.
+See the [Movies/Shows navigation guide](docs/VOD_NAVIGATION.md).
 
-Package identity, official signing identity, permissions, update addresses and playback are unchanged.
-Known occasional stream interruptions remain possible. Buffer changes and companion rebranding
-are not included. Local preparation does not publish 1.0.1 or establish device-test results.
+The verified 1.0.2 phone follow-up found a real grid limitation: five columns of posters were
+clipped before a complete image-and-caption card could fit. Live Bizarre Foods video and movie
+The Dirt details/buttons/favorites worked. Opening the movie player did not establish actual
+movie video or resume behavior on the phone. Those observations are baseline findings, not a
+1.0.3 pass. An earlier private 1.0.3 candidate passed 282 tests in 40 classes but failed Series
+return focus; that candidate/evidence was preserved before the additional correction.
 
-The final local signed build, release vital lint and **241 JVM tests in 35 classes** passed.
-Native checks confirm the official package/certificate, version and unchanged Android requirements
-and permissions. See [1.0.1 QA evidence and unperformed device checks](docs/QA_CHECKLIST.md).
+The final corrected code passed **288 tests in 40 classes**, with zero failures/errors/skips.
+Signed release assembly, release vital lint, native APK checks, 13 archived updater checks and
+19 retained-APK identity audits passed. The exact installed APK passed scoped phone and TV tests:
+complete phone poster/caption rows at text scales 1.0 and 1.3 (restored to 1.0), movie video/resume,
+normal TV presentation, episode video, exact selected-episode return after plain playback and
+touch subtitle menus, and public About/Settings protection. Both devices retained data through
+in-place installation and had zero app fatal blocks in the retained logs. See the
+[QA checklist](docs/QA_CHECKLIST.md) for exact install sequences and test limits.
 
-The website backup currently serves 1.0.0 / code 31. The staged 1.0.1 manifest uses
-`previousVersionCode: 31`; GitHub publication remains manual and its current state was not checked
-from workspace tools. Publishing the website copy is a separate step and has not been performed
-for 1.0.1. Official clients on the current update channel can upgrade directly when the matching
-release is published. See [direct-upgrade compatibility and exceptions](docs/UPGRADING_TO_1_0.md).
+The official package/signing identity, requested permissions and update routes are retained.
+Settings protection stays on; existing custom PINs remain usable, and only the fixed master
+manages them. About remains public from the main menu. Parental restrictions, provider limits,
+subtitles-Off defaults/manual controls and all free player features remain. The shared Settings
+master is discoverable and is not a private owner identity or anti-copy protection. Read
+[Settings security and migration](docs/SETTINGS_SECURITY.md). Buffer and companion rebranding
+work remain paused and excluded, with no reserved future release version.
+
+The bundled 1.0.3 installed-update confirmation contains four release-note bullets and the credit:
+
+**Thanks to Dylan B. for the suggestions for the current build.**
+
+The last recorded website mirror serves **1.0.2 / code 33**. This 1.0.3 work is authorized locally
+only; it does not include server uploads or GitHub publication. Preserve existing release assets.
+GitHub publication remains manual and workspace tools do not call GitHub. Record actual 1.0.3
+verification in the QA record. Post-commit source/archive/Repository/Desktop checks are recorded
+in `D:\APK\backups\YourIPTV-1.0.3-PUBLISH.txt` and the verification folder's `final-audit.json`;
+those records, rather than this pre-staging source text, establish local promotion status.
+
+Prepare 1.0.3 as a complete APK that can update directly from every compatible official
+installation, without intermediate releases. The prepared `previousVersionCode: 33` is only the
+optional/required prompt threshold, not a minimum installed version. Retired updater addresses
+and missing installation support remain explicit manual in-place upgrade exceptions. See the
+[upgrade guide](docs/UPGRADING_TO_1_0.md).
 
 The signed APK on each GitHub Release uses the fixed asset name `YourIPTV.apk`. The latest
 release is available at
@@ -106,7 +133,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
      the first update to allow installs from YourIPTV.
    - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
      YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
-   - Settings protection is always enabled in 1.0.1. Keep the master with the responsible
+   - Settings protection is always enabled from 1.0.1 onward. Keep the master with the responsible
      technician; an optional custom Settings PIN can also authorize Settings access.
 
 **Customer experience:**
@@ -123,7 +150,8 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
   version is not required. Official 0.4.1 and later releases using the current GitHub update address
-  can update directly to compatible 1.0.1 / code 32; 0.5.2 and 0.5.3 need no intermediate install.
+  can update directly to the complete compatible 1.0.3 / code 34 release once verified and available;
+  0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
   can use the website fallback.
 - Install shows *Downloading update… x%* and *Installing update… x%*. On Android 12+ the install
@@ -155,7 +183,7 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For the staged 1.0.1 release use `--previous 31`, following 1.0.0 / code 31.
+   For 1.0.3 preparation use `--previous 33`, following the published 1.0.2 / code 33 mirror.
    For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
    devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
@@ -195,7 +223,7 @@ app name, logos and branding images, phone launcher icons, Android TV icon/banne
 company and support/contact details.
 
 - Rebranding work is held in a **separate, authorized rebranding tool** outside this repository.
-  Its unfinished companion integration remains paused and is excluded from 1.0.1. The app itself
+  Its unfinished companion integration remains paused and is excluded from 1.0.3. The app itself
   contains no payment screens, "Unlock Premium" buttons, or branding controls.
 - A rebranded app is **never** more capable than the standard app, and the standard app is never
   reduced. Payment covers the custom branding only. It never unlocks, limits, or restricts any player
@@ -284,13 +312,18 @@ All of the following are implemented. Their device-test status is recorded in
   channel-list overlay, and player options.
 - **Track and display options:**
   - audio track, subtitles, video track and info;
+  - subtitles off by default on a new player, with manual subtitle On/Off selection retained;
   - aspect ratio;
   - picture-in-picture where the device supports it;
   - an external player.
 - **Tuning:** buffer size, "prefer software video decoding", audio delay (PCM audio only), and an
   optional auto frame rate.
-- **Movies and series (VOD):** browse by category, seasons and episodes, seek, resume, and viewing
-  history.
+- **Movies and series (VOD):** browse categories with large portrait posters and a selected-title
+  header. A wide TV display targets around 7–8 posters per row; short phone windows use a compact
+  header and height-aware poster sizing so images and captions fit together. Opening a movie shows its available details before Play. Series show vertically stacked
+  seasons with horizontal episode cards and remembered selections. Existing seek, resume, viewing
+  history, favorites and internal/external playback remain available. See
+  [the navigation and artwork guide](docs/VOD_NAVIGATION.md).
 - **Start-up:** optionally start on the last channel watched.
 
 **Library, safety and settings**
@@ -350,7 +383,7 @@ All of the following are implemented. Their device-test status is recorded in
 ### Permissions
 
 The app requests network access and the existing Android install/restart permissions used by
-automatic updates. 1.0.1 adds or removes no requested permissions. It declares no services,
+automatic updates. 1.0.3 adds or removes no requested permissions. It declares no services,
 broadcast receivers or content providers, and no HOME launcher category. The automated test
 `StandaloneAppAuditTest` checks that the player remains a standalone app.
 
@@ -477,7 +510,7 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **1.0.1 (version code 32)**. Build and verify the matching signed APK
+The current project targets **1.0.3 (version code 34)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
 The higher-version in-app installation path has not yet been tested for this release.
 
@@ -503,14 +536,28 @@ install apps.
 .\gradlew.bat testDebugUnitTest
 ```
 
-- The final 1.0.1 offline suite passed **241 JVM tests in 35 classes**, with zero failures,
-  errors or skips. Sources are in `app\src\test\java\com\youriptv\app`; exact evidence and
-  device-test limits are recorded in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
+- Final 1.0.3 evidence: **288 tests in 40 classes**, zero failures/errors/skips; signed release
+  assembly/release vital lint, native verification, 13 archived updater fixtures and 19 retained-APK
+  identity audits passed. Scoped final-APK phone/TV tests passed, including the corrected Series
+  return focus. Real automatic download/install and its popup, portrait/global inset behavior,
+  independent seek accuracy, network-failure injection and long live-playback soak were not tested.
+  See [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) for exact evidence and limits; staging status is
+  recorded separately in the post-commit publication instructions and final audit.
+- Historical 1.0.2 evidence: **275 tests in 40 classes** passed with zero failures/errors/skips.
+  Signed release assembly, release vital lint, native APK checks and 12 archived updater source
+  checks passed. Scoped regression checks on the exact final APK passed on an onn. 4K Pro using
+  the existing authorized playlist. The backup website deployment passed independent HTTPS
+  verification. Later phone checks found the clipped grid described above; movie video/resume
+  on that phone remained unconfirmed. These historical results do not certify 1.0.3. Device/update-
+  path limits belong in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
+  Sources are in
+  `app\src\test\java\com\youriptv\app`.
   They cover:
   - the M3U and XMLTV parsers, Xtream URLs and catch-up URL building;
   - the connection-limit logic;
   - parental-control and PIN logic;
   - guide navigation and preview-selection rules;
+  - VOD grid sizing, navigation/restoration, season/episode ordering and optional artwork;
   - live-stream recovery and the MPEG-TS access-unit handling;
   - backup and restore;
   - the no-premium and standalone-app audits.
@@ -602,7 +649,8 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.1 |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.3 |
+| [docs/VOD_NAVIGATION.md](docs/VOD_NAVIGATION.md) | Movies/Shows posters, movie details, season rows, artwork and verification limits |
 | [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Always-on Settings protection, custom PINs and migration |
 | [docs/UPGRADING_TO_1_0.md](docs/UPGRADING_TO_1_0.md) | Direct upgrades, older-version exceptions and publication |
 | [docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md) | Requirements and implementation status |

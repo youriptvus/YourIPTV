@@ -54,9 +54,10 @@ object Nav {
         if (a is MainActivity) a.markReturningFromCurrentStream()
     }
 
-    /** Opens an item: series go to the episode screen, everything else plays. Locked groups ask for the PIN. */
+    /** Opens VOD details or live playback. Locked groups ask before metadata or playback is opened. */
     fun open(a: Activity, item: MediaItem, list: List<MediaItem>, onOpened: (() -> Unit)? = null) {
         val s = YourIptvApp.instance.settings
+        if (s.isGroupHidden(item.group)) { Dialogs.toast(a, "This category is hidden."); return }
         val locked = s.isGroupLocked(item.group)
         // Only a group whose PIN was just entered counts as unlocked in the player.
         val unlocked = if (locked) item.group else null
@@ -70,6 +71,17 @@ object Nav {
                         .putExtra(SeriesActivity.EXTRA_REMOTE_ID, item.remoteId)
                         .putExtra(SeriesActivity.EXTRA_GROUP, item.group)
                         .putExtra(SeriesActivity.EXTRA_LOGO, item.logo)
+                        .putExtra("authorization_stamp", s.restrictionStamp())
+                )
+                ItemKind.MOVIE -> a.startActivity(
+                    Intent(a, MovieDetailsActivity::class.java)
+                        .putExtra(MovieDetailsActivity.EXTRA_PLAYLIST, item.playlistId)
+                        .putExtra(MovieDetailsActivity.EXTRA_URL, item.url)
+                        .putExtra(MovieDetailsActivity.EXTRA_NAME, item.name)
+                        .putExtra(MovieDetailsActivity.EXTRA_REMOTE_ID, item.remoteId)
+                        .putExtra(MovieDetailsActivity.EXTRA_GROUP, item.group)
+                        .putExtra(MovieDetailsActivity.EXTRA_LOGO, item.logo)
+                        .putExtra("authorization_stamp", s.restrictionStamp())
                 )
                 ItemKind.LIVE -> {
                     val live = list.filter { it.kind == ItemKind.LIVE }.ifEmpty { listOf(item) }

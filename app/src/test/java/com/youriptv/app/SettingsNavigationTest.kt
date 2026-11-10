@@ -13,8 +13,9 @@ class SettingsNavigationTest {
 
     @Test
     fun categoriesAreNamedUniqueAndNonEmpty() {
-        assertEquals(11, SettingsCategory.entries.size)
-        assertEquals(11, SettingsCategory.entries.map { it.title }.distinct().size)
+        assertEquals(10, SettingsCategory.entries.size)
+        assertEquals(10, SettingsCategory.entries.map { it.title }.distinct().size)
+        assertTrue("About belongs to the public main menu", SettingsCategory.entries.none { it.title == "About" })
         SettingsCategory.entries.forEach {
             assertTrue(it.title.isNotBlank())
             assertTrue(it.description.isNotBlank())
@@ -33,7 +34,7 @@ class SettingsNavigationTest {
             "Edit current playlist",
             "Update guide now", "Show channel numbers", "Clear viewing history",
             "Parental PIN", "Block adult categories", "Locked groups", "Hide locked groups",
-            "Lock playlists", "Lock Settings", "About \${Branding.displayName(this)}",
+            "Lock playlists", "Lock Settings",
             "Create backup", "Restore from backup",
         )
         val pageDefinitions = source.substringAfter("private fun entries(category:")

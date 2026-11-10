@@ -7,6 +7,7 @@ import android.util.JsonReader
 import android.util.JsonToken
 import android.util.Xml
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.InputStreamReader
 
 class Repository(context: Context) {
@@ -31,6 +32,8 @@ class Repository(context: Context) {
     }
 
     fun savePlaylist(p: Playlist): Long {
+        // A server/account edit keeps the playlist id but must not reuse details from the previous account.
+        invalidateDetails()
         val v = ContentValues().apply {
             put("name", p.name); put("type", p.type.name); put("url", p.url)
             put("username", p.username); put("password", p.password)
@@ -44,6 +47,7 @@ class Repository(context: Context) {
         db.rawQuery("SELECT 1 FROM items WHERE playlist_id=? AND url=? LIMIT 1", arrayOf(id.toString(), url)).use { it.moveToFirst() }
 
     fun deletePlaylist(id: Long) {
+        invalidateDetails()
         val a = arrayOf(id.toString())
         db.beginTransaction()
         try {
@@ -167,7 +171,7 @@ class Repository(context: Context) {
                         MediaItem(
                             playlistId = p.id, kind = kind, name = o["name"].orEmpty().trim(),
                             group = cats[o["category_id"].orEmpty()] ?: "Uncategorized",
-                            logo = (o["stream_icon"] ?: o["cover"]).orEmpty(), url = url,
+                            logo = VodMetadata.catalogueArtwork(o["stream_icon"], o["cover"]), url = url,
                             tvgId = o["epg_channel_id"].orEmpty(),
                             number = if (kind == ItemKind.LIVE) o["num"]?.toIntOrNull() ?: n else 0,
                             remoteId = id, extension = ext,
@@ -538,37 +542,79 @@ class Repository(context: Context) {
 
     // ---------------- Series ----------------
 
-    fun seriesEpisodes(p: Playlist, series: MediaItem): List<Episode> {
-        val json = JSONObject(Http.readText(XtreamUrls.api(p.url, p.username, p.password, "get_series_info", mapOf("series_id" to series.remoteId)), p.userAgent))
-        return parseSeriesEpisodes(json) { id, ext -> XtreamUrls.episode(p.url, p.username, p.password, id, ext) }
+    private data class DetailsKey(val playlist: Long, val refreshed: Long, val remoteId: String, val generation: Long)
+    private data class DetailsEntry<T>(val at: Long, val value: T)
+    private val seriesDetailsCache = LinkedHashMap<DetailsKey, DetailsEntry<SeriesDetails>>()
+    private val movieDetailsCache = LinkedHashMap<DetailsKey, DetailsEntry<MovieDetails>>()
+    private val detailsGeneration = java.util.concurrent.atomic.AtomicLong()
+
+    private fun invalidateDetails() {
+        detailsGeneration.incrementAndGet()
+        synchronized(seriesDetailsCache) { seriesDetailsCache.clear() }
+        synchronized(movieDetailsCache) { movieDetailsCache.clear() }
+    }
+
+    fun seriesDetails(p: Playlist, series: MediaItem): SeriesDetails {
+        val key = DetailsKey(p.id, p.lastUpdated, series.remoteId, detailsGeneration.get())
+        return cachedDetails(seriesDetailsCache, key, 4, 2_000, { it.episodes.size.coerceAtLeast(1) }) {
+            val json = readDetails(p, "get_series_info", "series_id", series.remoteId)
+            parseSeriesDetails(json) { id, ext -> XtreamUrls.episode(p.url, p.username, p.password, id, ext) }
+        }
+    }
+
+    fun seriesEpisodes(p: Playlist, series: MediaItem): List<Episode> = seriesDetails(p, series).episodes
+
+    fun movieDetails(p: Playlist, movie: MediaItem): MovieDetails {
+        if (p.type != SourceType.XTREAM || movie.remoteId.isBlank()) return MovieDetails()
+        val key = DetailsKey(p.id, p.lastUpdated, movie.remoteId, detailsGeneration.get())
+        return cachedDetails(movieDetailsCache, key, 32) {
+            VodMetadata.movie(readDetails(p, "get_vod_info", "vod_id", movie.remoteId))
+        }
+    }
+
+    private fun readDetails(p: Playlist, action: String, idKey: String, id: String): JSONObject {
+        // Metadata only: never open a video stream while browsing. Bound decompressed provider data.
+        val url = XtreamUrls.api(p.url, p.username, p.password, action, mapOf(idKey to id))
+        val bytes = Http.open(url, p.userAgent, timeoutMs = 10_000).use { input ->
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (out.size() + count > 8 * 1024 * 1024) throw IllegalArgumentException("Provider details exceed the supported size.")
+                out.write(buffer, 0, count)
+            }
+            out.toByteArray()
+        }
+        return JSONObject(bytes.toString(Charsets.UTF_8))
+    }
+
+    private fun <T> cachedDetails(
+        cache: LinkedHashMap<DetailsKey, DetailsEntry<T>>, key: DetailsKey, capacity: Int,
+        maxWeight: Int = capacity, weight: (T) -> Int = { 1 }, load: () -> T,
+    ): T {
+        val now = android.os.SystemClock.elapsedRealtime()
+        synchronized(cache) {
+            cache[key]?.takeIf { now - it.at < 10 * 60_000L }?.let { return it.value }
+            cache.remove(key)
+        }
+        val value = load()
+        synchronized(cache) {
+            // A very large series stays usable on this screen without occupying a long-lived cache.
+            if (weight(value) > maxWeight || key.generation != detailsGeneration.get()) return value
+            cache.remove(key)
+            cache[key] = DetailsEntry(now, value)
+            while (cache.size > capacity || cache.values.sumOf { weight(it.value) } > maxWeight) cache.remove(cache.keys.first())
+        }
+        return value
     }
 
     companion object {
         fun normalize(name: String): String = name.lowercase().filter { it.isLetterOrDigit() }
 
-        fun parseSeriesEpisodes(json: JSONObject, urlFor: (String, String) -> String): List<Episode> {
-            val result = ArrayList<Episode>()
-            val episodes = json.optJSONObject("episodes") ?: return result
-            for (seasonKey in episodes.keys()) {
-                val arr = episodes.optJSONArray(seasonKey) ?: continue
-                for (i in 0 until arr.length()) {
-                    val e = arr.optJSONObject(i) ?: continue
-                    val id = e.optString("id")
-                    if (id.isEmpty()) continue
-                    result.add(
-                        Episode(
-                            id = id,
-                            season = e.optString("season").toIntOrNull() ?: seasonKey.toIntOrNull() ?: 0,
-                            episode = e.optString("episode_num").toIntOrNull() ?: (i + 1),
-                            title = e.optString("title"),
-                            url = urlFor(id, e.optString("container_extension")),
-                            plot = e.optJSONObject("info")?.optString("plot").orEmpty(),
-                        )
-                    )
-                }
-            }
-            result.sortWith(compareBy({ it.season }, { it.episode }))
-            return result
-        }
+        fun parseSeriesDetails(json: JSONObject, urlFor: (String, String) -> String): SeriesDetails = VodMetadata.series(json, urlFor)
+
+        fun parseSeriesEpisodes(json: JSONObject, urlFor: (String, String) -> String): List<Episode> =
+            parseSeriesDetails(json, urlFor).episodes
     }
 }

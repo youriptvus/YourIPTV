@@ -19,12 +19,14 @@ internal class UpdateReceipt(
         val installedName: String,
         val completedTargetCode: Long,
         val changes: List<String>,
+        val credit: String? = null,
     )
 
     fun current(): Confirmation? {
         val pending = store.pendingCode
         if (pending <= 0 || pending > installedCode) return null
-        return Confirmation(installedCode, installedName, pending, InstalledChangelog.changes(installedCode, installedName))
+        return Confirmation(installedCode, installedName, pending,
+            InstalledChangelog.changes(installedCode, installedName), InstalledChangelog.credit(installedCode, installedName))
     }
 
     fun acknowledge(confirmation: Confirmation) {

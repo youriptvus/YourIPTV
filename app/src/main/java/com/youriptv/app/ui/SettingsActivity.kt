@@ -36,7 +36,6 @@ internal enum class SettingsCategory(val title: String, val description: String)
     SETTINGS_LOCK("Settings Lock", "Always-on protection and optional custom Settings PIN"),
     BACKUP("Backup & Restore", "Save playlists, favorites, and settings to a local file, or restore them"),
     UPDATES("App Updates", "Automatic GitHub update checks"),
-    ABOUT("About", "App information and free-use notice"),
 }
 
 /** Category pages share one Settings visit and its existing unlock lifetime. */
@@ -110,7 +109,7 @@ class SettingsActivity : ListActivity() {
         adapter.notifyItemRangeChanged(0, adapter.itemCount, "refresh")
     }
 
-    private fun subtitle() = "Unlocked for this visit only. Settings protection always stays on. About is also available from the main menu without a PIN."
+    private fun subtitle() = "Unlocked for this visit only. Settings protection always stays on. About is available from the main menu without a PIN."
 
     private fun authorizedToken(): Long? = if (isFinishing || isDestroyed) null else visit.authorizedToken()
 
@@ -429,9 +428,6 @@ class SettingsActivity : ListActivity() {
             Entry("Save backup to another location…", { "USB drive, cloud, or Downloads" }, { exportBackup() }),
             Entry("Restore from another location…", { "Choose a YourIPTV backup file" }, { importBackup() }),
         ) else emptyList()
-        SettingsCategory.ABOUT -> listOf(
-            Entry("About ${Branding.displayName(this)}", { "Free · no account · no purchase · no activation" }, { startActivity(Intent(this, AboutActivity::class.java)) }),
-        )
         SettingsCategory.UPDATES -> listOf(
             Entry("Allow update installs (technician)", {
                 if (AppUpdates.installationAuthorized(this)) "Allowed · updates install without asking the customer"

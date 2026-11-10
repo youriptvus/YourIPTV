@@ -1,4 +1,197 @@
-# YourIPTV — QA checklist (full hands-on pass)
+# YourIPTV - QA checklist (full hands-on pass)
+
+## 1.0.3 phone layout and Series-return corrections (version code 34)
+
+The owner approved the compact/height-aware phone Movies/Shows layout and the narrow Series
+selected-episode/focus correction, based on clean **1.0.2 / code 33**. The final corrected code
+passed **288 tests in 40 classes**, with zero failures, errors or skips. The exact final APK passed
+scoped landscape phone and TV checks. Existing package/signer, permissions, update routes,
+Settings/parental rules, public About, provider limits, subtitles-Off defaults and free features remain.
+
+Scope remains **local only**: no 1.0.3 server upload, GitHub call/publication, key change,
+provider-account change, uninstall or data clearing. Buffer and companion rebranding stay paused.
+The existing website mirror remains 1.0.2/code 33. Preserve mixed development main and user changes.
+
+The four bundled release notes retain the exact credit:
+**Thanks to Dylan B. for the suggestions for the current build.**
+
+Final APK: **3,680,242 bytes**, SHA-256
+`4ce7da48248fdda0d8c8b3cc84d3a591071abd20c1a67edb1ec5a4f2e56a0616`.
+Evidence: `D:\APK\work\YourIPTV-1.0.3-verification`, including `release-verification.json`,
+`main-unit-snapshot.json`, `legacy-unit-snapshot.json` and `device-verification.json`.
+
+Superseded private-candidate history: 282 tests in 40 classes passed. Phone grid fit, enlarged
+text and movie playback passed; TV full header/eight columns, season memory, episode playback
+and subtitle controls passed. **Series return focus did not pass**: after touch subtitle menus,
+focus landed on Favorites and the selected-episode text differed; a plain return also did not
+establish a pass. That candidate/evidence remains at
+`D:\APK\work\YourIPTV-1.0.3-candidate-94c7bd45`. It was preserved before the approved fix and
+fresh final verification; those earlier passes do not replace the final evidence below.
+
+Baseline phone finding: on the SM-S166V, the preceding 1.0.2 landscape grid displayed five columns
+with clipped image/caption cards. Live Bizarre Foods video and The Dirt details/buttons/favorites
+worked; opening PlayerActivity did not then establish movie video/resume. The final 1.0.3 checks
+below supersede that layout limitation and include actual movie video/resume.
+
+- [x] Fresh complete offline suite: **288 tests / 40 classes**, zero failures/errors/skips, run
+      `20261110T041605Z-5bf37d6e`. Includes phone sizing/font policies, unchanged TV layout,
+      Series selection/lifecycle/focus restoration and receipt/four-note credit coverage.
+- [x] Signed `assembleRelease` and release vital lint passed in **3m6s**. No unperformed full debug
+      lint or instrumented test run is claimed.
+- [x] Native verification: 1.0.3/code 34, official package/label/certificate, minSdk 23/targetSdk 36,
+      unchanged seven permissions, current update routes and absent companion integration.
+      Exact size/hash above; compared with official 1.0.2.
+- [x] Matching primary/mirror metadata and **13 archived updater fixtures** passed: 12 compatible
+      current-route implementations accept the complete release directly; retired 0.4.0 is the
+      expected exception. Predecessor 33 is a prompt threshold, not a minimum installed version.
+      Identity checks on **19 retained APKs** passed separately. Optional 0.5.5 source is unavailable;
+      native APK identity checks do not substitute for that parser fixture or physical upgrade tests.
+- [x] Exact final APK installed in place on **Samsung SM-S166V / API 36** and **onn. 4K Pro / API 34**,
+      then pulled/hash/certificate verified. No uninstall/data clearing; existing phone catalogs,
+      saved movie position and Settings protection were retained. This final APK replaced an earlier
+      private code 34 APK. The original code 33 -> private code 34 update is preserved with the old
+      candidate; the exact final APK was not separately installed from every archived version.
+- [x] Phone grid at text scales **1.0 and 1.3**: full Movies/Shows poster-and-caption row, provider
+      pictures, touch horizontal episode/vertical season scrolling. Text scale restored to 1.0.
+      Movie details/Back, nonfirst-row selection and Home/normal-launcher return restoration passed.
+- [x] Phone actual episode and The Dirt movie video, saved movie resume and favorites toggle/restore
+      passed. This is video/resume evidence, not merely opening PlayerActivity; independent seek
+      accuracy was not measured.
+- [x] TV full header and settled eight-column Movies grid; D-pad positions 3 -> 11 -> 3 and details/
+      Back selection restoration passed. Last Hope season memory S1E1 -> E3 -> S2E1 -> E2 -> S1E3,
+      provider/series-art fallback rows and actual episode video passed.
+- [x] Series exact return: phone Carnivale S2E3 and TV Last Hope S1E3 returned to the same card/heading
+      after both plain playback and touch subtitle menus. Subsequent remote Right advanced to E4.
+      The final checks did not reproduce the old Favorites/wrong-episode return failure.
+- [x] New episode subtitle default Off, manual English, then manual Off checked on both devices.
+- [x] Fresh Settings/About: public About showed 1.0.3 without a PIN on both devices; phone Settings
+      PIN gate/Cancel passed. TV normal authentication, all ten categories without duplicate About,
+      relock and Cancel passed. Master/custom management and every parental/provider configuration
+      were not re-exercised physically; the unchanged policies have offline regression coverage.
+- [x] Retained app fatal blocks: **zero on both devices** in the observed final-test logs. Provider
+      credentials/settings were not changed; no extra artwork streams, TiviMate switching or
+      workspace GitHub calls were used. This does not establish a long-duration playback soak.
+- [x] JVM receipt/lifecycle/acknowledgement and exact final DEX/documentation checks verify four notes
+      and the exact Dylan B. credit. No fake update receipt was installed.
+- [ ] Real automatic download/install and the successful-update popup were **not device-tested**.
+      ADB replacement and JVM/DEX coverage do not establish that path.
+- [ ] Post-commit artifact preparation: verify the clean release commit/tag, preserved 1.0.2 archive,
+      source ZIP/privacy checks, matching backup/versioned/generic Desktop pairs and Repository
+      files, reviewing new user changes/removals before sync. Leave Repository uncommitted/unpushed.
+      Actual completion is recorded in `D:\APK\backups\YourIPTV-1.0.3-PUBLISH.txt` and the
+      verification folder's `final-audit.json`; this reserved checkbox is not a device-test gap or
+      a prediction that staging succeeded.
+
+Limits: no full portrait/global system-bar verification, all-phone-model coverage, independent
+seek-accuracy measurement, all-codec/provider coverage, long-duration live playback soak, network
+failure injection or all-artwork-missing visual case. The final device check used landscape and
+the existing authorized playlists. Sound is assumed working per owner instruction, not independently
+user-confirmed. Record any broader or post-commit results separately; keep credentials, PIN values,
+private keys and credential-bearing URLs out of records. Preserve earlier release history below.
+
+## 1.0.2 Movies/Shows navigation (version code 33) - November 9, 2026
+
+Later phone follow-up (after the original preparation record below): the SM-S166V showed five
+columns of clipped Movies/Shows poster-and-caption cards. Live Bizarre Foods video and The Dirt
+movie details/buttons/favorites worked; actual phone movie video/resume remained unconfirmed.
+Do not interpret the earlier phone-pending record or successful TV checks as a phone grid pass.
+The approved 1.0.3 correction and its new pending checks are recorded above.
+
+The release is based on clean **1.0.1 / code 32**. The owner approved the navigation changes,
+local tests/signing, a compatible in-place test on the authorized TV box, Repository/Desktop
+preparation after verification and encrypted backup-server deployment after successful checks.
+GitHub publication remains manual. Buffer and companion rebranding work remain paused, and
+mixed development main must be preserved.
+
+The approved installed-update confirmation contains eight release-note bullets and a separate
+credit: **Thanks to Dylan B. for the suggestions for the current build.** Record completed final
+verification below for the exact credited APK. Earlier release evidence is historical and does
+not establish this release's result. The backup website now serves the exact verified 1.0.2 /
+code 33 APK and matching metadata; GitHub publication remains manual and was not checked here.
+
+The full offline suite passed **275 tests in 40 classes**, with zero failures, errors or skips.
+The signed APK below passed native verification and scoped tests on an **onn. 4K Pro / Android
+API 34**. The installed APK was pulled back and matched the final hash and official certificate.
+The backup deployment passed independent HTTPS readback. Post-commit local artifact checks are
+recorded separately in the publication instructions and final audit.
+
+- [x] Final complete offline suite: 275 tests in 40 classes; zero failures/errors/skips. Includes grid
+      sizing/navigation/restoration, metadata/artwork, season selection, image limits, concurrent
+      artwork-queue snapshots, touch-selection restoration, parental guards, Settings/About,
+      and the exact standalone credit. Subtitle track selection remains a separate device check.
+      Saved run:
+      `20261110T024325Z-6c486394`.
+- [x] Final signed `assembleRelease` and release vital lint passed in 3m19s: 45 tasks,
+      8 executed and 37 up-to-date. This does not claim unperformed full debug lint.
+- [x] Native exact-APK checks: version 1.0.2 / code 33, official package/label/certificate, minSdk 23,
+      targetSdk 36, unchanged seven requested permissions, non-exported movie-details activity,
+      both updater routes and absent companion integration. Size: 3,676,140 bytes. SHA-256:
+      `48210e21c62c95208b105b5aa7dff045621579c2e926dbd834bcb4e75e269f36`.
+      Privacy scans cover the inspected forbidden filenames/private-key markers only.
+- [x] Exact candidate GitHub/website metadata and 12 archived updater source checks passed:
+      version 33/name 1.0.2, predecessor 32, exact size/hash and artifact URLs. Eleven current-route
+      clients accept the complete APK directly; the retired 0.4.0 route is the expected exception.
+      Every legacy result is bound to the final APK and metadata. Identity checks on 18 retained
+      APKs, including 0.5.5, passed separately; they do not replace unavailable parser source.
+- [x] TV in-place installation: `adb install -r`, followed by an installed APK pull/hash/native
+      comparison. No uninstall or data clearing. Existing playlists/categories, guide data,
+      Settings protection and movie resume progress were observed retained. The sequence started
+      at 0.5.6/code 30, passed through private code 33 candidates and ended at the exact final APK;
+      the final APK was not separately installed directly from every older version.
+- [x] Live TV and guide: A&E East moving video and guide worked on the existing authorized playlist.
+- [x] Movies: eight-column full-width poster grid, selected-title header, details/provider metadata/
+      backdrop and video playback. Resume advanced from 1:35 to 2:00. Touch return retained the
+      third selection; D-pad positions moved 3 -> 11 -> 3. Three large-grid scroll/details/return
+      stress cycles produced no app crash in the retained AndroidRuntime log.
+- [x] Shows: Bass X Machina supplied provider episode pictures; touch return retained the third
+      poster. Last Hope displayed two season rows, Season 1 provider pictures and Season 2 series
+      artwork fallback. Selection memory followed S1E1 -> S1E3 -> S2E1 -> S2E2 -> S1E3.
+      S1E1 video played; Next opened E2, whose menu offered Previous E1/Next E3. Back restored S1E1.
+- [x] Episode subtitles: the new player showed Off checked, manual English selection became checked,
+      and manual Off became checked again. This is the observed track-selection check on the TV.
+- [x] Settings/About: public About opened before Settings authentication and displayed 1.0.2.
+      Settings required normal PIN authentication, showed all ten categories without duplicate
+      About, then relocked and respected Cancel. Existing parental/provider policies remain
+      covered by the offline regression suite; master/custom PIN management was not repeated here.
+- [ ] Additional device limits: no physical-phone, process-recreation or network-failure-injection
+      tests were performed. The final visual tests exercised provider pictures and series fallback,
+      not an all-artwork-missing item; neutral artwork fallback has automated policy coverage only.
+- [ ] Successful installed-update confirmation: actual installed version, the eight approved notes
+      and exact separate Dylan B. credit. Automated lifecycle/receipt/acknowledgement tests and exact
+      final DEX checks passed; ADB installation does not create the app's update receipt, so this
+      popup was not device-tested. The live automatic download/install path was not exercised.
+- [ ] Phone/adaptive layout: record the authorized device or local test environment and result.
+      Mark unavailable checks honestly instead of inferring them from the TV layout.
+- [ ] Local release preparation: archive current Repository 1.0.1 before promotion, preserve mixed
+      main and old assets, verify backup/Desktop/source matching, review removed paths, and leave
+      Repository changes for the owner to commit and push. The final signed APK and both metadata
+      files have been copied and verified in `D:\APK\backups`. This checkbox is reserved for
+      post-commit source/archive/Repository/Desktop verification, recorded in
+      `D:\APK\backups\YourIPTV-1.0.2-PUBLISH.txt` and the verification folder's `final-audit.json`;
+      it is not a device-test gap and does not predict staging success.
+- [x] Authorized backup deployment: affected prior 1.0.1 files were backed up; certificate-verified
+      FTPS protected control/data channels with TLS 1.3. The exact public APK was verified before
+      atomic metadata activation. Independent HTTPS readback passed at
+      `2026-11-10T03:02:11.549793+00:00` (November 9 locally): version 1.0.2/code 33, predecessor 32,
+      3,676,140 bytes and the final SHA-256 above. Website index, `.htaccess` and older artifacts
+      were preserved. No GitHub calls. Evidence is in
+      `D:\APK\work\website-mirror-1.0.2-20261110T030126Z-19f1f440\deployment.json` and
+      `independent-https-verification.json` in that folder.
+
+Every compatible official current-channel installation below code 33 can use the complete APK
+without intermediate versions. `previousVersionCode: 32` controls only required/optional prompts;
+it is not a minimum installed version. The retired 0.4.0 address and older missing installation
+support require a manual in-place update. Optional 0.5.5 parser source was unavailable locally;
+native APK identity checks do not substitute for that missing source fixture.
+
+Local evidence: `D:\APK\work\YourIPTV-1.0.2-verification`. Record actual final results and
+limitations without provider credentials, PIN values, private keys or credential-bearing URLs.
+`device-verification.json` records 12 passed TV checks, 11 screenshot hashes and the limits above.
+No extra artwork streams, provider credential changes, TiviMate switching or workspace GitHub
+calls were used. These are scoped checks on this TV and playlist, not a guarantee for every
+provider, codec or device.
+Sound is assumed working unless a problem is reported or observed; do not mark it user-confirmed
+without confirmation. See [the VOD guide](VOD_NAVIGATION.md). Preserve earlier QA history below.
 
 ## 1.0.1 Settings security update (version code 32) - November 8, 2026
 
