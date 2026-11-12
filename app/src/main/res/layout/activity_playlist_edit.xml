@@ -19,19 +19,28 @@
             android:fillViewport="true" android:scrollbars="horizontal" android:focusable="false">
             <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
                 <Button
+                    android:id="@+id/type_m3u" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="M3U playlist URL" android:layout_marginEnd="12dp" />
+                <Button
                     android:id="@+id/type_xtream" style="@style/Button.Tv" android:layout_width="wrap_content"
                     android:layout_height="wrap_content" android:text="Xtream Codes login" android:layout_marginEnd="12dp" />
                 <Button
-                    android:id="@+id/type_m3u" style="@style/Button.Tv" android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" android:text="M3U playlist URL" />
+                    android:id="@+id/type_youriptv" style="@style/Button.Tv" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
             </LinearLayout>
         </HorizontalScrollView>
 
-        <TextView style="@style/FieldLabel" android:text="Playlist name" />
-        <EditText android:id="@+id/f_name" style="@style/Field" android:inputType="text" android:hint="My provider" />
+        <LinearLayout android:id="@+id/name_fields" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView style="@style/FieldLabel" android:text="Playlist name" />
+            <EditText android:id="@+id/f_name" style="@style/Field" android:inputType="text" android:hint="My provider" />
+        </LinearLayout>
 
-        <TextView android:id="@+id/l_url" style="@style/FieldLabel" android:text="Server URL" />
-        <EditText android:id="@+id/f_url" style="@style/Field" android:inputType="textUri" android:hint="http://provider.example:8080" />
+        <LinearLayout android:id="@+id/server_fields" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView android:id="@+id/l_url" style="@style/FieldLabel" android:text="Server URL" />
+            <EditText android:id="@+id/f_url" style="@style/Field" android:inputType="textUri" android:hint="http://provider.example:8080" />
+        </LinearLayout>
 
         <LinearLayout android:id="@+id/xtream_fields" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical">
@@ -39,14 +48,20 @@
             <EditText android:id="@+id/f_user" style="@style/Field" android:inputType="text" />
             <TextView style="@style/FieldLabel" android:text="Password" />
             <EditText android:id="@+id/f_pass" style="@style/Field" android:inputType="textPassword" />
+            <Button
+                android:id="@+id/btn_password_visibility" style="@style/Button.Tv" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Show password" android:contentDescription="Show password" />
         </LinearLayout>
 
-        <TextView style="@style/FieldLabel" android:text="Guide (EPG / XMLTV) URL — optional" />
-        <EditText android:id="@+id/f_epg" style="@style/Field" android:inputType="textUri"
-            android:hint="Leave empty to use the provider's guide" />
+        <LinearLayout android:id="@+id/optional_fields" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView style="@style/FieldLabel" android:text="Guide (EPG / XMLTV) URL — optional" />
+            <EditText android:id="@+id/f_epg" style="@style/Field" android:inputType="textUri"
+                android:hint="Leave empty to use the provider's guide" />
 
-        <TextView style="@style/FieldLabel" android:text="User agent — optional" />
-        <EditText android:id="@+id/f_ua" style="@style/Field" android:inputType="text" android:hint="Default" />
+            <TextView style="@style/FieldLabel" android:text="User agent — optional" />
+            <EditText android:id="@+id/f_ua" style="@style/Field" android:inputType="text" android:hint="Default" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/edit_status" android:layout_width="match_parent" android:layout_height="wrap_content"

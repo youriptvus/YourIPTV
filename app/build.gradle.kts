@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 1.0.3: compact phone VOD header and height-aware poster sizing.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 34
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.3"
+        // 1.0.5: protected playlist-management visit, visible deletion and password visibility.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 36
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.5"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {

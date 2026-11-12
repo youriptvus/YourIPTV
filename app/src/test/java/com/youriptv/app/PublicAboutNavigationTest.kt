@@ -19,7 +19,15 @@ class PublicAboutNavigationTest {
         assertNotNull("About needs its own public main-navigation action", about)
         assertEquals("startActivity(Intent(this, AboutActivity::class.java))", about?.trim())
         assertFalse("Public About must not grant Settings authorization", about.orEmpty().contains("putExtra"))
-        assertTrue("Parentally protected playlist navigation remains separate", routes.contains("Section.PLAYLISTS -> openLocked(app.settings.isPlaylistsLocked()"))
+        assertTrue("Playlist navigation remains separate from public About", routes.contains("Section.PLAYLISTS -> startActivity(Intent(this, PlaylistsActivity::class.java))"))
+        val manager = listOf(
+            File("src/main/java/com/youriptv/app/ui/PlaylistsActivity.kt"),
+            File("app/src/main/java/com/youriptv/app/ui/PlaylistsActivity.kt"),
+        ).first { it.exists() }.readText()
+        val resume = manager.substringAfter("override fun onResume()").substringBefore("override fun onPause()")
+        assertTrue("The playlist destination owns the parental gate on initial entry and resume", resume.contains("app.settings.isPlaylistsLocked() && !flow.hasParentalPermission(this)"))
+        assertTrue("Settings authorization alone cannot bypass parental approval", resume.contains("Dialogs.requirePin(this, \"manage playlists\""))
+        assertTrue("Playlist content stays hidden until its current visit is permitted", resume.indexOf("visit.authorize(token)") in 0 until resume.indexOf("list.visibility = View.VISIBLE"))
     }
 
     @Test

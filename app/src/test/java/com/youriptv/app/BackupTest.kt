@@ -140,6 +140,11 @@ class BackupTest {
         assertTrue(picker.contains("pickingFile = true") && picker.contains("importDoc.launch"))
         val permissions = ui.substringAfter("private fun openRestartAuthorization()").substringBefore("private fun guideStatus()")
         assertFalse("Android permission screens must not retain Settings authorization", permissions.contains("pickingFile = true"))
-        assertTrue(ui.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))
+        assertTrue(ui.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile && !flow.retains(this)) finish()"))
+        val complete = ui.substringAfter("private fun completeDocumentPicker()").substringBefore("private val exportDoc")
+        assertTrue(complete.contains("val token = filePickerToken"))
+        assertTrue(complete.contains("filePickerToken = null"))
+        assertTrue(complete.indexOf("!visit.isAuthorized(token)") < complete.indexOf("flow.authenticate(this, settingsRoute)"))
+        assertTrue(ui.contains("if (!visit.isAuthorized) visit.authorize(visit.beginVisit())"))
     }
 }

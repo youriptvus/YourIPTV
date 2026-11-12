@@ -3,7 +3,8 @@
 YourIPTV is an independent IPTV player for **Android TV** and **Android phones**, written in Kotlin
 with [Media3 ExoPlayer](https://developer.android.com/media/media3/exoplayer). You add your own
 **Xtream Codes** or **M3U / M3U Plus** playlist and an **XMLTV (EPG)** guide from a provider you
-are authorized to use. YourIPTV contains no channels, streams, or provider accounts of its own.
+are authorized to use. The **YourIPTV** setup shortcut accepts your existing provider username
+and password for its preset server; it does not supply an account, channels or subscription.
 
 YourIPTV is an app only. It is not an Android launcher, a home-screen replacement, an OS
 modification, or a device-management tool. It works the same whether it is opened directly or
@@ -27,8 +28,9 @@ YourIPTV supports Android phones and Android TV running Android 6.0 or newer.
 3. If Android asks, allow **Install unknown apps** for the browser or file manager opening the APK,
    then return to the installer. Wording varies by Android version. Follow Android's prompts;
    a managed device may prevent installation.
-4. Choose **Install**, then **Open**. YourIPTV includes no channels; add a playlist URL or Xtream
-   Codes login from a provider you are authorized to use. Keep those details inside the app.
+4. Choose **Install**, then **Open**. Add your authorized provider playlist using **M3U**, **Xtream
+   Codes**, or the two-field **YourIPTV** shortcut described below. No provider account is included.
+   Keep your login details inside the app.
 
 ### Android TV or Google TV
 
@@ -56,34 +58,39 @@ for the app's automatic-update permissions.
 
 | | |
 |---|---|
-| Current project version | **1.0.3** (`versionCode` 34), application ID `com.youriptv.app` |
-| Stage | Final signed APK, automated checks and scoped phone/TV verification passed; local publication preparation |
+| Current project version | **1.0.5** (`versionCode` 36), application ID `com.youriptv.app` |
+| Stage | Signed APK, automated checks and scoped TV verification passed; local publication preparation |
 | Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
-| Verified devices | Samsung SM-S166V / API 36 phone; onn. 4K Pro / API 34 TV, within the scope below |
+| Device checks | Scoped onn. 4K Pro/API 34 checks on 192.168.1.150 passed; phone testing excluded by owner direction |
 
-1.0.3 corrects the short landscape phone layout for Movies and Shows. A compact browsing header
-keeps the selected title/count while leaving room for a complete poster image and caption. Poster
-sizing considers usable height as well as width. The full TV presentation remains when enough
-height is available. It also corrects selected-episode/focus restoration when returning from
-Series playback with touch or remote controls. Movie details, season rows and episode cards remain.
-See the [Movies/Shows navigation guide](docs/VOD_NAVIGATION.md).
+1.0.5 keeps one protected Settings visit across **Settings → Playlists → Manage playlists**
+and the editor, so an authorized internal move does not ask for the Settings PIN again.
+Leaving that flow or backgrounding revokes access. The independent parental playlist PIN still
+applies. A visible **Delete playlist** action opens a chooser and confirmation; Cancel is the safe
+default. **Show password / Hide password** reveals only the current editor field, which starts
+masked and is masked again when leaving or changing setup mode. See the
+[Settings authorization policy](docs/SETTINGS_SECURITY.md) and provider instructions below.
 
-The verified 1.0.2 phone follow-up found a real grid limitation: five columns of posters were
-clipped before a complete image-and-caption card could fit. Live Bizarre Foods video and movie
-The Dirt details/buttons/favorites worked. Opening the movie player did not establish actual
-movie video or resume behavior on the phone. Those observations are baseline findings, not a
-1.0.3 pass. An earlier private 1.0.3 candidate passed 282 tests in 40 classes but failed Series
-return focus; that candidate/evidence was preserved before the additional correction.
+The clean 1.0.4 baseline retains the two-field **YourIPTV** adding shortcut for **http://cw-25.com**,
+ordinary Xtream storage/editing, and the 1.0.3 Movies/Shows corrections. Existing playlists are
+not renamed or migrated. Earlier **300 tests / 41 classes**, **14 updater checks** and **20 APK
+identity audits** belong to 1.0.4; that release had no physical device test. Earlier 1.0.3 phone/TV
+passes are also historical. They do not certify 1.0.5. The [QA checklist](docs/QA_CHECKLIST.md)
+separates the fresh results below from those records.
 
-The final corrected code passed **288 tests in 40 classes**, with zero failures/errors/skips.
-Signed release assembly, release vital lint, native APK checks, 13 archived updater checks and
-19 retained-APK identity audits passed. The exact installed APK passed scoped phone and TV tests:
-complete phone poster/caption rows at text scales 1.0 and 1.3 (restored to 1.0), movie video/resume,
-normal TV presentation, episode video, exact selected-episode return after plain playback and
-touch subtitle menus, and public About/Settings protection. Both devices retained data through
-in-place installation and had zero app fatal blocks in the retained logs. See the
-[QA checklist](docs/QA_CHECKLIST.md) for exact install sequences and test limits.
+The final 1.0.5 code passed **324 tests in 44 classes** with no failures/errors/skips, signed
+release assembly/vital lint, **15 archived updater checks**, **21 retained-APK identity audits**
+and three isolated fixtures exercising the actual playlist-deletion SQL. On the exact APK,
+**23 scoped TV checks** passed: one-PIN Settings→manager/editor/Back navigation, Home relock, direct-entry PIN checks,
+visible deletion confirmation/Cancel, password visibility/remasking, a real existing-account
+catalog/guide refresh, live picture, public About and populated Movies/Shows browsing. The TV
+updated in place from code 34 to code 36 and its pulled APK matched the verified signed bytes.
+Normal restart retained the last channel, and final live frames still moved after management.
+The observed post-install AndroidRuntime log had zero app fatal blocks; this does not certify
+native-crash/ANR absence or long-duration stability.
+No real owner playlist was deleted, no new shortcut account was submitted, and no fresh parental
+configuration, phone, VOD/Series playback or actual automatic-installation/popup test is claimed.
 
 The official package/signing identity, requested permissions and update routes are retained.
 Settings protection stays on; existing custom PINs remain usable, and only the fixed master
@@ -93,19 +100,19 @@ master is discoverable and is not a private owner identity or anti-copy protecti
 [Settings security and migration](docs/SETTINGS_SECURITY.md). Buffer and companion rebranding
 work remain paused and excluded, with no reserved future release version.
 
-The bundled 1.0.3 installed-update confirmation contains four release-note bullets and the credit:
+The bundled 1.0.5 installed-update confirmation contains four release-note bullets and the credit:
 
 **Thanks to Dylan B. for the suggestions for the current build.**
 
-The last recorded website mirror serves **1.0.2 / code 33**. This 1.0.3 work is authorized locally
+The last recorded website mirror serves **1.0.2 / code 33**. This 1.0.5 work is authorized locally
 only; it does not include server uploads or GitHub publication. Preserve existing release assets.
-GitHub publication remains manual and workspace tools do not call GitHub. Record actual 1.0.3
+GitHub publication remains manual and workspace tools do not call GitHub. Record actual 1.0.5
 verification in the QA record. Post-commit source/archive/Repository/Desktop checks are recorded
-in `D:\APK\backups\YourIPTV-1.0.3-PUBLISH.txt` and the verification folder's `final-audit.json`;
+in `D:\APK\backups\YourIPTV-1.0.5-PUBLISH.txt` and the verification folder's `final-audit.json`;
 those records, rather than this pre-staging source text, establish local promotion status.
 
-Prepare 1.0.3 as a complete APK that can update directly from every compatible official
-installation, without intermediate releases. The prepared `previousVersionCode: 33` is only the
+Prepare 1.0.5 as a complete APK that can update directly from every compatible official
+installation, without intermediate releases. The prepared `previousVersionCode: 35` is only the
 optional/required prompt threshold, not a minimum installed version. Retired updater addresses
 and missing installation support remain explicit manual in-place upgrade exceptions. See the
 [upgrade guide](docs/UPGRADING_TO_1_0.md).
@@ -150,7 +157,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
   version is not required. Official 0.4.1 and later releases using the current GitHub update address
-  can update directly to the complete compatible 1.0.3 / code 34 release once verified and available;
+  can update directly to the complete compatible 1.0.5 / code 36 release once verified and available;
   0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
   can use the website fallback.
@@ -183,7 +190,7 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 1.0.3 preparation use `--previous 33`, following the published 1.0.2 / code 33 mirror.
+   For 1.0.5 preparation use `--previous 35`, following 1.0.4 / code 35.
    For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
    devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
@@ -223,7 +230,7 @@ app name, logos and branding images, phone launcher icons, Android TV icon/banne
 company and support/contact details.
 
 - Rebranding work is held in a **separate, authorized rebranding tool** outside this repository.
-  Its unfinished companion integration remains paused and is excluded from 1.0.3. The app itself
+  Its unfinished companion integration remains paused and is excluded from 1.0.5. The app itself
   contains no payment screens, "Unlock Premium" buttons, or branding controls.
 - A rebranded app is **never** more capable than the standard app, and the standard app is never
   reduced. Payment covers the custom branding only. It never unlocks, limits, or restricts any player
@@ -273,11 +280,17 @@ All of the following are implemented. Their device-test status is recorded in
 
 - **Xtream Codes login** (server, username, password), with account information: status, expiry
   and maximum connections.
+- **YourIPTV login shortcut:** enter only your provider username and password; the server
+  `http://cw-25.com` and playlist name YourIPTV are preset. Saved connections use normal Xtream
+  storage and protected editing; an authorized working provider account is required.
 - **M3U / M3U Plus by URL**, using the `tvg-id`, `tvg-name`, `tvg-logo`, `group-title`,
   `tvg-type`, `#EXTGRP` and `url-tvg` attributes. Large lists are imported in a stream into
   SQLite (tested with about 147,000 entries).
 - **Multiple playlists:** add, edit, delete, refresh and switch the active playlist. A `get.php`
-  link can be imported as Xtream or kept as M3U.
+  link can be imported as Xtream or kept as M3U. **Settings → Playlists → Manage playlists** and
+  its editor share one protected visit; the visible Delete action includes selection/confirmation.
+- **Password visibility:** Show password / Hide password in the playlist editor. The password
+  starts masked; leaving or switching setup modes masks it again without changing its text.
 - **Stream options:** a live stream format option for Xtream (MPEG-TS or HLS), plus a per-playlist
   and a global custom User-Agent.
 
@@ -383,7 +396,7 @@ All of the following are implemented. Their device-test status is recorded in
 ### Permissions
 
 The app requests network access and the existing Android install/restart permissions used by
-automatic updates. 1.0.3 adds or removes no requested permissions. It declares no services,
+automatic updates. 1.0.5 adds or removes no requested permissions. It declares no services,
 broadcast receivers or content providers, and no HOME launcher category. The automated test
 `StandaloneAppAuditTest` checks that the player remains a standalone app.
 
@@ -392,21 +405,51 @@ broadcast receivers or content providers, and no HOME launcher category. The aut
 Use only a provider and playlist you are authorized to access. Credentials are stored locally on
 the device in the app's private database. Do not commit them to this repository.
 
-Open **Playlists** in the main menu and add a playlist. The EPG URL and a custom User-Agent are
-optional fields on the same screen.
+Open **Playlists** in the main menu and add a playlist. Choose **M3U playlist URL**,
+**Xtream Codes login**, or **YourIPTV**. M3U and generic Xtream setup retain optional EPG URL
+and custom User-Agent fields. The YourIPTV shortcut uses the provider's normal guide and
+default User-Agent without requesting those fields.
 
-To change the active playlist, choose **Playlists → Edit current** or
-**Settings → Playlists → Edit current playlist**. Settings authentication is required before
-existing connection details are displayed and before changes can be saved. Edit its URL, Xtream
-username and password, name, guide URL, or user agent, then choose **Save and load**. If playlist
-locking is enabled, its parental check also applies. Editing another playlist remains available
-through its MENU or long-press options. Authorization lasts only for the protected visit; leaving
-it requires authenticating again. Editing no longer requires disabling Settings protection.
+To edit the active playlist, choose **Playlists → Edit current** or
+**Settings → Playlists → Edit current playlist**. **Settings → Playlists → Manage playlists**
+opens the full manager for refresh, editing and deletion. Unlocking Settings once covers its
+authorized manager/editor navigation during the same protected visit. Direct editing from
+outside that flow still requires Settings authentication before connection details are shown
+or saved. Leaving the flow, Home/background, screen-off or recreation relocks it. The independent
+parental check still applies when playlist locking is enabled; this is not a global unlock.
+
+Edit its URL, Xtream username/password, name, guide URL or User-Agent, then choose **Save and load**.
+Editing another playlist remains available through its MENU or long-press options. Passwords
+are masked initially; **Show password / Hide password** preserves exact text and cursor position.
+They are masked again on leaving/background or changing setup mode; reveal state is not restored.
+
+To remove a playlist, use visible **Delete playlist**, choose the playlist, then read its named
+confirmation. **Cancel** leaves it intact. Deletion requires Settings authorization and applicable
+parental permission, and is disabled during refresh. It removes that playlist's catalog, guide,
+favorites, history, reminders and pending recording entries; completed recording files remain,
+with retained stream URLs cleared. Other playlists remain. Deleting the active playlist selects
+a remaining playlist or shows an empty list. Owner-device tests must cancel deletion rather than
+remove real saved accounts.
 
 Changes to the playlist source, login, or guide URL start a reload. If loading fails, the new
 settings remain saved; correct them and choose **Save** again, or refresh later from Playlists.
 Changing providers or credentials can change stream URLs, so favorites or history tied to the old
 URLs may not match the refreshed list.
+
+### YourIPTV shortcut
+
+1. Choose **YourIPTV**, the third option in Add playlist.
+2. Enter the **Username** and **Password** for your authorized account on **http://cw-25.com**.
+   The password is masked; do not share it in screenshots or issue reports.
+3. Choose **Save and load**. The app names the playlist **YourIPTV**, authenticates using the
+   existing Xtream process, and loads the provider's available channels, movies, shows and guide.
+
+This option supplies no account or subscription. Provider account status, expiry and connection
+limits still apply. It saves an ordinary Xtream playlist, with no new database type or migration.
+Later **Edit** opens the full Xtream editor after the usual Settings and applicable parental
+authorization. Existing connections are never automatically renamed or converted. If a newly
+added connection fails, an existing working active playlist remains active; correct the saved
+login and retry using the existing editing flow.
 
 ### Xtream Codes
 
@@ -510,7 +553,7 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **1.0.3 (version code 34)**. Build and verify the matching signed APK
+The current project targets **1.0.5 (version code 36)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
 The higher-version in-app installation path has not yet been tested for this release.
 
@@ -536,7 +579,24 @@ install apps.
 .\gradlew.bat testDebugUnitTest
 ```
 
-- Final 1.0.3 evidence: **288 tests in 40 classes**, zero failures/errors/skips; signed release
+- Final 1.0.5 evidence: **324 tests in 44 classes**, zero failures/errors/skips, run
+  `20261112T002351Z-939036f5`; signed release assembly/vital lint, native/compiled APK checks,
+  15 archived updater checks, 21 retained-APK identity audits and three actual-SQL deletion
+  fixtures passed. The initial run's obsolete Main routing assertion was corrected to verify
+  the manager's parental gate; its failed reports remain preserved. Scoped TV checks passed
+  on the exact APK, using existing provider data and deletion Cancel only. Phone, destructive
+  owner-data tests, fresh parental-configuration changes, VOD/Series playback and actual automatic
+  download/install/popup checks were not performed. See [the QA record](docs/QA_CHECKLIST.md).
+- Historical final 1.0.4 automated evidence: **300 tests in 41 classes**, zero failures/errors/skips, fresh run
+  `20261111T232602Z-1ecb7113` (1m38s). Coverage includes the fixed shortcut endpoint/name/type,
+  credential validation/encoding, hidden-field isolation, existing editor protections and receipt/
+  exact-note credit behavior. Signed assembly/vital lint passed (4m22s), along with native/compiled
+  APK checks, 14 archived updater checks and 20 retained-APK identity audits. The initial suite's
+  one branding-centralization failure was corrected before this fresh full pass; failed reports
+  remain preserved. TV connection was unavailable and the owner excluded phone testing. No real
+  shortcut login, UI/playback, on-device installation or automatic-update popup pass is claimed.
+  See the [QA record](docs/QA_CHECKLIST.md) for the exact APK, scope and remaining checks.
+- Historical final 1.0.3 evidence: **288 tests in 40 classes**, zero failures/errors/skips; signed release
   assembly/release vital lint, native verification, 13 archived updater fixtures and 19 retained-APK
   identity audits passed. Scoped final-APK phone/TV tests passed, including the corrected Series
   return focus. Real automatic download/install and its popup, portrait/global inset behavior,
@@ -548,7 +608,7 @@ install apps.
   checks passed. Scoped regression checks on the exact final APK passed on an onn. 4K Pro using
   the existing authorized playlist. The backup website deployment passed independent HTTPS
   verification. Later phone checks found the clipped grid described above; movie video/resume
-  on that phone remained unconfirmed. These historical results do not certify 1.0.3. Device/update-
+  on that phone remained unconfirmed. These historical results do not certify 1.0.5. Device/update-
   path limits belong in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
   Sources are in
   `app\src\test\java\com\youriptv\app`.
@@ -649,7 +709,7 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.3 |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.5 |
 | [docs/VOD_NAVIGATION.md](docs/VOD_NAVIGATION.md) | Movies/Shows posters, movie details, season rows, artwork and verification limits |
 | [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Always-on Settings protection, custom PINs and migration |
 | [docs/UPGRADING_TO_1_0.md](docs/UPGRADING_TO_1_0.md) | Direct upgrades, older-version exceptions and publication |

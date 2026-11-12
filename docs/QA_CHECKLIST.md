@@ -1,5 +1,160 @@
 # YourIPTV - QA checklist (full hands-on pass)
 
+## 1.0.5 protected playlist management (version code 36) - November 11, 2026
+
+The owner approved one protected Settings visit across Settings, the playlist manager and editor,
+a visible Delete playlist chooser/confirmation and Show password / Hide password. The independent
+parental PIN remains. Direct editor/deletion entry must authenticate; internal handoffs must be
+in-memory, one-use and target/visit-bound. Leaving/backgrounding/screen-off or process death revokes
+access. No saved-state/persistent/global unlock is allowed. Clean 1.0.4/code 35 is the baseline;
+its 300 tests/41 classes, 14 updater checks and 20 APK audits below remain historical.
+
+Fresh final verification passed as recorded below. TV testing used only **192.168.1.150:5555**,
+an onn. 4K Pro/API 34, and the owner's existing authorized playlist. It began on 1.0.3/code 34
+and received the exact 1.0.5/code 36 APK in place. No uninstall/data clear, real owner playlist
+deletion, unrelated provider or new credentials were used. Scope remains local tests/build/signing,
+non-destructive TV checks and development commit/tag/Repository/Desktop/backups preparation.
+No uploads, deployment, GitHub calls/publication or key changes. Rebranding/buffering stay paused.
+
+The four bundled notes retain the exact credit:
+**Thanks to Dylan B. for the suggestions for the current build.**
+
+Final APK: **3,686,691 bytes**, SHA-256
+`da3634628161e00bb87e4d642caca70d0d9372b5d59c51801c05ebc502ccc166`.
+Evidence: `D:\APK\work\YourIPTV-1.0.5-verification`, including the main/legacy unit snapshots,
+`release-verification.json` and final `device-verification.json` with **23 passed scoped TV checks**.
+
+- [x] Fresh full offline suite: **324 tests / 44 classes**, zero failures/errors/skips, run
+      `20261112T002351Z-939036f5`. Includes 23 new behavior tests and exact receipt/credit coverage,
+      Settings handoff/target/replay/stale/missing grant checks, parental separation, relock,
+      password behavior and deletion guards. Initial run `20261112T002037Z-3f5fe6a9` had one
+      obsolete PublicAbout/Main routing assertion failure. It was corrected to verify the target
+      manager's parental gate without weakening About; that failed run is preserved separately.
+- [x] Password policy/integration tests cover exact text/spaces/cursor preservation and initial/
+      mode/leave masking without restoring revealed state. TV exact synthetic unsaved text and
+      actual password flag were checked through Show/Hide. Back/reopen restored masking and
+      discarded the synthetic edit. Switching setup mode remasked the empty new-form field.
+      No Save/fake login/credential screenshot or test log was used for visibility checks.
+- [x] Isolated deletion policy tests cover authorization, refresh busy state and stable unchanged
+      target. Three fixtures executing the actual Repository SQLite cleanup passed active,
+      nonactive and last-playlist cases, including unrelated data and completed recordings.
+      These are isolated database results, not destructive deletion on the owner's TV.
+- [x] Signed `assembleRelease` and three vital-lint tasks passed. Native/compiled exact-APK checks
+      confirm 1.0.5/code 36, official package/label/certificate, unchanged seven permissions,
+      minSdk 23/targetSdk 36 and updater routes. Exact final bytes/hash are above. No unperformed
+      full debug lint or instrumented test pass is claimed.
+- [x] Exact primary/mirror manifest checks and **15 archived updater checks** passed: 14 current-
+      route compatible implementations accept the complete release directly, while retired
+      0.4.0 is the expected rejection. Source for 0.5.5 is unavailable, so it has no parser-fixture
+      pass. Fresh **21 retained-APK** audits found the official identity/certificate throughout;
+      14 code>20 APKs share compatible permissions, while seven older APKs remain manual exceptions.
+      Predecessor 35 controls optional/required prompts, not a minimum installed version.
+- [x] TV `adb install -r` directly from its installed **1.0.3/code 34** to final **1.0.5/code 36**;
+      pulled installed APK bytes/certificate matched the final release. Existing data was retained.
+      No uninstall/data clear or synthetic updater receipt. The final APK was not physically
+      installed separately from every archived version; parser/native checks are separate evidence.
+- [x] TV Settings required a PIN initially, then manager/editor and Back retained the same visit
+      without a second Settings prompt. Home/background and normal launcher return relocked it.
+      Direct saved-editor and Delete entry outside the flow required Settings authentication.
+      No fresh parental PIN/settings changes were made; independent policy coverage is offline.
+- [x] Visible Delete chooser showed the owner's playlist; remote selection opened its named
+      destructive warning with **Cancel focused**. Remote OK cancelled, and the chooser count
+      remained intact. Delete was disabled during the actual existing-account refresh. No real
+      owner playlist/recording was deleted; isolated fixtures cover committed cleanup.
+- [x] Existing active Xtream account refreshed in the protected visit without a second Settings
+      prompt. It showed Active status and a fresh local **7:43 PM** update with **5,730 live,
+      32,872 movies and 5,233 series** plus an updated guide. Provider limits remained intact.
+      No new account/provider credentials were supplied. This is existing-account refresh evidence,
+      not a submitted new YourIPTV-shortcut login.
+- [x] YourIPTV adding choice showed only username/password; blank Save produced validation.
+      No account was created and no fake credentials/provider request was submitted. Public About
+      showed 1.0.5 without a PIN. Movies/Shows browsers opened populated catalogs.
+- [x] Existing Bizarre Foods live video resumed after the update; two observed frames differed
+      inside the video region. Normal restart retained the last channel, and two final moving
+      frames confirmed live picture after all management checks. The post-install AndroidRuntime
+      log contained zero app fatal blocks; no native-crash/ANR absence guarantee is implied.
+      This is a short picture smoke test, not a long stability soak. Sound is assumed working
+      per owner instruction, not independently confirmed.
+- [ ] Actual automatic download/install/successful-update popup was not tested. ADB installation,
+      unit checks and compiled exact-note/credit checks do not establish that path.
+- [ ] No fresh phone, parental configuration, destructive owner-data, VOD/Series video-playback,
+      long-duration/all-provider/codec, screen-off or process-recreation device pass is claimed.
+      Lifecycle/security policies have offline coverage; sampled TV results are scoped above.
+- [ ] After verification: dev commit/tag, archive prepared Repository 1.0.4 before guarded sync,
+      inspect removals/new owner changes and verify ZIP/privacy and matching Repository, backups,
+      versioned/generic Desktop pairs. Leave Repository uncommitted/unpushed; actual promotion
+      belongs in `D:\APK\backups\YourIPTV-1.0.5-PUBLISH.txt` and final-audit.json.
+
+Phone testing is not requested under the owner's TV-only direction. No universal codec/provider,
+long-playback or unavailable physical test pass is implied. Keep earlier evidence below intact.
+
+## 1.0.4 YourIPTV login shortcut (version code 35) - November 11, 2026
+
+The owner approved a third Add playlist option after M3U and Xtream Codes. YourIPTV asks only for
+username/password and derives the fixed server `http://cw-25.com`, name YourIPTV and standard
+Xtream source. The saved connection uses the existing full protected editor. No existing
+playlist conversion, database migration, provider credential embedding or new player feature
+lock is approved. Clean 1.0.3/code 34 is the baseline; its results below are historical.
+
+Scope is local implementation, tests/signing, authorized TV testing where available,
+development commit/tag and local Repository/Desktop/backups preparation. The owner's later
+direction restricted physical tests to 192.168.1.150; phone tests were not performed. No uploads, GitHub
+calls/publication, server deployment, key changes, uninstall or data clearing. Existing updater
+routes, official package/signer, seven permissions and free playback remain. Buffer/companion
+work stays paused. The last recorded website mirror is 1.0.2/code 33; no server state was queried.
+
+The four bundled notes retain the exact credit:
+**Thanks to Dylan B. for the suggestions for the current build.**
+
+The final signed APK is **3,681,034 bytes**, SHA-256
+`72939f488d1c2e4465a3b34ca795ea5f6528bd303e4229080b8515bf287c1884`.
+Evidence is in `D:\APK\work\YourIPTV-1.0.4-verification`. Prior release tests and new offline
+login-policy/compiled-APK checks are not a real provider login or automatic-installation result.
+
+- [x] Fresh complete offline suite: **300 tests / 41 classes**, zero failures/errors/skips,
+      run `20261111T232602Z-1ecb7113`, duration **1m38s**. Includes fixed endpoint/name/type,
+      credential validation/encoding, stale hidden-field isolation, M3U/generic Xtream and
+      existing authorization safeguards, and direct-upgrade receipt/exact-note credit coverage.
+      The initial suite had one `BrandingCentralization` failure. The canonical preset-label
+      assignment was corrected while retaining the safeguard, then the complete suite passed
+      freshly. Failed reports are preserved separately and are not presented as a pass.
+- [x] Signed `assembleRelease` and release vital lint passed in **4m22s**, 45 tasks. Native exact-
+      APK verification passed: 1.0.4/code 35, official package/label/certificate, minSdk 23/targetSdk
+      36, unchanged seven permissions and update routes. Compiled shortcut factory/editor,
+      actual DEX endpoint and resource identity were verified. No unperformed debug lint or
+      instrumented tests are claimed. Exact size/hash above.
+- [x] Exact primary/mirror manifest checks and **14 archived updater checks** passed: 13 compatible
+      current-route implementations, including 1.0.3, accept the complete release directly;
+      retired 0.4.0 is the expected rejection. Predecessor 34 controls prompts only. Source for
+      0.5.5 is unavailable and has no parser-fixture pass. Fresh native audits on **20 retained
+      APKs** found the same official package/signer; 13 newer-than-code-20 APKs have compatible
+      permissions, while seven older APKs remain manual-upgrade exceptions.
+- [x] TV availability was checked three times at **192.168.1.150:5555**, including the retry after
+      the owner reported ready. All ADB connection attempts failed with Windows socket error
+      **10013**; an independent TCP connection also failed. This establishes unavailability,
+      not device-test success. No phone connection or test was attempted under the TV-only direction.
+- [ ] No 1.0.4 APK was installed on a device; no installed byte/hash comparison or retained-data
+      observation was possible. Existing devices were not uninstalled or cleared.
+- [ ] TV mode-order/focus, two-field layout/password masking, validation, mode switching and
+      lifecycle recreation were not physically checked. Static/layout tests do not replace them.
+      Phone touch/layout tests were not performed per owner direction.
+- [ ] Real shortcut login/provider account, content/guide loading and protected full editing were
+      not device-tested. The shared import path and previous-active-playlist guard have offline
+      coverage only. No provider credentials were invented, changed or added for these checks.
+- [ ] No fresh 1.0.4 on-device generic setup/editing, public About, Settings/parental, Movies/Shows
+      navigation or playback regression pass. Historical 1.0.3 passes below remain historical.
+- [ ] Real automatic download/install and its successful-update popup were not tested. JVM/DEX
+      exact-note/credit checks do not establish that path; no synthetic update receipt was installed.
+- [ ] After verification: local clean development commit/tag; preserve Repository 1.0.3 in its
+      archive before sync; inspect removals/new owner changes; verify source ZIP privacy and
+      matching Repository/backups/versioned/generic Desktop pairs. Leave Repository uncommitted
+      and unpushed. Actual completion belongs in `D:\APK\backups\YourIPTV-1.0.4-PUBLISH.txt`
+      and the verification folder's `final-audit.json`.
+
+No fresh sound/playback observation was made. Sound is normally assumed working per owner instruction,
+not independently confirmed. Keep passwords, PIN values, provider URLs bearing credentials and private keys out of
+records. Publication and any backup-server deployment remain separate owner actions.
+
 ## 1.0.3 phone layout and Series-return corrections (version code 34)
 
 The owner approved the compact/height-aware phone Movies/Shows layout and the narrow Series

@@ -38,7 +38,7 @@ internal enum class SettingsCategory(val title: String, val description: String)
     UPDATES("App Updates", "Automatic GitHub update checks"),
 }
 
-/** Category pages share one Settings visit and its existing unlock lifetime. */
+/** Category pages and explicitly authorized playlist navigation share one in-memory Settings visit. */
 class SettingsActivity : ListActivity() {
 
     private class Entry(val title: String, val value: () -> String, val action: (Entry) -> Unit)
@@ -48,6 +48,8 @@ class SettingsActivity : ListActivity() {
     private var category: SettingsCategory? = null
     private var categoryFocus = 0
     private val visit = SettingsVisitAuthorization()
+    private val flow get() = app.settingsFlow
+    private val settingsRoute = SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.SETTINGS)
     private var authenticating = false
     private var restoredCategory: SettingsCategory? = null
     private var restoredRowFocus = 0
@@ -111,9 +113,9 @@ class SettingsActivity : ListActivity() {
 
     private fun subtitle() = "Unlocked for this visit only. Settings protection always stays on. About is available from the main menu without a PIN."
 
-    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed) null else visit.authorizedToken()
+    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed || (!pickingFile && !flow.isAuthorized(this))) null else visit.authorizedToken()
 
-    private fun hasAuthorization(token: Long) = !isFinishing && !isDestroyed && visit.isAuthorized(token)
+    private fun hasAuthorization(token: Long) = !isFinishing && !isDestroyed && visit.isAuthorized(token) && (pickingFile || flow.isAuthorized(this))
 
     private fun hideProtectedContent() {
         list.visibility = View.INVISIBLE
@@ -129,6 +131,7 @@ class SettingsActivity : ListActivity() {
             if (visit.isCurrent(token)) { authenticating = false; finish() }
         }) {
             if (isFinishing || !visit.authorize(token)) return@requireSettingsPin
+            flow.authenticate(this, settingsRoute)
             authenticating = false
             list.visibility = View.VISIBLE
             showPage(restoredCategory, restoredRowFocus)
@@ -138,14 +141,25 @@ class SettingsActivity : ListActivity() {
     /** Row values can change outside Settings (backup files, guide updates); show current ones on return. */
     override fun onResume() {
         super.onResume()
+        val returningFromPicker = pickingFile
         pickingFile = false
         if (!::adapter.isInitialized || isFinishing) return
+        if (flow.enter(this, settingsRoute)) {
+            if (!visit.isAuthorized) visit.authorize(visit.beginVisit())
+            authenticating = false
+            list.visibility = View.VISIBLE
+            showPage(category ?: restoredCategory, if (category != null) 0 else restoredRowFocus)
+            return
+        }
+        // Retain the pre-existing, narrowly scoped system-file-picker operation, never an Intent grant.
+        if (returningFromPicker && visit.isAuthorized) flow.authenticate(this, settingsRoute)
         if (!visit.isAuthorized) authenticateSettings()
         else { list.visibility = View.VISIBLE; refresh() }
     }
 
     override fun onPause() {
         hideProtectedContent()
+        flow.paused(this)
         if (!pickingFile) {
             visit.endVisit()
             authenticating = false
@@ -154,15 +168,20 @@ class SettingsActivity : ListActivity() {
         super.onPause()
     }
 
-    /** A temporary unlock lasts one visit: leaving Settings (BACK, HOME, About, screen off) closes it, so it needs the Settings PIN again. */
+    /** Retain only a hidden parent inside the authenticated playlist flow; other departures close Settings. */
     override fun onStop() {
         super.onStop()
-        if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()
+        if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile && !flow.retains(this)) finish()
     }
 
     override fun onDestroy() {
         visit.endVisit()
         super.onDestroy()
+    }
+
+    override fun finish() {
+        flow.returning(this)
+        super.finish()
     }
 
     // ---------------- Backup & Restore ----------------
@@ -173,11 +192,20 @@ class SettingsActivity : ListActivity() {
     private var pickingFile = false
     private var filePickerToken: Long? = null
 
-    private val exportDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    /** Only the original still-live picker operation can return; saved state never restores its ticket. */
+    private fun completeDocumentPicker(): Long? {
         val token = filePickerToken
         filePickerToken = null
         pickingFile = false
-        if (uri == null || token == null || !hasAuthorization(token)) return@registerForActivityResult
+        if (token == null || isFinishing || isDestroyed || !visit.isAuthorized(token)) return null
+        // Activity results may arrive at STARTED, before onResume, after the system picker hid this app.
+        flow.authenticate(this, settingsRoute)
+        return token
+    }
+
+    private val exportDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val token = completeDocumentPicker() ?: return@registerForActivityResult
+        if (uri == null || !hasAuthorization(token)) return@registerForActivityResult
         runBackupTask("Saving backup…") {
             val text = backups.encode()
             contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
@@ -187,10 +215,8 @@ class SettingsActivity : ListActivity() {
     }
 
     private val importDoc = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val token = filePickerToken
-        filePickerToken = null
-        pickingFile = false
-        if (uri == null || token == null || !hasAuthorization(token)) return@registerForActivityResult
+        val token = completeDocumentPicker() ?: return@registerForActivityResult
+        if (uri == null || !hasAuthorization(token)) return@registerForActivityResult
         loadAndConfirm { contentResolver.openInputStream(uri) ?: throw BackupException("Could not open the chosen file.") }
     }
 
@@ -243,7 +269,14 @@ class SettingsActivity : ListActivity() {
         }
         val current = app.repo.playlist(s.activePlaylistId)
         if (current == null) Dialogs.toast(this, "No active playlist. Select one in Playlists first.")
-        else startActivity(PlaylistEditActivity.editIntent(this, current.id))
+        else flow.launch(this, SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.EDITOR, current.id),
+            PlaylistEditActivity.editIntent(this, current.id))
+    }
+
+    private fun managePlaylists() {
+        if (authorizedToken() == null) return
+        flow.launch(this, SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.PLAYLISTS),
+            Intent(this, PlaylistsActivity::class.java))
     }
 
     private fun restoreFromFolder() {
@@ -365,8 +398,9 @@ class SettingsActivity : ListActivity() {
             }),
         )
         SettingsCategory.PLAYLISTS -> listOf(
+            Entry("Manage playlists", { "Add, update, edit or delete playlists during this unlocked visit" }, { managePlaylists() }),
             Entry("Edit current playlist", {
-                app.repo.playlist(s.activePlaylistId)?.name?.let { "$it · PIN required before showing connection details" } ?: "No active playlist"
+                app.repo.playlist(s.activePlaylistId)?.name?.let { "$it · uses this Settings unlock" } ?: "No active playlist"
             }, { editCurrentPlaylist() }),
             number("Auto-update playlist and guide every", "hours (0 = off)", { s.autoRefreshHours }, 0, 168) { s.autoRefreshHours = it },
         )

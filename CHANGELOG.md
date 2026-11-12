@@ -4,6 +4,98 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 1.0.5 (version code 36)
+
+- Manage playlists from Settings without another Settings PIN during the same protected visit.
+- Use Delete playlist to choose a playlist and confirm its removal.
+- Show or hide the playlist password; it starts masked and is hidden again when leaving.
+- Keep parental playlist protection, the YourIPTV login shortcut and all playback features free.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+Settings → Playlists → Manage playlists and the editor share an authenticated in-memory visit.
+Validated one-use navigation handoffs preserve that visit only for the intended internal target.
+Direct entry still needs authorization, and leaving/backgrounding revokes it. Independent parental
+playlist protection is preserved; the always-on Settings policy and master/custom rules remain.
+
+The visible Delete playlist action opens a chooser and named confirmation with Cancel as the safe
+default. Context-menu deletion uses the same authorization and cleanup. Refreshing blocks deletion,
+and a stale/missing target cannot delete another playlist. Existing catalog/guide/favorites/history/
+reminder/pending-recording cleanup remains; finished recording files are retained with stored stream
+URLs cleared. Other playlists remain intact. Deleting the active playlist selects a remaining one
+or shows the empty state.
+
+Show password / Hide password preserves exact text and cursor position. The field starts masked,
+remasks on leaving/background or changing setup mode, and never restores revealed state. The
+1.0.4 two-field YourIPTV shortcut and normal M3U/Xtream setup remain. No schema migration,
+credentials, permissions, player feature locks or playback changes are added.
+
+Based on clean 1.0.4/code 35. Fresh final verification passed **324 tests in 44 classes** with
+zero failures/errors/skips, signed release assembly/vital lint, native/compiled APK checks,
+15 archived updater checks, identity audits on 21 retained APKs and three isolated fixtures
+exercising actual playlist-deletion SQL. The initial suite's obsolete Main routing assertion
+was corrected to verify the manager's parental gate; failed reports are preserved separately.
+
+The exact signed APK passed scoped onn. 4K Pro/API 34 checks after an in-place code 34→36 update,
+with installed bytes/certificate verified: one Settings PIN across manager/editor/Back, Home
+relock, direct-entry PIN, visible Delete chooser/confirmation with Cancel, password Show/Hide/
+remask, existing Xtream account/catalog/guide refresh, live picture, public About and populated
+Movies/Shows browsing. No real owner playlist was deleted and synthetic password input was not
+saved. The YourIPTV shortcut's two fields/blank validation were checked without creating an account.
+Phone, fresh parental-configuration changes, VOD/Series playback and actual automatic download/
+install/success-popup tests were not performed. Historical release passes do not fill those gaps.
+
+Prepare a complete signed APK for direct upgrades from compatible official releases; predecessor
+code 35 controls optional/required prompts, not a minimum installed version. Retired updater/
+installer exceptions remain documented. Local development commit/tag and Repository/Desktop/
+backups preparation follow verification; actual promotion belongs in publication notes/final audit.
+No upload, deployment, GitHub call/publication, key change, rebranding/companion or buffer work
+was performed.
+
+See [Settings security](docs/SETTINGS_SECURITY.md) and [QA evidence](docs/QA_CHECKLIST.md).
+
+## 1.0.4 (version code 35)
+
+- Add a YourIPTV playlist option after M3U and Xtream Codes.
+- Sign in to YourIPTV with only your provider username and password.
+- Use the preset YourIPTV server and playlist name while keeping normal Xtream editing.
+- Keep all playback features free and preserve existing playlists, Settings and parental protections.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+The shortcut uses the fixed server **http://cw-25.com**, playlist name **YourIPTV**, the existing
+Xtream source type, provider guide and default User-Agent. It asks for no server, playlist name,
+guide URL or User-Agent. Stale hidden values from other setup choices cannot redirect it.
+An authorized working provider account is still required; no credentials, content or account
+are included. A saved shortcut connection reopens as a normal full Xtream editor behind existing
+Settings and applicable parental authorization. Existing playlists are not converted or renamed;
+there is no database or backup-format migration. Existing M3U/generic Xtream setup and player
+features remain available.
+
+Based on clean 1.0.3/code 34. Fresh 1.0.4 verification passed **300 tests in 41 classes** with
+zero failures/errors/skips, signed release assembly/vital lint, native/compiled exact-APK checks,
+14 archived updater checks and identity audits on 20 retained APKs. The initial suite had one
+branding-centralization failure; it was corrected before the fresh complete pass, and failed
+reports remain preserved separately. The official package/signing identity, seven permissions,
+update routes, public About, Settings/parental restrictions and provider limits remain.
+
+The owner restricted physical testing to 192.168.1.150. All three TV connection attempts,
+including an owner-ready retry, failed with Windows socket error 10013; independent TCP
+connection also failed. No 1.0.4 device installation, live shortcut login, navigation/playback,
+automatic download/install or successful-update popup was tested. Phone tests were not performed
+per owner direction. Historical 1.0.3 device passes and new offline/compiled checks do not replace
+those missing physical checks.
+
+Prepare a complete APK for direct upgrades from compatible official installations; no
+intermediate release is required. Predecessor code 34 controls optional/required prompts only,
+not a minimum installed version. Retired update addresses and older missing installation
+support remain manual in-place exceptions. Authorized scope remains local preparation:
+development commit/tag and Repository/Desktop/backups checks follow verification and are
+recorded in the publication instructions/final audit. Uploads, GitHub calls/publication, server
+deployment and key changes are excluded. Rebranding/companion and adjustable buffering stay paused.
+
+See [QA evidence](docs/QA_CHECKLIST.md).
+
 ## 1.0.3 (version code 34)
 
 - Fit complete movie and show posters and captions on short phone screens.

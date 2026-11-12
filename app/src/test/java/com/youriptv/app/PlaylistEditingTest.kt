@@ -35,7 +35,9 @@ class PlaylistEditingTest {
         assertTrue(current.contains("No active playlist. Select one first."))
         assertTrue(current.contains("edit(p)"))
         assertTrue(playlists.contains("1 -> edit(p)"))
-        assertTrue(playlists.contains("PlaylistEditActivity.editIntent(this, p.id)"))
+        assertTrue(playlists.contains("private fun edit(p: Playlist) = openEditor(p.id)"))
+        assertTrue(playlists.contains("PlaylistEditActivity.editIntent(this, id)"))
+        assertTrue(playlists.contains("if (flow.isAuthorized(this)) flow.launch(this,"))
     }
 
     @Test
@@ -49,6 +51,7 @@ class PlaylistEditingTest {
             .substringBefore("private fun restoreFromFolder()")
         assertTrue(handler.contains("if (!visit.isAuthorized) return"))
         assertTrue(handler.contains("PlaylistEditActivity.editIntent(this, current.id)"))
+        assertTrue(handler.contains("flow.launch(this, SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.EDITOR, current.id)"))
         assertEquals(2, Regex("app\\.repo\\.playlist\\(s\\.activePlaylistId\\)").findAll(handler).count())
         assertTrue(settings.contains("if (s.isPlaylistsLocked()) Dialogs.requirePin(this, reason)"))
         val editor = ui("PlaylistEditActivity.kt")
@@ -57,6 +60,9 @@ class PlaylistEditingTest {
         assertTrue(authentication.contains("Dialogs.requirePin"))
         assertTrue(authentication.contains("Dialogs.requireSettingsPin"))
         assertTrue(authentication.contains("authorization.allowSettings(visit)"))
+        assertTrue(authentication.contains("inheritedSettings = flow.enter(this, editorRoute)"))
+        assertTrue(authentication.contains("if (!flow.isAuthorized(this)) return@afterParental"))
+        assertTrue(authentication.contains("!flow.hasParentalPermission(this)"))
     }
 
     @Test
@@ -95,10 +101,56 @@ class PlaylistEditingTest {
     fun actionRowsCanScrollOnNarrowScreens() {
         val actions = layoutView("activity_list.xml", "list_actions")
         assertEquals("HorizontalScrollView", actions.parentNode.nodeName)
-        listOf("type_xtream", "type_m3u", "btn_save", "btn_cancel").forEach { id ->
+        listOf("type_xtream", "type_m3u", "type_youriptv", "btn_save", "btn_cancel").forEach { id ->
             val row = layoutView("activity_playlist_edit.xml", id).parentNode
             assertEquals("LinearLayout", row.nodeName)
             assertEquals("HorizontalScrollView", row.parentNode.nodeName)
         }
+    }
+
+    @Test
+    fun addingChoicesHaveTheRequestedOrderAndPasswordStaysMasked() {
+        val layout = source("res/layout/activity_playlist_edit.xml")
+        assertTrue(layout.indexOf("@+id/type_m3u") < layout.indexOf("@+id/type_xtream"))
+        assertTrue(layout.indexOf("@+id/type_xtream") < layout.indexOf("@+id/type_youriptv"))
+        assertTrue(ui("PlaylistEditActivity.kt").contains("btnYourIptv.text = YourIptvLogin.PLAYLIST_NAME"))
+        assertFalse(layoutView("activity_playlist_edit.xml", "type_youriptv").hasAttribute("android:text"))
+        assertEquals("textPassword", layoutView("activity_playlist_edit.xml", "f_pass").getAttribute("android:inputType"))
+        assertEquals("name_fields", layoutView("activity_playlist_edit.xml", "f_name").parentNode.attributes.getNamedItem("android:id").nodeValue.removePrefix("@+id/"))
+        assertEquals("server_fields", layoutView("activity_playlist_edit.xml", "f_url").parentNode.attributes.getNamedItem("android:id").nodeValue.removePrefix("@+id/"))
+        listOf("f_epg", "f_ua").forEach {
+            assertEquals("@+id/optional_fields", layoutView("activity_playlist_edit.xml", it).parentNode.attributes.getNamedItem("android:id").nodeValue)
+        }
+    }
+
+    @Test
+    fun yourIptvIsAddingOnlyAndHidesEveryNonCredentialFieldTogetherWithItsLabel() {
+        val editor = ui("PlaylistEditActivity.kt")
+        assertTrue(editor.contains("btnYourIptv.setOnClickListener { setType(SourceType.XTREAM, simplified = true) }"))
+        assertTrue(editor.contains("btnYourIptv.visibility = if (editing == null) View.VISIBLE else View.GONE"))
+        assertTrue(editor.contains("yourIptvMode = simplified && editing == null && t == SourceType.XTREAM"))
+        val selection = editor.substringAfter("private fun setType(").substringBefore("private fun save()")
+        assertTrue(selection.contains("val fullFields = if (yourIptvMode) View.GONE else View.VISIBLE"))
+        listOf("name_fields", "server_fields", "optional_fields").forEach {
+            assertTrue(selection.contains("findViewById<View>(R.id.$it).visibility = fullFields"))
+        }
+        assertTrue(selection.contains("xtreamFields.visibility = if (t == SourceType.XTREAM) View.VISIBLE else View.GONE"))
+        assertTrue(editor.contains("setType(type, simplified = yourIptvMode)"))
+    }
+
+    @Test
+    fun shortcutExcludesHiddenValuesAndUsesTheSameAuthorizedSaveAndImportPath() {
+        val editor = ui("PlaylistEditActivity.kt")
+        val save = editor.substringAfter("private fun save()").substringBefore("private fun savePlaylist(")
+        val shortcut = save.substringAfter("if (yourIptvMode)").substringBefore("var t = type")
+        assertTrue(shortcut.contains("YourIptvLogin.newPlaylist(user.text.toString(), pass.text.toString())"))
+        listOf("name", "url", "epg", "ua").forEach { assertFalse(shortcut.contains("$it.text")) }
+        assertTrue(shortcut.contains("if (p == null)"))
+        assertTrue(shortcut.contains("savePlaylist(p)"))
+        val persist = editor.substringAfter("private fun savePlaylist(").substringBefore("companion object")
+        assertTrue(persist.contains("if (busy || isFinishing || !authorization.isAuthorized) return"))
+        assertTrue(persist.contains("val keepPrevious = previousActive != id && app.repo.playlist(previousActive) != null"))
+        assertTrue(persist.contains("if (!keepPrevious) app.settings.activePlaylistId = id"))
+        assertTrue(persist.contains("Refresher.refreshAll(saved)"))
     }
 }

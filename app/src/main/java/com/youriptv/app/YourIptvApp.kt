@@ -5,6 +5,7 @@ import com.youriptv.app.data.MediaItem
 import com.youriptv.app.data.Repository
 import com.youriptv.app.data.Settings
 import com.youriptv.app.ui.LivePlaybackSession
+import com.youriptv.app.ui.SettingsFlow
 
 class YourIptvApp : Application() {
     internal var signingStatus = SigningStatus.UNAVAILABLE
@@ -18,6 +19,8 @@ class YourIptvApp : Application() {
         private set
     lateinit var livePlayback: LivePlaybackSession
         private set
+    internal lateinit var settingsFlow: SettingsFlow
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -29,6 +32,7 @@ class YourIptvApp : Application() {
         repo = Repository(this)
         settings = Settings(this)
         livePlayback = LivePlaybackSession(this)
+        settingsFlow = SettingsFlow(this)
         com.youriptv.app.data.Http.fallbackUserAgent = { settings.globalUserAgent }
         com.youriptv.app.ui.Scheduler.install(this)
         registerActivityLifecycleCallbacks(com.youriptv.app.updates.AppUpdateChecks(this))

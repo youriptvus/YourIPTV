@@ -53,7 +53,9 @@ class SettingsNavigationTest {
         assertTrue(source.contains("Dialogs.requireSettingsPin(this, \"unlock Settings\""))
         assertTrue(source.contains("if (isFinishing || !visit.authorize(token))"))
         assertFalse(source.contains("EXTRA_UNLOCKED"))
-        assertTrue(source.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile) finish()"))
+        assertTrue(source.contains("if (s.isSettingsLocked() && !isChangingConfigurations && !pickingFile && !flow.retains(this)) finish()"))
+        assertTrue(source.contains("flow.paused(this)"))
+        assertTrue(source.contains("if (!visit.isAuthorized) visit.authorize(visit.beginVisit())"))
     }
 
     @Test

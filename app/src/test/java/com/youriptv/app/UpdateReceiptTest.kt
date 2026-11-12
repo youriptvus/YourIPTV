@@ -58,6 +58,50 @@ class UpdateReceiptTest {
     }
 
     @Test
+    fun directUpgradeShows105PlaylistNotesAndCreditUntilAcknowledged() {
+        val store = Store(30)
+        val updated = receipt(store, code = 36, name = "1.0.5")
+        val confirmation = updated.current()!!
+        assertEquals(36L, confirmation.installedCode)
+        assertEquals("1.0.5", confirmation.installedName)
+        assertEquals(listOf(
+            "Manage playlists from Settings without another Settings PIN during the same protected visit.",
+            "Use Delete playlist to choose a playlist and confirm its removal.",
+            "Show or hide the playlist password; it starts masked and is hidden again when leaving.",
+            "Keep parental playlist protection, the YourIPTV login shortcut and all playback features free.",
+        ), confirmation.changes)
+        assertEquals("Thanks to Dylan B. for the suggestions for the current build.", confirmation.credit)
+        assertEquals(confirmation, receipt(store, code = 36, name = "1.0.5").current())
+        val differentlyNamed = receipt(Store(36), code = 36, name = "1.0.5-test").current()!!
+        assertTrue(differentlyNamed.changes.isEmpty())
+        assertNull(differentlyNamed.credit)
+        updated.acknowledge(confirmation)
+        assertNull(receipt(store, code = 36, name = "1.0.5").current())
+    }
+
+    @Test
+    fun directUpgradeShows104LoginNotesAndCreditUntilAcknowledged() {
+        val store = Store(30)
+        val updated = receipt(store, code = 35, name = "1.0.4")
+        val confirmation = updated.current()!!
+        assertEquals(35L, confirmation.installedCode)
+        assertEquals("1.0.4", confirmation.installedName)
+        assertEquals(listOf(
+            "Add a YourIPTV playlist option after M3U and Xtream Codes.",
+            "Sign in to YourIPTV with only your provider username and password.",
+            "Use the preset YourIPTV server and playlist name while keeping normal Xtream editing.",
+            "Keep all playback features free and preserve existing playlists, Settings and parental protections.",
+        ), confirmation.changes)
+        assertEquals("Thanks to Dylan B. for the suggestions for the current build.", confirmation.credit)
+        assertEquals(confirmation, receipt(store, code = 35, name = "1.0.4").current())
+        val differentlyNamed = receipt(Store(35), code = 35, name = "1.0.4-test").current()!!
+        assertTrue(differentlyNamed.changes.isEmpty())
+        assertNull(differentlyNamed.credit)
+        updated.acknowledge(confirmation)
+        assertNull(receipt(store, code = 35, name = "1.0.4").current())
+    }
+
+    @Test
     fun directUpgradeShows103PhoneNotesAndCreditUntilAcknowledged() {
         val store = Store(30)
         val updated = receipt(store, code = 34, name = "1.0.3")

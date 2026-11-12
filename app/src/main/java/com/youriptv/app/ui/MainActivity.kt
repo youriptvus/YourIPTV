@@ -864,7 +864,8 @@ class MainActivity : RemoteActivity() {
         when (s) {
             Section.TV -> if (tvLevels() && groupEntries.isNotEmpty() && loadJob?.isActive != true) showCategories()
                 else showSection(s, requestFocus = true)
-            Section.PLAYLISTS -> openLocked(app.settings.isPlaylistsLocked(), "Playlists are locked", PlaylistsActivity::class.java)
+            // The destination owns the parental gate, including restoration and foreground re-entry.
+            Section.PLAYLISTS -> startActivity(Intent(this, PlaylistsActivity::class.java))
             Section.SETTINGS -> unlockSettings()
             Section.ABOUT -> startActivity(Intent(this, AboutActivity::class.java))
             else -> showSection(s, requestFocus = true)
@@ -926,7 +927,7 @@ class MainActivity : RemoteActivity() {
             groupsView.visibility = View.GONE
             itemAdapter.submit(emptyList(), emptySet())
             showState(
-                "Welcome to ${Branding.displayName(this)}.\n\nAdd your IPTV provider's playlist (M3U URL or Xtream Codes login) to start watching.\n\n" +
+                "Welcome to ${Branding.displayName(this)}.\n\nAdd your IPTV provider's playlist (M3U URL, Xtream Codes login, or YourIPTV username and password) to start watching.\n\n" +
                     Branding.freeNotice(this),
                 progress = false, action = "Add playlist",
             ) { openLocked(app.settings.isPlaylistsLocked(), "Playlists are locked", PlaylistEditActivity::class.java) }

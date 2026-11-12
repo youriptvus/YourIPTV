@@ -6,6 +6,18 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        36L to Release("1.0.5", listOf(
+            "Manage playlists from Settings without another Settings PIN during the same protected visit.",
+            "Use Delete playlist to choose a playlist and confirm its removal.",
+            "Show or hide the playlist password; it starts masked and is hidden again when leaving.",
+            "Keep parental playlist protection, the YourIPTV login shortcut and all playback features free.",
+        ), credit = "Thanks to Dylan B. for the suggestions for the current build."),
+        35L to Release("1.0.4", listOf(
+            "Add a YourIPTV playlist option after M3U and Xtream Codes.",
+            "Sign in to YourIPTV with only your provider username and password.",
+            "Use the preset YourIPTV server and playlist name while keeping normal Xtream editing.",
+            "Keep all playback features free and preserve existing playlists, Settings and parental protections.",
+        ), credit = "Thanks to Dylan B. for the suggestions for the current build."),
         34L to Release("1.0.3", listOf(
             "Fit complete movie and show posters and captions on short phone screens.",
             "Use a compact browsing header on short phone screens while retaining the full TV layout.",

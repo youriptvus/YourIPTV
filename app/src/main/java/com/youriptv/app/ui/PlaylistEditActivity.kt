@@ -3,6 +3,7 @@ package com.youriptv.app.ui
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.method.PasswordTransformationMethod
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
@@ -17,17 +18,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Adds or edits an M3U / Xtream Codes playlist. Credentials stay on this device only. */
+/** Adds or edits M3U / Xtream playlists, including a two-field YourIPTV adding shortcut. */
 class PlaylistEditActivity : RemoteActivity() {
 
     private val app get() = YourIptvApp.instance
     private var editing: Playlist? = null
     private var type = SourceType.XTREAM
+    private var yourIptvMode = false
     private var busy = false
     private lateinit var editor: View
     private var editorVisit = 0L
     private val playlistId get() = intent.getLongExtra(EXTRA_ID, 0L)
     private val authorization by lazy { PlaylistEditAuthorization(existingPlaylist = playlistId != 0L) }
+    private val flow get() = app.settingsFlow
+    private val editorRoute get() = SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.EDITOR, playlistId)
+    private var inheritedSettings = false
+    private var passwordVisible = false
     /** Set once the user has chosen to keep a get.php link with embedded login as a plain M3U playlist. */
     private var keepAsM3u = false
 
@@ -35,6 +41,7 @@ class PlaylistEditActivity : RemoteActivity() {
     private lateinit var url: EditText
     private lateinit var user: EditText
     private lateinit var pass: EditText
+    private lateinit var showPassword: Button
     private lateinit var epg: EditText
     private lateinit var ua: EditText
     private lateinit var status: TextView
@@ -42,6 +49,7 @@ class PlaylistEditActivity : RemoteActivity() {
     private lateinit var xtreamFields: View
     private lateinit var btnXtream: Button
     private lateinit var btnM3u: Button
+    private lateinit var btnYourIptv: Button
     private lateinit var btnSave: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +64,11 @@ class PlaylistEditActivity : RemoteActivity() {
         url = findViewById(R.id.f_url)
         user = findViewById(R.id.f_user)
         pass = findViewById(R.id.f_pass)
+        showPassword = findViewById(R.id.btn_password_visibility)
+        showPassword.setOnClickListener {
+            if (authorization.isAuthorized && !isFinishing && (!inheritedSettings || flow.isAuthorized(this))) setPasswordVisible(!passwordVisible)
+        }
+        setPasswordVisible(false)
         epg = findViewById(R.id.f_epg)
         ua = findViewById(R.id.f_ua)
         status = findViewById(R.id.edit_status)
@@ -63,11 +76,15 @@ class PlaylistEditActivity : RemoteActivity() {
         xtreamFields = findViewById(R.id.xtream_fields)
         btnXtream = findViewById(R.id.type_xtream)
         btnM3u = findViewById(R.id.type_m3u)
+        btnYourIptv = findViewById(R.id.type_youriptv)
+        // This fixed provider preset name is independent of the player's display branding.
+        btnYourIptv.text = YourIptvLogin.PLAYLIST_NAME
         btnSave = findViewById(R.id.btn_save)
         listOf(name, url, user, pass, epg, ua).forEach { it.isSaveEnabled = false }
 
         btnXtream.setOnClickListener { setType(SourceType.XTREAM) }
         btnM3u.setOnClickListener { setType(SourceType.M3U) }
+        btnYourIptv.setOnClickListener { setType(SourceType.XTREAM, simplified = true) }
         btnSave.setOnClickListener { save() }
         findViewById<Button>(R.id.btn_cancel).setOnClickListener { finish() }
     }
@@ -78,6 +95,7 @@ class PlaylistEditActivity : RemoteActivity() {
 
     private fun loadAuthorizedPlaylist() {
         if (!authorization.isAuthorized || isFinishing) return
+        if (inheritedSettings && !flow.isAuthorized(this)) return
         val id = playlistId
         editing = if (id != 0L) app.repo.playlist(id) else null
         if (id != 0L && editing == null) {
@@ -91,7 +109,9 @@ class PlaylistEditActivity : RemoteActivity() {
             epg.setText(p.epgUrl); ua.setText(p.userAgent)
             type = p.type
         }
-        setType(type)
+        // The shortcut is only for adding. Existing connections always reopen in the protected full editor.
+        btnYourIptv.visibility = if (editing == null) View.VISIBLE else View.GONE
+        setType(type, simplified = yourIptvMode)
         btnSave.isEnabled = !busy
         editor.visibility = View.VISIBLE
         (if (editing == null) btnXtream else name).requestFocus()
@@ -101,16 +121,25 @@ class PlaylistEditActivity : RemoteActivity() {
         super.onResume()
         if (isFinishing) return
         val visit = authorization.beginVisit().also { editorVisit = it }
+        inheritedSettings = flow.enter(this, editorRoute)
         val afterParental = afterParental@{
             if (!authorization.allowParental(visit) || isFinishing) return@afterParental
-            if (playlistId == 0L) loadAuthorizedPlaylist()
+            if (inheritedSettings) {
+                if (!flow.isAuthorized(this)) return@afterParental
+                if (app.settings.isPlaylistsLocked()) flow.allowParental(this)
+                if (authorization.allowSettings(visit)) loadAuthorizedPlaylist()
+            } else if (playlistId == 0L) loadAuthorizedPlaylist()
             else Dialogs.requireSettingsPin(this, "edit playlist connection", onCancel = {
                 if (authorization.isCurrent(visit)) finish()
             }) {
-                if (authorization.allowSettings(visit)) loadAuthorizedPlaylist()
+                if (isFinishing || !authorization.allowSettings(visit)) return@requireSettingsPin
+                flow.authenticate(this, editorRoute)
+                if (app.settings.isPlaylistsLocked()) flow.allowParental(this)
+                inheritedSettings = true
+                loadAuthorizedPlaylist()
             }
         }
-        if (app.settings.isPlaylistsLocked()) {
+        if (app.settings.isPlaylistsLocked() && !flow.hasParentalPermission(this)) {
             Dialogs.requirePin(this, "add or edit playlists", onCancel = {
                 if (authorization.isCurrent(visit)) finish()
             }, onOk = afterParental)
@@ -118,6 +147,8 @@ class PlaylistEditActivity : RemoteActivity() {
     }
 
     override fun onPause() {
+        setPasswordVisible(false)
+        flow.paused(this)
         authorization.endVisit()
         if (::editor.isInitialized) {
             editor.visibility = View.INVISIBLE
@@ -126,6 +157,7 @@ class PlaylistEditActivity : RemoteActivity() {
                 editing = null
                 keepAsM3u = false
                 type = SourceType.XTREAM
+                yourIptvMode = false
                 status.text = ""
                 // Close a protected visit rather than retaining an old PIN dialog underneath a new one.
                 if (!isChangingConfigurations) finish()
@@ -134,10 +166,33 @@ class PlaylistEditActivity : RemoteActivity() {
         super.onPause()
     }
 
-    private fun setType(t: SourceType) {
+    override fun finish() {
+        flow.returning(this)
+        super.finish()
+    }
+
+    /** Transform the displayed characters only: never rewrite the password or its selection. */
+    private fun setPasswordVisible(visible: Boolean) {
+        passwordVisible = visible
+        val start = pass.selectionStart
+        val end = pass.selectionEnd
+        pass.transformationMethod = if (visible) null else PasswordTransformationMethod.getInstance()
+        if (start >= 0 && end >= 0) pass.setSelection(start.coerceAtMost(pass.length()), end.coerceAtMost(pass.length()))
+        showPassword.text = if (visible) "Hide password" else "Show password"
+        showPassword.contentDescription = showPassword.text
+    }
+
+    private fun setType(t: SourceType, simplified: Boolean = false) {
+        setPasswordVisible(false)
         type = t
-        btnXtream.isActivated = t == SourceType.XTREAM
+        yourIptvMode = simplified && editing == null && t == SourceType.XTREAM
+        btnXtream.isActivated = t == SourceType.XTREAM && !yourIptvMode
         btnM3u.isActivated = t == SourceType.M3U
+        btnYourIptv.isActivated = yourIptvMode
+        val fullFields = if (yourIptvMode) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.name_fields).visibility = fullFields
+        findViewById<View>(R.id.server_fields).visibility = fullFields
+        findViewById<View>(R.id.optional_fields).visibility = fullFields
         xtreamFields.visibility = if (t == SourceType.XTREAM) View.VISIBLE else View.GONE
         urlLabel.text = if (t == SourceType.XTREAM) "Server URL (for example http://provider.example:8080)" else "M3U / M3U Plus playlist URL"
         url.hint = if (t == SourceType.XTREAM) "http://provider.example:8080" else "http://provider.example/playlist.m3u"
@@ -145,6 +200,17 @@ class PlaylistEditActivity : RemoteActivity() {
 
     private fun save() {
         if (busy || isFinishing || !authorization.isAuthorized) return
+        if (inheritedSettings && !flow.isAuthorized(this)) return
+        if (yourIptvMode) {
+            val p = YourIptvLogin.newPlaylist(user.text.toString(), pass.text.toString())
+            if (p == null) {
+                status.text = "Enter the username and password from your IPTV provider."
+                (if (user.text.toString().trim().isEmpty()) user else pass).requestFocus()
+                return
+            }
+            savePlaylist(p)
+            return
+        }
         var t = type
         var server = url.text.toString().trim()
         var username = user.text.toString().trim()
@@ -183,6 +249,13 @@ class PlaylistEditActivity : RemoteActivity() {
             username = if (t == SourceType.XTREAM) username else "", password = if (t == SourceType.XTREAM) password else "",
             epgUrl = epg.text.toString().trim(), userAgent = ua.text.toString().trim(),
         )
+        savePlaylist(p)
+    }
+
+    private fun savePlaylist(p: Playlist) {
+        if (busy || isFinishing || !authorization.isAuthorized) return
+        if (inheritedSettings && !flow.isAuthorized(this)) return
+        val base = editing
         val sourceChanged = base == null || base.type != p.type || base.url != p.url || base.username != p.username || base.password != p.password
         val previousActive = app.settings.activePlaylistId
         val id = app.repo.savePlaylist(p)
@@ -197,11 +270,17 @@ class PlaylistEditActivity : RemoteActivity() {
         busy = true
         btnSave.isEnabled = false
         status.text = "Connecting to provider…"
+        val visit = editorVisit
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching { Refresher.refreshAll(saved) { msg -> runOnUiThread { status.text = msg } } }
             }
             busy = false
+            if (!authorization.isCurrent(visit) || !authorization.isAuthorized ||
+                (inheritedSettings && !flow.isAuthorized(this@PlaylistEditActivity))) {
+                if (authorization.isAuthorized && (!inheritedSettings || flow.isAuthorized(this@PlaylistEditActivity))) btnSave.isEnabled = true
+                return@launch
+            }
             btnSave.isEnabled = true
             result.onSuccess { warning ->
                 app.settings.activePlaylistId = id
@@ -218,7 +297,7 @@ class PlaylistEditActivity : RemoteActivity() {
 
     companion object {
         const val EXTRA_ID = "playlist_id"
-        const val SETTINGS_LOCK_MESSAGE = "Editing an existing playlist requires the Settings PIN."
+        const val SETTINGS_LOCK_MESSAGE = "Editing or deleting uses the current Settings unlock, or asks for the Settings PIN."
 
         fun editIntent(context: Context, id: Long): Intent =
             Intent(context, PlaylistEditActivity::class.java).putExtra(EXTRA_ID, id)
