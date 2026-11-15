@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val SLOW_PREVIEW_MESSAGE =
     "Preview is still loading. Choose another channel or select again for full screen."
@@ -34,6 +35,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     private val owners = HashSet<Any>()
     private val observers = LinkedHashSet<() -> Unit>()
     private val streamMemory = LiveStreamMemory()
+    private var metadataRefreshGeneration = 0L
     private var target: PlayerView? = null
     private var fullScreen = false
     private var playerPlaylistId: Long? = null
@@ -200,6 +202,55 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         observers.remove(observer)
     }
 
+    /** Metadata-only publication: never reprepare a stream because its catalog changed. */
+    fun onCatalogCommitted(playlistId: Long) {
+        val item = current?.takeIf { it.playlistId == playlistId } ?: return
+        val generation = ++metadataRefreshGeneration
+        var snapshot = item
+        var snapshotQueue = queue
+        io.launch {
+          while (true) {
+            val fresh = runCatching { app.repo.itemsByUrls(playlistId, snapshotQueue.map { it.url } + snapshot.url) }
+                .getOrElse { return@launch }
+            val retry = withContext(Dispatchers.Main.immediate) {
+                val playing = current
+                if (generation != metadataRefreshGeneration || playing?.playlistId != playlistId)
+                    return@withContext false
+                // Channel changes during the read must revalidate the NEW current item,
+                // rather than consume this catalog notification for the old channel.
+                if (playing.url != snapshot.url || queue !== snapshotQueue) {
+                    snapshot = playing
+                    snapshotQueue = queue
+                    return@withContext true
+                }
+                val updated = fresh[playing.url]
+                if (updated != null && (app.settings.isGroupHidden(updated.group) || !isAuthorized(updated))) {
+                    bufferingRecoveryReset()
+                    loadingHint.reset()
+                    player?.stop()
+                    player?.clearMediaItems()
+                    current = null
+                    queue = emptyList()
+                    authorizedGroup = null
+                    status = "This channel is restricted. Select it to enter the parental PIN."
+                    notifyObservers()
+                    return@withContext false
+                }
+                // A removed provider row does not force an already-authorized live stream
+                // to reconnect. Future selection uses the newly committed catalog.
+                if (updated != null) current = updated
+                queue = queue.mapNotNull { fresh[it.url] }.let { rows ->
+                    val tuned = current ?: return@let rows
+                    if (rows.any { it.url == tuned.url }) rows else listOf(tuned) + rows
+                }
+                notifyObservers()
+                false
+            }
+            if (!retry) break
+          }
+        }
+    }
+
     fun attachPreview(view: PlayerView) = attach(view, false)
 
     fun attachFullscreen(view: PlayerView) = attach(view, true)
@@ -282,23 +333,48 @@ class LivePlaybackSession(private val app: YourIptvApp) {
 
     fun select(activity: AppCompatActivity, item: MediaItem, items: List<MediaItem>, openFullscreen: () -> Unit) {
         require(item.kind == ItemKind.LIVE && !item.isCatchup)
+        // A list can remain visible during publication. Never authorize a tune using
+        // its old category; this indexed lookup reads the committed catalog.
+        val selected = app.repo.itemByUrl(item.playlistId, item.url)
+        if (selected != null && current?.let { it.playlistId == selected.playlistId && it.url == selected.url } == true &&
+            (app.settings.isGroupHidden(selected.group) || !isAuthorized(selected))) {
+            // Do not leave an old authorized picture running behind a new PIN prompt.
+            bufferingRecoveryReset()
+            loadingHint.reset()
+            player?.stop()
+            player?.clearMediaItems()
+            current = null
+            queue = emptyList()
+            authorizedGroup = null
+            status = "This channel is restricted. Select it to enter the parental PIN."
+            notifyObservers()
+        }
+        if (selected == null || app.settings.isGroupHidden(selected.group)) {
+            Dialogs.toast(activity, "This channel is no longer available in this list.")
+            return
+        }
         if (Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
             Dialogs.toast(activity, "This provider's only connection is being used by a recording.")
             return
         }
         val currentKey = current?.let { LiveChannelKey(it.playlistId, it.url) }
         val selectedKey = LiveChannelKey(item.playlistId, item.url)
-        if (PreviewSelection.opensFullscreen(currentKey, selectedKey, isCurrentAuthorized(item), player != null)) {
-            queue = liveQueue(item, items)
+        if (PreviewSelection.opensFullscreen(currentKey, selectedKey, isCurrentAuthorized(selected), player != null)) {
+            queue = liveQueue(selected, items)
             openFullscreen()
             return
         }
+        val stamp = app.settings.restrictionStamp()
         val start = {
             if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                tune(item, items, if (app.settings.isGroupLocked(item.group)) item.group else null)
+                val latest = app.repo.itemByUrl(selected.playlistId, selected.url)
+                if (latest != null && (latest.group != selected.group || stamp != app.settings.restrictionStamp()))
+                    select(activity, latest, items, openFullscreen)
+                else if (latest != null && !app.settings.isGroupHidden(latest.group))
+                    tune(latest, items, if (app.settings.isGroupLocked(latest.group)) latest.group else null)
             }
         }
-        if (app.settings.isGroupLocked(item.group)) Dialogs.requirePin(activity, "\"${item.group}\" is locked") { start() }
+        if (app.settings.isGroupLocked(selected.group)) Dialogs.requirePin(activity, "\"${selected.group}\" is locked") { start() }
         else start()
     }
 
@@ -324,7 +400,9 @@ class LivePlaybackSession(private val app: YourIptvApp) {
     }
 
     private fun liveQueue(item: MediaItem, items: List<MediaItem>): List<MediaItem> {
-        val live = items.filter { it.kind == ItemKind.LIVE && !it.isCatchup }
+        val live = items.filter { it.kind == ItemKind.LIVE && !it.isCatchup }.map {
+            if (it.playlistId == item.playlistId && it.url == item.url) item else it
+        }
         return if (live.any { it.playlistId == item.playlistId && it.url == item.url }) live else listOf(item)
     }
 

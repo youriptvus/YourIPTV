@@ -6,6 +6,18 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        38L to Release("1.0.7", listOf(
+            "Refresh the guide in the background on a fresh app start while the cached guide stays available.",
+            "Refresh playlists every 16 hours by default; keep explicitly saved refresh intervals.",
+            "Use Update Playlist and Update EPG under Settings → Playlist Settings without entering either PIN.",
+            "Keep valid playlist and guide data when a download fails, and show real update status and successful times.",
+            "Update the visible guide automatically while keeping the current channel, guide position and playback.",
+            "Keep Settings lock on by default; only the master PIN can turn it off or back on and manage custom PINs.",
+            "Combine all settings under Settings when its lock is off; keep parental controls independent.",
+            "Keep 7 days of past guide data and up to 7 days ahead by default, with adjustable coverage and existing parental PIN policies.",
+            "Merge valid partial guide updates with useful cached listings and browse the full selected time window.",
+            "Show the bundled official logo in the main menu header on TV and portrait screens.",
+        ), credit = "Thanks to Dylan B. for the suggestions for the current build."),
         36L to Release("1.0.5", listOf(
             "Manage playlists from Settings without another Settings PIN during the same protected visit.",
             "Use Delete playlist to choose a playlist and confirm its removal.",

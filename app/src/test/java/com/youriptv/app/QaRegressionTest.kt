@@ -105,7 +105,9 @@ class QaRegressionTest {
         assertTrue(refresh.contains("itemsView.findContainingViewHolder(it)?.bindingAdapterPosition"))
         assertFalse(refresh.contains("getChildAdapterPosition("))
         assertTrue(refresh.contains("if (section != Section.RECORDINGS) return"))
-        assertTrue(refresh.contains("if (section != Section.RECORDINGS) return@launch"))
+        val publicationGuard = refresh.indexOf("if (requestGeneration != listLoadGeneration || section != Section.RECORDINGS) return@launch")
+        assertTrue("A completed read must reject both later navigation and a replacement read before publishing rows",
+            publicationGuard in 0 until refresh.indexOf("itemAdapter.submit(rows, emptySet())"))
         assertTrue(refresh.contains("val keepListFocus = focus?.let { isInside(it, itemsView) } == true"))
         assertTrue(refresh.contains("if (keepListFocus)"))
         assertTrue(refresh.contains("itemsView.doOnNextLayout"))

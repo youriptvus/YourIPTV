@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 1.0.5: protected playlist-management visit, visible deletion and password visibility.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 36
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.5"
+        // 1.0.7: coordinated background refresh and public playlist/guide update controls.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 38
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.7"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
@@ -45,6 +45,9 @@ android {
         }
     } else null
 
+    // Host tests use release sources. Isolated native SQLite fixtures have their
+    // own package/runtime; release optimization intentionally removes internal APIs.
+    testBuildType = "release"
     buildTypes {
         debug {
             isMinifyEnabled = false

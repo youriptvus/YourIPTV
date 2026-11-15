@@ -17,6 +17,14 @@ import com.youriptv.app.data.Catchup
 import com.youriptv.app.data.MediaItem
 import com.youriptv.app.data.Program
 import com.youriptv.app.data.RecordingStatus
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The Live TV guide: channel rows with a programme timeline, embedded in MainActivity next to the categories.
@@ -34,11 +42,12 @@ class LiveGuideGrid(
     private val select: (MediaItem, List<MediaItem>) -> Unit,
     private val channelOptions: (MediaItem) -> List<Pair<String, () -> Unit>>,
     private val exitLeft: () -> Unit,
+    private val interactionGeneration: () -> Long = { 0L },
 ) {
     private val app get() = YourIptvApp.instance
     // TiviMate-like density at 1080p: 40dp rows (about eight visible) and a channel column wide enough for number, logo and name.
     private val state = GuideState(activity, channelWidthDp = if (activity.resources.getBoolean(R.bool.is_portrait)) 180f else 260f)
-    private val cache = GuideProgramCache(app) { pastMs() }
+    private val cache = GuideProgramCache(app)
     private val rowHeight = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP, 40f, activity.resources.displayMetrics,
     ).toInt()
@@ -49,6 +58,9 @@ class LiveGuideGrid(
     val focusedRow get() = state.focusedRow
     val items: List<MediaItem> get() = channels
     private var leftHeld = false
+    private var navigationGeneration = 0L
+    private var guideSearchJob: Job? = null
+    private var focusedLookup: Pair<Triple<Long, String, Long>, List<Program>>? = null
 
     init {
         timeline.state = state
@@ -56,6 +68,8 @@ class LiveGuideGrid(
     }
 
     fun submit(items: List<MediaItem>, favorites: Set<String>, focused: Int) {
+        navigationGeneration++
+        guideSearchJob?.cancel()
         channels = items
         archiveDays = items.maxOfOrNull { it.catchupDays } ?: 0
         state.focusedRow = focused.coerceIn(0, (items.size - 1).coerceAtLeast(0))
@@ -63,8 +77,49 @@ class LiveGuideGrid(
         state.showNumbers = app.settings.showChannelNumbers
         settingsSnapshot = guideSettings()
         cache.clear()
+        focusedLookup = null
         resetTime()
         adapter.notifyDataSetChanged()
+        refreshMarks()
+    }
+
+    /** Called only after a committed generation. Keeps the current guide position and live session. */
+    fun reloadCommitted(items: List<MediaItem>? = null) {
+        val navigation = ++navigationGeneration
+        guideSearchJob?.cancel()
+        val interaction = interactionGeneration()
+        val layout = rows.layoutManager as? LinearLayoutManager
+        val first = layout?.findFirstVisibleItemPosition()?.coerceAtLeast(0) ?: 0
+        val snapshot = GuideContinuity(
+            channels.getOrNull(state.focusedRow)?.let { it.playlistId to it.url }, state.focusedRow,
+            channels.getOrNull(first)?.let { it.playlistId to it.url }, first,
+            layout?.findViewByPosition(first)?.let { it.top - rows.paddingTop } ?: 0,
+            state.focusTime, state.windowStart,
+        )
+        val hadFocus = rows.hasFocus() && rows.hasWindowFocus()
+        if (items != null) channels = items
+        archiveDays = channels.maxOfOrNull { it.catchupDays } ?: 0
+        state.focusedRow = snapshot.focusedIn(channels)
+        state.focusTime = snapshot.focusTime
+        state.windowStart = snapshot.windowStart
+        val committedChannels = channels
+        val targetRow = state.focusedRow
+        cache.clear()
+        focusedLookup = null
+        adapter.notifyDataSetChanged()
+        if (channels.isNotEmpty()) {
+            layout?.scrollToPositionWithOffset(snapshot.firstIn(channels), snapshot.firstOffset)
+            if (hadFocus) rows.post {
+                // A late layout callback must never pull focus back after customer navigation/input.
+                if (navigationGeneration == navigation && interactionGeneration() == interaction &&
+                    rows.hasWindowFocus() && rows.hasFocus() && rows.adapter === adapter &&
+                    channels === committedChannels && state.focusTime == snapshot.focusTime &&
+                    state.windowStart == snapshot.windowStart) {
+                    state.focusedRow = targetRow
+                    rows.findViewHolderForAdapterPosition(targetRow)?.itemView?.requestFocus()
+                }
+            }
+        }
         refreshMarks()
     }
 
@@ -84,13 +139,6 @@ class LiveGuideGrid(
     }
 
     fun refreshSettings() {
-        val updated = guideSettings()
-        if (updated != settingsSnapshot) {
-            settingsSnapshot = updated
-            state.showNumbers = app.settings.showChannelNumbers
-            cache.clear()
-            adapter.notifyDataSetChanged()
-        }
         refresh()
     }
 
@@ -105,15 +153,24 @@ class LiveGuideGrid(
     }
 
     fun focus(position: Int) {
+        val navigation = ++navigationGeneration
+        val interaction = interactionGeneration()
+        val expectedChannels = channels
         if (channels.isEmpty()) return
         val target = position.coerceIn(0, channels.lastIndex)
         state.focusedRow = target
         (rows.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(target, 0)
-        rows.post { rows.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
+        rows.post {
+            if (navigationGeneration == navigation && interactionGeneration() == interaction &&
+                channels === expectedChannels && rows.adapter === adapter && rows.hasWindowFocus()) {
+                rows.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus()
+            }
+        }
         refresh()
     }
 
     fun handleKey(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) navigationGeneration++
         if (channels.isEmpty()) return false
         val down = event.action == KeyEvent.ACTION_DOWN
         when (event.keyCode) {
@@ -159,8 +216,26 @@ class LiveGuideGrid(
     }
 
     fun refresh() {
+        val updated = guideSettings()
+        if (updated != settingsSnapshot) {
+            settingsSnapshot = updated
+            state.showNumbers = app.settings.showChannelNumbers
+            cache.clear()
+            focusedLookup = null
+            guideSearchJob?.cancel()
+            val boundedTime = state.focusTime.coerceIn(minTime(), maxTime())
+            if (boundedTime != state.focusTime) {
+                state.focusTime = boundedTime
+                state.windowStart = GuideNavigation.windowFor(state.windowStart, boundedTime, state.span)
+            }
+        }
         timeline.invalidate()
-        for (i in 0 until rows.childCount) rows.getChildAt(i).invalidate()
+        // Row programme lists must follow horizontal time navigation; repainting an old bounded list is insufficient.
+        for (i in 0 until rows.childCount) {
+            val row = rows.getChildAt(i) as? GuideRowView ?: continue
+            row.channel?.let { row.programs = programsFor(it) }
+            row.invalidate()
+        }
         val channel = channels.getOrNull(state.focusedRow)
         if (channel == null) {
             title.text = ""; meta.text = ""; description.text = ""
@@ -188,7 +263,7 @@ class LiveGuideGrid(
         else state.focusTime > now - GuideNavigation.STEP_MS && state.focusTime <= now + 60_000L
     }
 
-    fun jumpToNow() { resetTime(); refresh() }
+    fun jumpToNow() { navigationGeneration++; resetTime(); refresh() }
 
     private fun minTime() = System.currentTimeMillis() - pastMs()
     private fun maxTime() = System.currentTimeMillis() + app.settings.epgFutureDays * 86_400_000L
@@ -207,11 +282,29 @@ class LiveGuideGrid(
     )
 
     private fun focusedProgram(channel: MediaItem): Program? =
-        cache.programsFor(channel).firstOrNull { state.focusTime >= it.start && state.focusTime < it.end }
+        selectedProgrammes(channel).firstOrNull { state.focusTime >= it.start && state.focusTime < it.end }
+
+    private fun programsFor(channel: MediaItem): List<Program> {
+        val result = cache.windowFor(channel, state.windowStart, state.windowStart + state.span)
+        return if (!result.dense) result.programs else listOf(Program(channel.tvgId,
+            state.windowStart, state.windowStart + state.span, "Many programmes — use arrows for details"))
+    }
+
+    /** Actual bounded metadata, separate from compact/density-only row representations. */
+    private fun selectedProgrammes(channel: MediaItem): List<Program> {
+        if (channel.tvgId.isBlank()) return emptyList()
+        val key = Triple(channel.playlistId, channel.tvgId, state.focusTime)
+        focusedLookup?.let { if (it.first == key) return it.second }
+        val shift = app.settings.epgShiftHours * 3_600_000L
+        val programmes = app.repo.guideNeighbours(channel.playlistId, channel.tvgId, state.focusTime - shift,
+            minTime() - shift, maxTime() - shift).map { it.copy(start = it.start + shift, end = it.end + shift) }
+        focusedLookup = key to programmes
+        return programmes
+    }
 
     private fun moveTime(forward: Boolean) {
         val channel = channels.getOrNull(state.focusedRow) ?: return
-        val target = GuideNavigation.targetTime(state.focusTime, cache.programsFor(channel), forward, minTime(), maxTime())
+        val target = GuideNavigation.targetTime(state.focusTime, selectedProgrammes(channel), forward, minTime(), maxTime())
         state.windowStart = GuideNavigation.windowFor(state.windowStart, target, state.span)
         state.focusTime = maxOf(target, state.windowStart)
         refresh()
@@ -303,15 +396,42 @@ class LiveGuideGrid(
             val now = System.currentTimeMillis()
             val index = channels.indexOfFirst { it.name.lowercase().contains(query) }
             if (index >= 0) { focus(index); return@input }
-            for ((i, channel) in channels.withIndex()) {
-                val program = cache.programsFor(channel).firstOrNull { it.end > now && it.title.lowercase().contains(query) } ?: continue
-                focus(i)
-                state.windowStart = maxOf(program.start, now).let { it - it % GuideNavigation.STEP_MS }
-                state.focusTime = maxOf(program.start, state.windowStart)
-                refresh()
-                return@input
+            guideSearchJob?.cancel()
+            val navigation = ++navigationGeneration
+            val interaction = interactionGeneration()
+            val searchedChannels = channels
+            val searchedSettings = guideSettings()
+            val shift = app.settings.epgShiftHours * 3_600_000L
+            val to = now + app.settings.epgFutureDays * 86_400_000L
+            guideSearchJob = activity.lifecycleScope.launch {
+                val match = try { withContext(Dispatchers.IO) {
+                    var found: Pair<Int, Program>? = null
+                    for ((i, channel) in searchedChannels.withIndex()) {
+                        currentCoroutineContext().ensureActive()
+                        val program = app.repo.findProgram(channel.playlistId, channel.tvgId, query, now - shift, to - shift) ?: continue
+                        found = i to program.copy(start = program.start + shift, end = program.end + shift)
+                        break
+                    }
+                    found
+                } } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    if (navigationGeneration == navigation && interactionGeneration() == interaction &&
+                        channels === searchedChannels && rows.adapter === adapter && rows.hasWindowFocus()) {
+                        Dialogs.toast(activity, "Guide search is unavailable. Please try again.")
+                    }
+                    return@launch
+                }
+                if (navigationGeneration != navigation || interactionGeneration() != interaction ||
+                    channels !== searchedChannels || guideSettings() != searchedSettings ||
+                    rows.adapter !== adapter || !rows.hasWindowFocus()) return@launch
+                if (match == null) Dialogs.toast(activity, "Nothing found for \"$text\" in this view")
+                else {
+                    focus(match.first)
+                    state.windowStart = maxOf(match.second.start, now).let { it - it % GuideNavigation.STEP_MS }
+                    state.focusTime = maxOf(match.second.start, now)
+                    refresh()
+                }
             }
-            Dialogs.toast(activity, "Nothing found for \"$text\" in this view")
         }
     }
 
@@ -334,6 +454,7 @@ class LiveGuideGrid(
                 }
             }
             row.setOnTouchListener { view, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) navigationGeneration++
                 if (event.action == MotionEvent.ACTION_UP) {
                     val position = holder.bindingAdapterPosition
                     if (position != RecyclerView.NO_POSITION) {
@@ -341,17 +462,22 @@ class LiveGuideGrid(
                         if (event.x > state.channelWidth && view.width > state.channelWidth) {
                             val pxPerMs = (view.width - state.channelWidth) / state.span
                             state.focusTime = state.windowStart + ((event.x - state.channelWidth) / pxPerMs).toLong()
-                        } else state.focusTime = System.currentTimeMillis()
+                        } else {
+                            state.focusTime = System.currentTimeMillis()
+                            state.windowStart = GuideNavigation.windowFor(state.windowStart, state.focusTime, state.span)
+                        }
                         refresh()
                     }
                 }
                 false
             }
             row.setOnClickListener {
+                navigationGeneration++
                 val position = holder.bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) activate(position)
             }
             row.onOptions {
+                navigationGeneration++
                 val position = holder.bindingAdapterPosition
                 channels.getOrNull(position)?.let { options(it) }
             }
@@ -364,7 +490,7 @@ class LiveGuideGrid(
             val channel = channels[position]
             holder.row.rowIndex = position
             holder.row.channel = channel
-            holder.row.programs = cache.programsFor(channel)
+            holder.row.programs = programsFor(channel)
             holder.row.contentDescription = channel.name
             holder.row.invalidate()
         }

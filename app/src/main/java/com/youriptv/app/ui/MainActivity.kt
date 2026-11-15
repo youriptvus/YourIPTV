@@ -27,6 +27,8 @@ import android.transition.TransitionManager
 import androidx.core.view.doOnNextLayout
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -44,19 +46,22 @@ import com.youriptv.app.data.RecordingStatus
 import com.youriptv.app.data.Reminder
 import com.youriptv.app.data.SeriesNames
 import com.youriptv.app.data.SourceType
+import com.youriptv.app.refresh.RefreshGeneration
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
 class MainActivity : RemoteActivity() {
 
     enum class Section(val label: String) {
         SEARCH("Search"), TV("TV"), MOVIES("Movies"), SHOWS("Shows"),
-        FAVORITES("Favorites"), HISTORY("History"), RECORDINGS("Recordings"), PLAYLISTS("Playlists"), SETTINGS("Settings"), ABOUT("About"),
+        FAVORITES("Favorites"), HISTORY("History"), RECORDINGS("Recordings"), PLAYLISTS("Playlists"),
+        SETTINGS("Settings"), ADMIN("Unlock Settings"), ABOUT("About"),
     }
 
     private data class GroupEntry(val info: GroupInfo, val special: String? = null)
@@ -74,7 +79,10 @@ class MainActivity : RemoteActivity() {
     private var groupEntries: List<GroupEntry> = emptyList()
     private var selectedGroup = 0
     private var loadJob: Job? = null
+    private var listLoadGeneration = 0L
+    private var groupSelectionGeneration = 0L
     private var searchJob: Job? = null
+    private val observedRefreshGenerations = HashMap<Long, RefreshGeneration>()
     private val navViews = HashMap<Section, TextView>()
 
     private lateinit var groupsView: RecyclerView
@@ -220,10 +228,12 @@ class MainActivity : RemoteActivity() {
             },
             { item -> itemOptionList(item) },
             { showCategories() },
+            interactionGeneration = { userInputGeneration },
         )
 
         buildNav(findViewById(R.id.nav_container), portrait)
         setupSearch()
+        observeRefreshes()
 
         if (!portrait) window.decorView.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> followFocus(now) }
 
@@ -658,6 +668,8 @@ class MainActivity : RemoteActivity() {
 
     /** A locked category only says so while browsing; its channel names appear after OK and the parental PIN. */
     private fun showLockedGroup(pos: Int, entry: GroupEntry) {
+        if (selectedGroup != pos) groupSelectionGeneration++
+        listLoadGeneration++
         loadJob?.cancel()
         selectedGroup = pos
         loadedGroup = -1
@@ -768,8 +780,10 @@ class MainActivity : RemoteActivity() {
         revealAfterResume = false
         if (active != null) {
             maybeResumeLastChannel(active)
-            maybeAutoRefresh(active)
         }
+        // A foreground launch, not Application.onCreate: a scheduled-job process must not
+        // recursively start another startup refresh. The coordinator owns the once/process guard.
+        app.refreshCoordinator.onFirstForegroundLaunch()
         scheduleVodLayout()
     }
 
@@ -866,7 +880,8 @@ class MainActivity : RemoteActivity() {
                 else showSection(s, requestFocus = true)
             // The destination owns the parental gate, including restoration and foreground re-entry.
             Section.PLAYLISTS -> startActivity(Intent(this, PlaylistsActivity::class.java))
-            Section.SETTINGS -> unlockSettings()
+            Section.SETTINGS -> if (app.settings.isSettingsLocked()) CustomerSettingsPanel.show(this, playlist?.id ?: 0L) else unlockSettings()
+            Section.ADMIN -> unlockSettings()
             Section.ABOUT -> startActivity(Intent(this, AboutActivity::class.java))
             else -> showSection(s, requestFocus = true)
         }
@@ -878,7 +893,9 @@ class MainActivity : RemoteActivity() {
     }
 
     private fun updateSettingsLabel() {
-        navViews[Section.SETTINGS]?.text = "Unlock Settings"
+        navViews[Section.SETTINGS]?.text = "Settings"
+        navViews[Section.ADMIN]?.text = "Unlock Settings"
+        navViews[Section.ADMIN]?.visibility = if (app.settings.isSettingsLocked()) View.VISIBLE else View.GONE
     }
 
     private fun openLocked(locked: Boolean, reason: String, target: Class<*>) {
@@ -889,6 +906,8 @@ class MainActivity : RemoteActivity() {
     // ---------------- Sections ----------------
 
     private fun showSection(s: Section, requestFocus: Boolean = false) {
+        listLoadGeneration++
+        groupSelectionGeneration++
         if (section == Section.TV && s != Section.TV) detachPreview()
         handler.removeCallbacks(loadFocusedGroup)
         loadedGroup = -1
@@ -955,12 +974,14 @@ class MainActivity : RemoteActivity() {
     }
 
     private fun loadGroups(p: Playlist, kind: ItemKind, allLabel: String?, requestFocus: Boolean) {
+        val requestGeneration = ++listLoadGeneration
         val targetSection = section
         groupsView.visibility = View.VISIBLE
         loadJob?.cancel()
         showState("Loading…", progress = true)
         loadJob = lifecycleScope.launch {
             val groups = withContext(Dispatchers.IO) { app.repo.groups(p.id, kind) }
+            if (requestGeneration != listLoadGeneration) return@launch
             if (section != targetSection || playlist?.id != p.id) return@launch
             val s = app.settings
             val entries = ArrayList<GroupEntry>()
@@ -1003,13 +1024,23 @@ class MainActivity : RemoteActivity() {
     private fun selectGroup(pos: Int, focusItems: Boolean, focusUrl: String? = null, onCancel: (() -> Unit)? = null) {
         val p = playlist ?: return
         val entry = groupEntries.getOrNull(pos) ?: return
-        val doSelect = {
-            selectedGroup = pos
+        val selectionGeneration = ++groupSelectionGeneration
+        val targetSection = section
+        val restrictionStamp = app.settings.restrictionStamp()
+        val selectedKey = groupKey(entry)
+        val doSelect = select@ {
+            // A PIN dialog can outlive a provider reorder or navigation change. Resolve
+            // its original category by identity; its old position grants no permission.
+            val currentPosition = groupEntries.indexOfFirst { groupKey(it) == selectedKey }
+            if (selectionGeneration != groupSelectionGeneration || section != targetSection || playlist?.id != p.id ||
+                restrictionStamp != app.settings.restrictionStamp() || currentPosition < 0 ||
+                !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return@select
+            selectedGroup = currentPosition
             if (vodMode()) vodGroups[section] = groupKey(entry)
-            loadedGroup = pos
+            loadedGroup = currentPosition
             val locks = if (app.settings.hasPin()) app.settings.lockedGroups else emptySet()
-            if (groupAdapter.itemCount == groupEntries.size && groupAdapter.locked == locks) groupAdapter.select(pos)
-            else groupAdapter.submit(groupEntries.map { it.info }, pos, locks)
+            if (groupAdapter.itemCount == groupEntries.size && groupAdapter.locked == locks) groupAdapter.select(currentPosition)
+            else groupAdapter.submit(groupEntries.map { it.info }, currentPosition, locks)
             if (section == Section.TV) title.text = "${Section.TV.label}  ·  ${entry.info.name}"
             val kind = currentKind()
             val m3uShows = kind == ItemKind.EPISODE
@@ -1030,6 +1061,7 @@ class MainActivity : RemoteActivity() {
 
     private fun loadItems(requestFocus: Boolean, focusUrl: String? = null, query: () -> List<MediaItem>) {
         val p = playlist ?: return
+        val requestGeneration = ++listLoadGeneration
         val targetSection = section
         val hadListFocus = currentFocus?.let { isInside(it, itemsView) } == true
         val isVod = vodMode()
@@ -1043,6 +1075,7 @@ class MainActivity : RemoteActivity() {
                     ?: if (isVod) VodGridPolicy.restore(list, saved?.key, saved?.position ?: 0).coerceAtLeast(0) else 0
                 Triple(list, app.repo.favorites(p.id).map { it.url }.toHashSet(), position)
             }
+            if (requestGeneration != listLoadGeneration) return@launch
             if (section != targetSection || playlist?.id != p.id) return@launch
             itemAdapter.submit(items, favs)
             if (section == Section.TV) liveGrid.submit(items, favs, at)
@@ -1064,10 +1097,11 @@ class MainActivity : RemoteActivity() {
     /** Reloads the Recordings list (statuses and sizes change in the background) while keeping the D-pad focus on the same row. */
     private fun refreshRecordingsInPlace() {
         if (section != Section.RECORDINGS) return
+        val requestGeneration = ++listLoadGeneration
         loadJob?.cancel()
         loadJob = lifecycleScope.launch {
             val rows = withContext(Dispatchers.IO) { recordingRows() }
-            if (section != Section.RECORDINGS) return@launch
+            if (requestGeneration != listLoadGeneration || section != Section.RECORDINGS) return@launch
             val focus = currentFocus
             val keepListFocus = focus?.let { isInside(it, itemsView) } == true
             val focused = focus?.let { itemsView.findContainingViewHolder(it)?.bindingAdapterPosition }
@@ -1099,6 +1133,11 @@ class MainActivity : RemoteActivity() {
 
     internal fun onRecordingFinished() {
         refreshRecordingsInPlace()
+    }
+
+    /** Public guide preference dialogs do not pause/resume Main or retune its stream. */
+    internal fun onGuidePreferencesChanged() {
+        if (app.isTrustedBuild && ::liveGrid.isInitialized) liveGrid.refreshSettings()
     }
 
     private fun emptyText() = when (section) {
@@ -1322,28 +1361,143 @@ class MainActivity : RemoteActivity() {
         }
     }
 
-    private fun maybeAutoRefresh(p: Playlist) {
-        val hours = app.settings.autoRefreshHours
-        if (hours <= 0 || autoRefreshStarted) return
-        val stale = { t: Long -> System.currentTimeMillis() - t > hours * 3_600_000L }
-        val needList = p.lastUpdated == 0L || stale(p.lastUpdated)
-        val needEpg = !needList && stale(app.settings.epgUpdated(p.id)) && app.repo.epgSource(p).isNotBlank()
-        if (!needList && !needEpg) return
-        autoRefreshStarted = true
+    private fun observeRefreshes() {
         lifecycleScope.launch {
-            val warning = withContext(Dispatchers.IO) {
-                try {
-                    val progress: (String) -> Unit = { msg -> runOnUiThread { status.text = msg } }
-                    if (needList) Refresher.refreshAll(p, progress) else Refresher.refreshEpg(p, progress)
-                } catch (e: Throwable) {
-                    "Playlist update failed: ${Nav.describeError(e)}"
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    app.refreshCoordinator.states.collect { states ->
+                        val update = states[playlist?.id] ?: return@collect
+                        if (update.busy) status.text = update.message
+                        else update.lastResult?.let { status.text = it.message }
+                    }
+                }
+                launch {
+                    app.refreshCoordinator.generations.collect { generations ->
+                        val id = playlist?.id ?: return@collect
+                        if (generations[id] == null) return@collect
+                        while (playlist?.id == id) {
+                            val generation = app.refreshCoordinator.generations.value[id] ?: break
+                            val previous = observedRefreshGenerations[id]
+                            if (previous == generation) break
+                            // Complete any ordinary navigation read before publishing committed rows.
+                            // A new navigation read during our own IO invalidates its publication token.
+                            while (loadJob?.isActive == true) loadJob?.join()
+                            val fresh = withContext(Dispatchers.IO) { app.repo.playlist(id) } ?: break
+                            if (playlist?.id != id) break
+                            playlist = fresh
+                            val applied = if (previous?.catalog != generation.catalog) refreshCatalogInPlace(fresh, generation)
+                                else if (section == Section.TV) refreshGuideInPlace(id, generation) else true
+                            // A discarded read is retried for the current visible selection. It must
+                            // not consume the generation and leave that selection stale indefinitely.
+                            if (applied) observedRefreshGenerations[id] = generation
+                        }
+                    }
                 }
             }
-            status.text = warning ?: "Playlist updated"
-            playlist = app.repo.playlist(p.id)
-            if (itemAdapter.itemCount == 0 || needList) showSection(section) else itemAdapter.notifyDataSetChanged()
         }
     }
+
+    /** Publish fresh rows without changing the live session, guide time or current navigation. */
+    private suspend fun refreshCatalogInPlace(p: Playlist, generation: RefreshGeneration): Boolean {
+        val targetSection = section
+        if (targetSection == Section.RECORDINGS || targetSection == Section.SEARCH) {
+            if (targetSection == Section.SEARCH) scheduleSearch(searchBox.text.toString(), 0)
+            return true
+        }
+        val grouped = targetSection in setOf(Section.TV, Section.MOVIES, Section.SHOWS)
+        val entry = if (grouped) groupEntries.getOrNull(selectedGroup) else null
+        if (grouped && entry == null) return true
+        val entryKey = entry?.let(::groupKey)
+        val token = catalogViewToken()
+        val keepLockedPlaceholder = entry?.special == null && entry != null &&
+            app.settings.isGroupLocked(entry.info.name) &&
+            (loadedGroup != selectedGroup || shownStamp != app.settings.restrictionStamp())
+        val kind = currentKind()
+        val data = withContext(Dispatchers.IO) {
+            val groups = app.repo.groups(p.id, kind).filter { !app.settings.isGroupHidden(it.name) }
+            // Refreshing data cannot authorize a locked category that is waiting for its PIN.
+            val rows = if (keepLockedPlaceholder) emptyList() else when (targetSection) {
+                Section.FAVORITES -> app.repo.favorites(p.id)
+                Section.HISTORY -> app.repo.history(p.id)
+                else -> when (entry?.special) {
+                    SPECIAL_FAV -> app.repo.favorites(p.id, kind)
+                    SPECIAL_HISTORY -> app.repo.history(p.id).filter { it.kind == kind || (kind == ItemKind.SERIES && it.kind == ItemKind.EPISODE) }
+                    SPECIAL_ALL -> app.repo.items(p.id, kind, null)
+                    else -> app.repo.items(p.id, kind, entry?.info?.name)
+                }
+            }.filter { !app.settings.isGroupHidden(it.group) }
+            val visible = if (kind == ItemKind.EPISODE && entry?.special == null) SeriesNames.groupEpisodes(rows) else rows
+            Triple(groups, visible, app.repo.favorites(p.id).mapTo(HashSet()) { it.url })
+        }
+        if (!token.mayPublishInto(catalogViewToken()) ||
+            app.refreshCoordinator.generations.value[p.id] != generation) return false
+        val inputGeneration = userInputGeneration
+        val layout = itemsView.layoutManager?.onSaveInstanceState()
+        val groupLayout = groupsView.layoutManager?.onSaveInstanceState()
+        val focusedView = currentFocus
+        val listFocused = focusedView?.let { isInside(it, itemsView) } == true
+        val focusedPosition = if (targetSection == Section.TV) liveGrid.focusedRow else
+            focusedView?.let { itemsView.findContainingViewHolder(it)?.bindingAdapterPosition } ?: RecyclerView.NO_POSITION
+        val focusedUrl = (if (targetSection == Section.TV) liveGrid.items else itemAdapter.items).getOrNull(focusedPosition)?.url
+        if (entry != null) {
+            val all = if (targetSection == Section.TV) "All channels" else if (kind == ItemKind.MOVIE) "All movies" else if (kind == ItemKind.SERIES) "All shows" else null
+            val entries = buildList {
+                add(GroupEntry(GroupInfo("Favorites", -1), SPECIAL_FAV))
+                if (kind != ItemKind.LIVE) add(GroupEntry(GroupInfo("History", -1), SPECIAL_HISTORY))
+                if (all != null) add(GroupEntry(GroupInfo(all, data.first.sumOf { it.count }), SPECIAL_ALL))
+                data.first.forEach { add(GroupEntry(it)) }
+            }
+            val next = entries.indexOfFirst { groupKey(it) == entryKey }
+            groupEntries = entries
+            if (next < 0) {
+                // The provider removed the selected group. Choose an existing public
+                // special category, then reread its rows instead of publishing old rows.
+                selectedGroup = entries.indexOfFirst { it.special != null }.coerceAtLeast(0)
+                loadedGroup = -1
+                listLoadGeneration++
+                groupAdapter.submit(entries.map { it.info }, selectedGroup, if (app.settings.hasPin()) app.settings.lockedGroups else emptySet())
+                return false
+            }
+            selectedGroup = next
+            loadedGroup = if (keepLockedPlaceholder) -1 else next
+            groupAdapter.submit(entries.map { it.info }, next, if (app.settings.hasPin()) app.settings.lockedGroups else emptySet())
+            groupsView.layoutManager?.onRestoreInstanceState(groupLayout)
+            if (keepLockedPlaceholder) {
+                showLockedGroup(next, entries[next])
+                return true
+            }
+        }
+        itemAdapter.submit(data.second, data.third)
+        if (targetSection == Section.TV) {
+            liveGrid.setFavorites(data.third)
+            liveGrid.reloadCommitted(data.second)
+        } else {
+            itemsView.layoutManager?.onRestoreInstanceState(layout)
+            if (vodMode()) showVodSelection(data.second.firstOrNull { it.url == focusedUrl })
+        }
+        if (data.second.isNotEmpty()) hideState() else showState(emptyText(), progress = false)
+        if (listFocused && focusedUrl != null) {
+            val position = data.second.indexOfFirst { it.url == focusedUrl }
+            if (position >= 0) itemsView.doOnNextLayout {
+                if (userInputGeneration == inputGeneration && section == targetSection && window.decorView.hasWindowFocus())
+                    itemsView.findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+            }
+        }
+        return true
+    }
+
+    private suspend fun refreshGuideInPlace(playlistId: Long, generation: RefreshGeneration): Boolean {
+        val token = catalogViewToken()
+        val rows = liveGrid.items
+        val fresh = withContext(Dispatchers.IO) { app.repo.itemsByUrls(playlistId, rows.map { it.url }) }
+        if (!token.mayPublishInto(catalogViewToken()) || section != Section.TV || liveGrid.items !== rows ||
+            app.refreshCoordinator.generations.value[playlistId] != generation) return false
+        liveGrid.reloadCommitted(rows.map { fresh[it.url] ?: it })
+        return true
+    }
+
+    private fun catalogViewToken() = CatalogViewToken(playlist?.id ?: 0L, section.name,
+        groupEntries.getOrNull(selectedGroup)?.let(::groupKey), listLoadGeneration, app.settings.restrictionStamp())
 
     // ---------------- Helpers ----------------
 
@@ -1382,6 +1536,16 @@ class MainActivity : RemoteActivity() {
         const val EXTRA_GUIDE_GROUP = "guide_group"
         const val EXTRA_GUIDE_CHANNEL = "guide_channel"
         const val SEARCH_HINT = "Type to search channel names, guide programmes, movies, and series."
-        private var autoRefreshStarted = false
     }
+}
+
+/** A cached read can only publish into the exact view and authorization state that requested it. */
+internal data class CatalogViewToken(
+    val playlistId: Long,
+    val section: String,
+    val group: String?,
+    val loadGeneration: Long,
+    val restrictionStamp: Int,
+) {
+    fun mayPublishInto(current: CatalogViewToken): Boolean = this == current
 }

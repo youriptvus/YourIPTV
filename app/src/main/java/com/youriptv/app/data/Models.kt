@@ -23,6 +23,15 @@ data class Playlist(
     val expiresAt: Long = 0,
     /** Xtream `server_info.timezone`; timeshift URLs use the server's local time. */
     val serverTimeZone: String = "",
+    /** Effective saved catalog interval; zero preserves an explicitly disabled schedule. */
+    val refreshHours: Int = 16,
+    val lastRefreshAttempt: Long = 0,
+    val lastRefreshError: String = "",
+    val epgLastUpdated: Long = 0,
+    val epgLastAttempt: Long = 0,
+    val epgLastError: String = "",
+    val catalogGeneration: Long = 0,
+    val epgGeneration: Long = 0,
 )
 
 data class MediaItem(
@@ -73,6 +82,8 @@ data class Recording(
     val bytes: Long = 0,
     val error: String = "",
 )
+
+data class GuideWindowResult(val programs: List<Program>, val dense: Boolean = false)
 
 data class Program(
     val channelId: String,

@@ -74,6 +74,9 @@
         <activity android:name=".ui.PlaylistsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.PlaylistEditActivity" android:screenOrientation="sensorLandscape" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.SettingsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
+        <activity android:name=".ui.ParentalControlsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
+        <service android:name=".refresh.RefreshJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
         <activity android:name=".ui.SeriesActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.MovieDetailsActivity" android:screenOrientation="sensorLandscape" android:exported="false" />
         <activity android:name=".ui.AboutActivity" android:screenOrientation="sensorLandscape" android:exported="false" />

@@ -33,6 +33,7 @@ class PlaylistEditActivity : RemoteActivity() {
     private val flow get() = app.settingsFlow
     private val editorRoute get() = SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.EDITOR, playlistId)
     private var inheritedSettings = false
+    private var visitPolicy = -1L
     private var passwordVisible = false
     /** Set once the user has chosen to keep a get.php link with embedded login as a plain M3U playlist. */
     private var keepAsM3u = false
@@ -66,7 +67,7 @@ class PlaylistEditActivity : RemoteActivity() {
         pass = findViewById(R.id.f_pass)
         showPassword = findViewById(R.id.btn_password_visibility)
         showPassword.setOnClickListener {
-            if (authorization.isAuthorized && !isFinishing && (!inheritedSettings || flow.isAuthorized(this))) setPasswordVisible(!passwordVisible)
+            if (authorization.isAuthorized && !isFinishing && flow.isCurrentPolicy(visitPolicy) && (!inheritedSettings || flow.isAuthorized(this))) setPasswordVisible(!passwordVisible)
         }
         setPasswordVisible(false)
         epg = findViewById(R.id.f_epg)
@@ -94,7 +95,7 @@ class PlaylistEditActivity : RemoteActivity() {
     }
 
     private fun loadAuthorizedPlaylist() {
-        if (!authorization.isAuthorized || isFinishing) return
+        if (!authorization.isAuthorized || isFinishing || !flow.isCurrentPolicy(visitPolicy)) return
         if (inheritedSettings && !flow.isAuthorized(this)) return
         val id = playlistId
         editing = if (id != 0L) app.repo.playlist(id) else null
@@ -120,19 +121,23 @@ class PlaylistEditActivity : RemoteActivity() {
     override fun onResume() {
         super.onResume()
         if (isFinishing) return
+        visitPolicy = flow.policyToken()
         val visit = authorization.beginVisit().also { editorVisit = it }
         inheritedSettings = flow.enter(this, editorRoute)
+        if (!inheritedSettings) inheritedSettings = flow.authorizeWithoutPin(this, editorRoute)
         val afterParental = afterParental@{
-            if (!authorization.allowParental(visit) || isFinishing) return@afterParental
+            if (!flow.isCurrentPolicy(visitPolicy) || !authorization.allowParental(visit) || isFinishing) return@afterParental
             if (inheritedSettings) {
                 if (!flow.isAuthorized(this)) return@afterParental
                 if (app.settings.isPlaylistsLocked()) flow.allowParental(this)
                 if (authorization.allowSettings(visit)) loadAuthorizedPlaylist()
             } else if (playlistId == 0L) loadAuthorizedPlaylist()
-            else Dialogs.requireSettingsPin(this, "edit playlist connection", onCancel = {
+            else Dialogs.requireSettingsPin(this, "edit playlist connection", canUse = {
+                authorization.isCurrent(visit) && flow.isCurrentPolicy(visitPolicy)
+            }, onCancel = {
                 if (authorization.isCurrent(visit)) finish()
             }) {
-                if (isFinishing || !authorization.allowSettings(visit)) return@requireSettingsPin
+                if (isFinishing || !flow.isCurrentPolicy(visitPolicy) || !authorization.allowSettings(visit)) return@requireSettingsPin
                 flow.authenticate(this, editorRoute)
                 if (app.settings.isPlaylistsLocked()) flow.allowParental(this)
                 inheritedSettings = true
@@ -164,6 +169,14 @@ class PlaylistEditActivity : RemoteActivity() {
             }
         }
         super.onPause()
+    }
+
+    internal fun onSettingsPolicyChanged() {
+        authorization.endVisit()
+        setPasswordVisible(false)
+        editor.visibility = View.INVISIBLE
+        listOf(name, url, user, pass, epg, ua).forEach { it.text.clear() }
+        finish()
     }
 
     override fun finish() {
@@ -199,7 +212,7 @@ class PlaylistEditActivity : RemoteActivity() {
     }
 
     private fun save() {
-        if (busy || isFinishing || !authorization.isAuthorized) return
+        if (busy || isFinishing || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy)) return
         if (inheritedSettings && !flow.isAuthorized(this)) return
         if (yourIptvMode) {
             val p = YourIptvLogin.newPlaylist(user.text.toString(), pass.text.toString())
@@ -226,7 +239,7 @@ class PlaylistEditActivity : RemoteActivity() {
                     "Use as Xtream Codes (recommended: series, account status, catch-up)",
                     "Keep as M3U playlist",
                 )) { i ->
-                    if (!authorization.isCurrent(visit) || !authorization.isAuthorized) return@choose
+                    if (!authorization.isCurrent(visit) || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy)) return@choose
                     if (i == 0) setType(SourceType.XTREAM) else keepAsM3u = true
                     save()
                 }
@@ -253,7 +266,7 @@ class PlaylistEditActivity : RemoteActivity() {
     }
 
     private fun savePlaylist(p: Playlist) {
-        if (busy || isFinishing || !authorization.isAuthorized) return
+        if (busy || isFinishing || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy)) return
         if (inheritedSettings && !flow.isAuthorized(this)) return
         val base = editing
         val sourceChanged = base == null || base.type != p.type || base.url != p.url || base.username != p.username || base.password != p.password
@@ -273,12 +286,14 @@ class PlaylistEditActivity : RemoteActivity() {
         val visit = editorVisit
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { Refresher.refreshAll(saved) { msg -> runOnUiThread { status.text = msg } } }
+                runCatching { Refresher.refreshAll(saved) { msg -> runOnUiThread {
+                    if (authorization.isCurrent(visit) && authorization.isAuthorized && flow.isCurrentPolicy(visitPolicy)) status.text = msg
+                } } }
             }
             busy = false
-            if (!authorization.isCurrent(visit) || !authorization.isAuthorized ||
+            if (!authorization.isCurrent(visit) || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy) ||
                 (inheritedSettings && !flow.isAuthorized(this@PlaylistEditActivity))) {
-                if (authorization.isAuthorized && (!inheritedSettings || flow.isAuthorized(this@PlaylistEditActivity))) btnSave.isEnabled = true
+                if (authorization.isAuthorized && flow.isCurrentPolicy(visitPolicy) && (!inheritedSettings || flow.isAuthorized(this@PlaylistEditActivity))) btnSave.isEnabled = true
                 return@launch
             }
             btnSave.isEnabled = true
@@ -297,7 +312,7 @@ class PlaylistEditActivity : RemoteActivity() {
 
     companion object {
         const val EXTRA_ID = "playlist_id"
-        const val SETTINGS_LOCK_MESSAGE = "Editing or deleting uses the current Settings unlock, or asks for the Settings PIN."
+        const val SETTINGS_LOCK_MESSAGE = "When Settings lock is on, editing or deleting uses the current unlock or asks for the Settings PIN."
 
         fun editIntent(context: Context, id: Long): Intent =
             Intent(context, PlaylistEditActivity::class.java).putExtra(EXTRA_ID, id)

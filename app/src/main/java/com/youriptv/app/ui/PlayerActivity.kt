@@ -22,6 +22,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Format as ExoFormat
@@ -45,6 +47,8 @@ import com.youriptv.app.data.Catchup
 import com.youriptv.app.data.StreamDiagnosis
 import com.youriptv.app.data.ItemKind
 import com.youriptv.app.data.MediaItem
+import com.youriptv.app.refresh.RefreshGeneration
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -83,6 +87,7 @@ class PlayerActivity : RemoteActivity() {
     private val digits = StringBuilder()
 
     private val current: MediaItem? get() = queue.getOrNull(index)
+    private val observedRefreshGenerations = HashMap<Long, RefreshGeneration>()
     private val isLive get() = current?.kind == ItemKind.LIVE
 
     private val hideBanner = Runnable { banner.visibility = View.GONE }
@@ -140,6 +145,65 @@ class PlayerActivity : RemoteActivity() {
         active?.get()?.takeIf { it !== this }?.retire()
         active = java.lang.ref.WeakReference(this)
         loadIntent(intent)
+        observeCommittedRefreshes()
+    }
+
+    private fun observeCommittedRefreshes() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                app.refreshCoordinator.generations.collect { generations ->
+                    var item = current ?: return@collect
+                    if (item.isLocal || item.isCatchup) return@collect
+                    val generation = generations[item.playlistId] ?: return@collect
+                    val previous = observedRefreshGenerations[item.playlistId]
+                    if (previous == generation) return@collect
+                    val playlistId = item.playlistId
+                  while (true) {
+                    val oldQueue = queue
+                    val oldPreviousUrl = oldQueue.getOrNull(previousIndex)?.url
+                    val metadata = withContext(Dispatchers.IO) {
+                        app.repo.itemsByUrls(item.playlistId, oldQueue.map { it.url })
+                    }
+                    val playing = current ?: return@collect
+                    if (playing.playlistId != playlistId || playing.isLocal || playing.isCatchup) return@collect
+                    if (queue !== oldQueue || playing.url != item.url) {
+                        item = playing
+                        continue
+                    }
+                    observedRefreshGenerations[playlistId] = generation
+                    val updated = metadata[item.url] ?: item
+                    queue = oldQueue.mapNotNull {
+                        metadata[it.url] ?: it.takeIf { old -> old.url == item.url || old.kind != ItemKind.LIVE }
+                    }
+                    index = queue.indexOfFirst { it.url == item.url }.coerceAtLeast(0)
+                    previousIndex = queue.indexOfFirst { it.url == oldPreviousUrl }
+                    refreshAuthorization()
+                    if (app.settings.isGroupHidden(updated.group) ||
+                        (app.settings.isGroupLocked(updated.group) && updated.group !in unlockedGroups)) {
+                        stopForLock(updated)
+                        banner.visibility = View.GONE
+                        hideOverlay()
+                        return@collect
+                    }
+                    if (sharedPlayer && updated.kind == ItemKind.LIVE)
+                        app.livePlayback.noteFullscreenItem(updated, queue, unlockedGroups, authorizedStamp)
+                    if (overlay.visibility == View.VISIBLE) {
+                        val layout = overlayList.layoutManager?.onSaveInstanceState()
+                        val focused = currentFocus?.let { overlayList.findContainingViewHolder(it)?.bindingAdapterPosition }
+                        val focusedUrl = oldQueue.getOrNull(focused ?: -1)?.url
+                        val favorites = withContext(Dispatchers.IO) { app.repo.favorites(item.playlistId).mapTo(HashSet()) { it.url } }
+                        if (current?.url != item.url) return@collect
+                        overlayAdapter.submit(queue, favorites)
+                        overlayList.layoutManager?.onRestoreInstanceState(layout)
+                        val at = queue.indexOfFirst { it.url == focusedUrl }
+                        if (at >= 0) overlayList.post { overlayList.findViewHolderForAdapterPosition(at)?.itemView?.requestFocus() }
+                    }
+                    if (banner.visibility == View.VISIBLE) showBanner()
+                    break
+                  }
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -258,7 +322,7 @@ class PlayerActivity : RemoteActivity() {
         if (queue.isEmpty()) return
         if (hasStartedOnce && isLive) adoptLiveSession()
         hasStartedOnce = true
-        val item = current ?: return
+        val item = refreshCurrentCatalogItem() ?: return
         val reuse = if (item.kind == ItemKind.LIVE && !item.isCatchup) attachLivePlayer() else {
             app.livePlayback.stop()
             initPlayer()
@@ -439,8 +503,26 @@ class PlayerActivity : RemoteActivity() {
         }
     }
 
+    /** A stale zapping list must never authorize an item under its previous category. */
+    private fun refreshCurrentCatalogItem(): MediaItem? {
+        val old = current ?: return null
+        if (old.isLocal || old.isCatchup) return old
+        val fresh = app.repo.itemByUrl(old.playlistId, old.url)
+        // Xtream episode details are intentionally not stored as catalog item rows.
+        if (fresh == null && old.kind == ItemKind.EPISODE) return old
+        if (fresh == null || app.settings.isGroupHidden(fresh.group)) {
+            player?.stop()
+            playingUrl = ""
+            showMessage("This item is no longer available in this list.", error = true)
+            return null
+        }
+        if (fresh != old) queue = queue.mapIndexed { at, row -> if (at == index) fresh else row }
+        return fresh
+    }
+
     private fun startItem() {
-        val item = current ?: return
+        val item = refreshCurrentCatalogItem() ?: return
+        refreshAuthorization()
         if (!allowedOrPrompt(item)) return
         if (item.kind == ItemKind.LIVE && Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
             showMessage("This provider's only connection is being used by a recording.\n\nOK: retry after recording   BACK: exit", error = true)
@@ -460,6 +542,9 @@ class PlayerActivity : RemoteActivity() {
         lifecycleScope.launch {
             val resumeAt = if (item.kind == ItemKind.LIVE) 0L else withContext(Dispatchers.IO) { app.repo.resumePosition(item) }
             if (player !== p || current != item) return@launch
+            if (refreshCurrentCatalogItem() != item) { startItem(); return@launch }
+            refreshAuthorization()
+            if (!allowedOrPrompt(item)) return@launch
             p.setMediaItem(PlaybackFactory.mediaItem(item), resumeAt)
             p.prepare()
             p.playWhenReady = true

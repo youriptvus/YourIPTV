@@ -148,7 +148,7 @@ class PlaylistEditingTest {
         assertTrue(shortcut.contains("if (p == null)"))
         assertTrue(shortcut.contains("savePlaylist(p)"))
         val persist = editor.substringAfter("private fun savePlaylist(").substringBefore("companion object")
-        assertTrue(persist.contains("if (busy || isFinishing || !authorization.isAuthorized) return"))
+        assertTrue(persist.contains("if (busy || isFinishing || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy)) return"))
         assertTrue(persist.contains("val keepPrevious = previousActive != id && app.repo.playlist(previousActive) != null"))
         assertTrue(persist.contains("if (!keepPrevious) app.settings.activePlaylistId = id"))
         assertTrue(persist.contains("Refresher.refreshAll(saved)"))

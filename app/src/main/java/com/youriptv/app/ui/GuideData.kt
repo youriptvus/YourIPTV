@@ -4,22 +4,83 @@ import com.youriptv.app.YourIptvApp
 import com.youriptv.app.data.Catchup
 import com.youriptv.app.data.MediaItem
 import com.youriptv.app.data.Program
+import com.youriptv.app.data.GuideWindowResult
 
-class GuideProgramCache(private val app: YourIptvApp, private val pastMs: () -> Long) {
-    private val cache = HashMap<Pair<Long, String>, List<Program>>()
+/** Small LRU of the visible timeline plus adjacent programmes, never a playlist's whole retained history. */
+class GuideProgramCache(
+    private val load: (MediaItem, Long, Long) -> GuideWindowResult,
+    private val maxChannels: Int = 48,
+    private val maxProgrammes: Int = 4096,
+    private val maxCharacters: Long = 2_000_000,
+) {
+    constructor(app: YourIptvApp) : this(shiftedLoader(
+        { channel, from, to -> app.repo.guidePrograms(channel.playlistId, channel.tvgId, from, to) },
+        { app.settings.epgShiftHours * 3_600_000L },
+    ))
+    private data class Entry(val from: Long, val to: Long, val result: GuideWindowResult, val characters: Long)
+    private val cache = LinkedHashMap<Pair<Long, String>, Entry>(16, 0.75f, true)
+    private var programmeCount = 0
+    private var characterCount = 0L
 
-    fun clear() = cache.clear()
+    fun clear() { cache.clear(); programmeCount = 0; characterCount = 0 }
 
-    fun programsFor(channel: MediaItem): List<Program> {
-        if (channel.tvgId.isBlank()) return emptyList()
-        return cache.getOrPut(channel.playlistId to channel.tvgId) {
-            val now = System.currentTimeMillis()
-            val shift = app.settings.epgShiftHours * 3_600_000L
-            app.repo.programs(
-                channel.playlistId, channel.tvgId, now - pastMs() - shift,
-                now + app.settings.epgFutureDays * 86_400_000L - shift,
-            ).map { it.copy(start = it.start + shift, end = it.end + shift) }
+    fun programsFor(channel: MediaItem, visibleFrom: Long, visibleTo: Long): List<Program> = windowFor(channel, visibleFrom, visibleTo).programs
+
+    fun windowFor(channel: MediaItem, visibleFrom: Long, visibleTo: Long): GuideWindowResult {
+        if (channel.tvgId.isBlank() || visibleTo <= visibleFrom) return GuideWindowResult(emptyList())
+        val key = channel.playlistId to channel.tvgId
+        cache[key]?.let { if (visibleFrom >= it.from && visibleTo <= it.to) return it.result }
+        val bucket = GuideNavigation.STEP_MS
+        val prefetch = 2 * 3_600_000L
+        val from = bucketStart(visibleFrom, bucket) - prefetch
+        val to = bucketStart(visibleTo - 1, bucket) + bucket + prefetch
+        val loaded = load(channel, from, to)
+        val programmes = loaded.programs.filter { it.end > from && it.start < to }
+        val result = loaded.copy(programs = programmes)
+        cache.remove(key)?.let { programmeCount -= it.result.programs.size; characterCount -= it.characters }
+        val characters = programmes.sumOf { it.title.length.toLong() + it.description.length }
+        // SQL already bounds compact rows/text. The LRU additionally bounds their aggregate retained weight.
+        if (maxChannels > 0 && programmes.size <= maxProgrammes && characters <= maxCharacters) {
+            cache[key] = Entry(from, to, result, characters)
+            programmeCount += programmes.size
+            characterCount += characters
+            val iterator = cache.entries.iterator()
+            while (cache.size > maxChannels || programmeCount > maxProgrammes || characterCount > maxCharacters) {
+                val old = iterator.next().value
+                programmeCount -= old.result.programs.size; characterCount -= old.characters
+                iterator.remove()
+            }
         }
+        return result
+    }
+
+    companion object {
+        internal fun shiftedLoader(
+            raw: (MediaItem, Long, Long) -> GuideWindowResult, shiftMs: () -> Long,
+        ): (MediaItem, Long, Long) -> GuideWindowResult = { channel, from, to ->
+            val shift = shiftMs()
+            val result = raw(channel, from - shift, to - shift)
+            result.copy(programs = result.programs.map { it.copy(start = it.start + shift, end = it.end + shift) })
+        }
+
+        private fun bucketStart(value: Long, bucket: Long): Long {
+            val quotient = value / bucket
+            return (if (value < 0 && value % bucket != 0L) quotient - 1 else quotient) * bucket
+        }
+    }
+}
+
+/** Captures only navigation state. Reloading guide data never requests playback or resets time. */
+internal data class GuideContinuity(
+    val focusedKey: Pair<Long, String>?, val focusedRow: Int,
+    val firstKey: Pair<Long, String>?, val firstRow: Int, val firstOffset: Int,
+    val focusTime: Long, val windowStart: Long,
+) {
+    fun focusedIn(items: List<MediaItem>) = find(items, focusedKey, focusedRow)
+    fun firstIn(items: List<MediaItem>) = find(items, firstKey, firstRow)
+    private fun find(items: List<MediaItem>, key: Pair<Long, String>?, fallback: Int): Int {
+        val found = items.indexOfFirst { key != null && it.playlistId == key.first && it.url == key.second }
+        return if (found >= 0) found else fallback.coerceIn(0, (items.size - 1).coerceAtLeast(0))
     }
 }
 

@@ -16,6 +16,27 @@ internal class SettingsFlowAuthorization(private val newTicket: () -> String = {
     private var current: Any? = null
     private var handoff: Handoff? = null
     private var parentalPermission = false
+    private var settingsLocked = true
+    private var policyGeneration = 0L
+
+    /** An explicit policy change invalidates all old prompts, visits and handoff tickets. */
+    fun synchronizePolicy(locked: Boolean): Boolean {
+        if (settingsLocked == locked) return false
+        settingsLocked = locked
+        policyGeneration++
+        revoke()
+        return true
+    }
+
+    fun policyToken() = policyGeneration
+    fun isCurrentPolicy(token: Long) = token == policyGeneration
+
+    /** Only the explicit persisted off policy can start a visit without a Settings PIN. */
+    fun authorizeWithoutPin(owner: Any, route: Route): Boolean {
+        if (settingsLocked) return false
+        authenticate(owner, route)
+        return true
+    }
 
     fun authenticate(owner: Any, route: Route) {
         revoke()

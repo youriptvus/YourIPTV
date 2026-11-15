@@ -21,7 +21,7 @@ class BackupManager(private val context: Context, private val settings: Settings
             created = now, appVersion = version, settings = settings.backupValues(),
             parental = settings.parentalRestrictions,
             playlists = repo.playlists().map { p ->
-                BackupPlaylist(p.id, p.name, p.type, p.url, p.username, p.password, p.epgUrl, p.userAgent, repo.favoriteUrls(p.id))
+                BackupPlaylist(p.id, p.name, p.type, p.url, p.username, p.password, p.epgUrl, p.userAgent, repo.favoriteUrls(p.id), p.refreshHours)
             },
             activeRef = settings.activePlaylistId,
         )
@@ -57,14 +57,20 @@ class BackupManager(private val context: Context, private val settings: Settings
         val plan = plan(b)
         val ids = HashMap(plan.existing)
         val added = plan.toAdd.map { p ->
-            val pl = Playlist(name = p.name, type = p.type, url = p.url, username = p.username, password = p.password, epgUrl = p.epgUrl, userAgent = p.userAgent)
+            val legacy = (b.settings["auto_refresh_h"] as? Int)
+            val pl = Playlist(name = p.name, type = p.type, url = p.url, username = p.username, password = p.password,
+                epgUrl = p.epgUrl, userAgent = p.userAgent, refreshHours = RefreshPolicy.migratedHours(p.refreshHours ?: legacy))
             val id = repo.savePlaylist(pl)
             if (id <= 0) throw BackupException("Could not add playlist \"${p.name}\".")
             ids[p.ref] = id
             pl.copy(id = id)
         }
         var favs = 0
-        for (p in b.playlists) ids[p.ref]?.let { favs += repo.addFavoriteUrls(it, p.favorites) }
+        for (p in b.playlists) ids[p.ref]?.let { id ->
+            favs += repo.addFavoriteUrls(id, p.favorites)
+            // An old backup has only the legacy global interval; newer files preserve each playlist.
+            (p.refreshHours ?: (b.settings["auto_refresh_h"] as? Int))?.let { repo.setRefreshHours(id, RefreshPolicy.migratedHours(it)) }
+        }
 
         val values = HashMap(b.settings)
         val active = ids[b.activeRef]

@@ -23,19 +23,22 @@ object M3uParser {
 
     private val attrRegex = Regex("""([A-Za-z0-9_-]+)="([^"]*)"""")
 
-    fun parse(input: InputStream, onHeader: (Header) -> Unit = {}, onEntry: (Entry) -> Unit): Int {
+    fun parse(input: InputStream, onHeader: (Header) -> Unit = {}, strict: Boolean = false,
+              isCancelled: () -> Boolean = { false }, onEntry: (Entry) -> Unit): Int {
         val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8), 64 * 1024)
-        return parse(reader, onHeader, onEntry)
+        return parse(reader, onHeader, strict, isCancelled, onEntry)
     }
 
-    fun parse(reader: BufferedReader, onHeader: (Header) -> Unit = {}, onEntry: (Entry) -> Unit): Int {
+    fun parse(reader: BufferedReader, onHeader: (Header) -> Unit = {}, strict: Boolean = false,
+              isCancelled: () -> Boolean = { false }, onEntry: (Entry) -> Unit): Int {
         var count = 0
         var pendingInfo: String? = null
         var pendingGroup: String? = null
         var pendingUa = ""
         var first = true
         while (true) {
-            val raw = reader.readLine() ?: break
+            RefreshPolicy.checkCancelled(isCancelled)
+            val raw = (if (strict) boundedLine(reader, isCancelled) else reader.readLine()) ?: break
             val line = if (first) raw.removePrefix("\uFEFF").trim() else raw.trim()
             first = false
             if (line.isEmpty()) continue
@@ -46,6 +49,7 @@ object M3uParser {
                     onHeader(Header(epg.split(',').firstOrNull()?.trim().orEmpty(), attrs))
                 }
                 line.startsWith("#EXTINF") -> {
+                    if (strict && pendingInfo != null) throw InvalidRefreshData("The playlist contains an incomplete entry.")
                     pendingInfo = line
                     pendingGroup = null
                     pendingUa = ""
@@ -56,6 +60,8 @@ object M3uParser {
                 else -> {
                     val info = pendingInfo
                     if (info != null) {
+                        if (strict && !runCatching { java.net.URI(line).isAbsolute }.getOrDefault(false))
+                            throw InvalidRefreshData("The playlist contains an invalid stream address.")
                         onEntry(buildEntry(info, line, pendingGroup, pendingUa))
                         count++
                     }
@@ -65,7 +71,25 @@ object M3uParser {
                 }
             }
         }
+        if (strict && pendingInfo != null) throw InvalidRefreshData("The playlist download is incomplete.")
         return count
+    }
+
+    private fun boundedLine(reader: BufferedReader, isCancelled: () -> Boolean): String? {
+        val line = StringBuilder()
+        while (true) {
+            if (line.length % 4096 == 0) RefreshPolicy.checkCancelled(isCancelled)
+            val next = reader.read()
+            if (next < 0) return line.takeIf { it.isNotEmpty() }?.toString()
+            if (next == '\n'.code) return line.toString()
+            if (next == '\r'.code) {
+                reader.mark(1)
+                if (reader.read() != '\n'.code) reader.reset()
+                return line.toString()
+            }
+            if (line.length >= 1024 * 1024) throw InvalidRefreshData("A playlist entry is too large.")
+            line.append(next.toChar())
+        }
     }
 
     fun parseAttributes(line: String): Map<String, String> {

@@ -56,7 +56,7 @@ class PlaylistManagementNavigationTest {
         assertTrue(manager.contains("addAction(\"Delete playlist\") { chooseDeletePlaylist() }"))
         assertTrue(manager.contains("4 -> requestDelete(p)"))
         assertTrue(manager.contains("choices.getOrNull(index)?.let { requestDelete(it) }"))
-        assertTrue(manager.contains("Dialogs.requireSettingsPin(this, \"delete playlist\")"))
+        assertTrue(manager.contains("Dialogs.requireSettingsPin(this, \"delete playlist\", canUse = { hasAuthorization(token) && !busy })"))
         assertTrue(manager.contains("flow.isAuthorized(this, settingsToken)"))
         assertTrue(manager.contains("PlaylistDeletion.mayDelete(selected, current, busy, authorized)"))
         assertTrue(manager.contains("app.repo.deletePlaylist(selected.id)"))

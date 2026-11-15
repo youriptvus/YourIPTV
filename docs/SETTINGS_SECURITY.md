@@ -1,12 +1,52 @@
 # Settings security
 
-YourIPTV 1.0.1 / versionCode 32 makes Settings protection permanent. This policy applies to new
-installations and normal in-place upgrades. It protects configuration; watching content and
-receiving normal player updates do not require a Settings PIN. All player features remain free.
-Version 1.0.5 / code 36 keeps one authorized Settings visit across its playlist manager and
-editor. It does not turn the lock off or create a persistent/global unlock.
+## Current 1.0.7 policy — release candidate
 
-## Migration from earlier versions
+Version 1.0.7 supersedes the always-on Settings policy from 1.0.1–1.0.5 with an explicit
+**Settings lock** switch. It defaults to **On** on new installations and migration from earlier
+releases. An existing or absent custom Settings PIN never determines the switch. Removing a
+custom PIN leaves the switch unchanged.
+
+Find the switch in the **Settings Lock** category of full Settings.
+
+Only a successful **master PIN** check can turn Settings lock **Off**, turn it back **On**, or
+add, change or remove a custom Settings PIN. A custom Settings PIN can open configuration while
+the lock is On, but cannot perform those management operations. The master remains fixed;
+master/custom failed-attempt counters and lockouts are retained. Parental PINs, parental
+counters, content restrictions and the optional parental playlist guard remain independent.
+The Settings master never overrides a parental check. All player features remain free.
+
+| Local Settings lock | Main menu and configuration access |
+|---|---|
+| **On** (default) | Public **Settings** contains **Playlist Settings** and **Parental Controls**. A separate **Unlock Settings** entry opens all configuration after an accepted master/custom Settings PIN. |
+| **Off**, explicitly set by the master | Main shows one **Settings** entry with every settings category, including Playlist Settings, Parental Controls and TV Guide / EPG. A new visit does not ask for a Settings PIN. Independent parental checks still apply. |
+
+The switch is stored only on this installation. It is never exported, imported or accepted from
+an Intent, and backup files cannot turn it On or Off. Restoring an old backup does not infer a
+switch value from a custom PIN or legacy setting. Normal updates retain an explicit local choice.
+
+Changing the switch revokes existing settings visits, navigation handoffs and pending callbacks.
+Every new visit follows the current policy: an accepted Settings PIN while On, or an explicit
+local Off choice. Internal manager/editor navigation still uses validated in-memory visits;
+leaving or backgrounding ends a visit. Stale visits and callbacks cannot continue under a changed
+policy. Guide dialogs check the current visit before showing or changing preferences, dismiss
+when the settings activity pauses, and cannot restore authorization from saved state.
+
+**Settings → Playlist Settings** provides Update Playlist, Update EPG, progress and update status
+without either PIN in both modes. It does not grant configuration access while the lock is On.
+Parental Controls retains its own entry and per-action checks. About remains public.
+
+This is candidate policy, pending fresh APK-bound tests. The historical sections below record
+the earlier always-on behavior and its verification; they do not override this current policy.
+
+## Historical policy in 1.0.1–1.0.5
+
+YourIPTV 1.0.1 / versionCode 32 made Settings protection permanent for new installations and
+normal in-place upgrades. Watching content and receiving player updates did not require a
+Settings PIN. Version 1.0.5 / code 36 kept one authorized Settings visit across its playlist
+manager and editor without turning off that lock or creating a persistent/global unlock.
+
+## Historical migration to 1.0.1
 
 | Previous state | Behavior after upgrading |
 |---|---|
@@ -30,7 +70,7 @@ Backups do not provide a way to turn off this Settings policy or export a custom
 in-place app updates retain local settings and existing custom PINs. Never uninstall or clear app
 data as part of a normal upgrade; doing so removes playlists and other local data.
 
-## Scope of an authorized visit
+## Scope of an authorized visit in 1.0.5
 
 Either accepted Settings PIN can open protected Settings for one visit. Existing playlist
 connection details require Settings authorization before they are displayed and again when the
@@ -93,7 +133,7 @@ Keep provider credentials private and use independent parental protection where 
 The Settings master is not accepted as an override for parental checks. No billing, feature
 paywall, rebranding integration or playback-buffer change is introduced by this release.
 
-## Release and verification status
+## Historical 1.0.5 release and verification status
 
 The always-on master/custom Settings policy originated in 1.0.1. The approved 1.0.5 change extends
 one protected visit only across validated playlist-management navigation. Fresh **324 tests in
@@ -111,3 +151,23 @@ GitHub publication is performed manually by the owner. The last recorded website
 1.0.2/code 33; no server state was queried for 1.0.5. This work includes only authorized local
 preparation and TV checks; it includes no uploads/deployment/publication, key changes, rebranding
 or buffer implementation.
+
+## Customer and protected navigation in 1.0.7
+
+With Settings lock **On**, public Settings contains only **Playlist Settings** and **Parental
+Controls**. Full configuration requires **Unlock Settings** and an accepted Settings PIN. Guide
+preferences are at **Unlock Settings → TV Guide / EPG → Open EPG Settings**; source URLs and
+credentials remain in the authorized playlist editor.
+
+With Settings lock explicitly **Off**, **Settings** opens the combined category list, including
+**TV Guide / EPG → Open EPG Settings** and **Playlists**, without a Settings PIN. The Settings Lock
+category still requires the master PIN for changing the switch in either direction or managing
+custom PINs. Opening configuration while Off never grants parental authorization.
+
+In either mode, Playlist Settings keeps PIN-free refresh/status, Parental Controls uses its
+independent parental PIN and per-action guards, and About remains public. A paused guide dialog
+is dismissed and its visit ends. Re-entry uses a Settings PIN only if the current lock is On.
+
+## Final scoped local verification for 1.0.7
+
+Fresh final validation: **394 tests / 55 classes**, **142 isolated native SQLite/policy checks**, and **43 offline archived-updater checks** passed. The final signed APK retains the official certificate and exact existing permissions. On 192.168.1.150, an in-place ADB retest preserved data and pulled installed bytes matched. Scoped menu/logo, public About/parental, protected EPG wording and 7/7 picker, background relock, master-authorized Off/combined/On and real provider guide-refresh checks passed. The Settings lock was restored **On**. Sound is assumed. No fresh phone, actual automatic download/install/success-popup, seven elapsed days of retention or uninterrupted long-duration playback pass is claimed. Publication remains with the owner.

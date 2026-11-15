@@ -1,5 +1,99 @@
 # Release notes
 
+## 1.0.7 (version code 38) — signed candidate; local verification passed
+
+- Refresh the guide in the background on a fresh app start while the cached guide stays available.
+- Refresh playlists every 16 hours by default; keep explicitly saved refresh intervals.
+- Use Update Playlist and Update EPG under Settings → Playlist Settings without entering either PIN.
+- Keep valid playlist and guide data when a download fails, and show real update status and successful times.
+- Update the visible guide automatically while keeping the current channel, guide position and playback.
+- Keep Settings lock on by default; only the master PIN can turn it off or back on and manage custom PINs.
+- Combine all settings under Settings when its lock is off; keep parental controls independent.
+- Keep 7 days of past guide data and up to 7 days ahead by default, with adjustable coverage and existing parental PIN policies.
+- Merge valid partial guide updates with useful cached listings and browse the full selected time window.
+- Show the bundled official logo in the main menu header on TV and portrait screens; use a smaller TV banner with space before Search and hide the small playlist caption beneath it.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+This candidate starts from clean 1.0.5/code 36. The separate unfinished 1.0.6 work remains
+paused and is not included. Package `com.youriptv.app`, branding, the official signing identity,
+provider connection limits and free player features remain the release requirements.
+
+Fresh foreground process launches request EPG updates after the cached interface loads.
+Returning from the background or recreating a screen does not create another startup download.
+Requests from startup, customer controls, protected configuration and the Android background
+job share one coordinator. Simultaneous requests join existing work; matching EPG sources share
+a download. Failed work keeps cached data and uses bounded retry/backoff.
+
+Refresh intervals and last successful catalog updates are stored separately for each playlist.
+New playlists and existing playlists with no saved interval use 16 hours. An explicitly saved
+legacy 24-hour, custom or disabled interval is preserved. Manual success advances the same
+successful timestamp used for eligibility. Failed attempts do not advance it. Background work
+uses Android's network-constrained JobScheduler; sleep, power restrictions, force-stop and
+network availability can delay execution. Opening the app checks all playlists for overdue work.
+
+Database schema 7 includes refresh state, committed data generations and guide-source provenance.
+Catalog/guide imports are streamed through private staging before publication. Invalid, empty,
+truncated, canceled or stale imports retain the prior committed data. Successful publication
+updates rows, associated metadata, timestamps and generations together. Stable stream URLs retain favorites/history and
+inferred guide IDs. Backups preserve per-playlist intervals and accept older backup files.
+
+Settings lock defaults to **On** for new installations and migration from earlier releases.
+Only a successful **master PIN** check can turn it **Off**, turn it back **On**, or add, change
+or remove a custom Settings PIN. A custom PIN can open locked Settings but cannot change this
+policy. An absent custom PIN never means Off, and removing one leaves the switch unchanged.
+The master remains fixed, and existing Settings counters and lockouts are retained.
+
+With the lock On, public Settings contains only Playlist Settings and Parental Controls; a
+separate Unlock Settings entry opens full configuration after the existing Settings PIN check.
+With it explicitly Off, Main has one Settings entry combining every settings category, including
+Playlist Settings, Parental Controls and TV Guide / EPG, without a Settings PIN. Playlist Settings
+provides PIN-free Update Playlist, Update EPG, progress and update status in both modes.
+
+Guide preferences are under **TV Guide / EPG → Open EPG Settings** in full Settings: enter via
+**Unlock Settings** with an accepted master/custom Settings PIN while the lock is On, or via
+**Settings** without a Settings PIN when explicitly Off. The dialog provides past retention
+from 0 to 14 days, future coverage from 1 to 14 days, the existing guide time offset, effective
+update interval, enabled fresh-start update information, status and Update EPG.
+Program descriptions are stored when supplied. Defaults are 7 past and 7 future days. A one-time
+migration raises shorter saved windows to 7 days and preserves longer ones; later choices remain
+saved. Existing custom past-hour values are displayed accurately. Provider catch-up can require
+a longer supported past window. Coverage depends on the supplied feed; this app cannot create
+missing provider data or recover history already deleted.
+
+Valid partial EPG updates merge with same-source cached entries inside the chosen window.
+New overlapping schedules replace outdated entries, and expired entries are pruned atomically.
+Guide queries cover the visible time window without the former oldest-500 truncation, using
+bounded program caching. An omitted provider cancellation can remain until corrected or expired.
+
+The switch is local to this installation: it is never exported, imported or accepted from an
+Intent, and legacy backup settings cannot change it. Changing the switch revokes existing
+visits, navigation handoffs and pending callbacks. Guide dialogs check the current policy and
+visit before showing or changing preferences; pausing the settings activity dismisses them and
+ends the visit. Re-entry requires a Settings PIN only while the lock is On. Source URLs and
+provider/credential edits remain in the authorized playlist editor under Playlists in full
+Settings. Parental Controls retains its independent PIN and per-action checks in both modes.
+Parental PINs, stored restrictions and reset policy are unchanged; About stays public.
+
+If the guide storage window changes during an import, its outdated publication is rejected and
+the previous committed guide is kept. A later manual or scheduled retry uses the current window.
+
+Initial 1.0.7 validation: **394 tests / 55 classes**, **142 isolated native SQLite/policy checks**, and **43 offline archived-updater checks** passed. The final signed APK retains the official certificate and exact existing permissions. On 192.168.1.150, an in-place ADB retest preserved data and pulled installed bytes matched. Scoped menu/logo, public About/parental, protected EPG wording and 7/7 picker, background relock, master-authorized Off/combined/On and real provider guide-refresh checks passed. The Settings lock was restored **On**. Sound is assumed. No fresh phone, actual automatic download/install/success-popup, seven elapsed days of retention or uninterrupted long-duration playback pass is claimed. Publication remains with the owner.
+
+The final TV-caption cleanup reran all **394 tests / 55 classes** and **43 offline archived-updater checks**. The exact signed revision was installed without clearing data; three fresh TV checks cover the visible logo without its caption, public Settings, the protected PIN prompt and public About. The earlier 142 native checks and 13 broader TV checks are prior-candidate evidence, reused with byte-identical executable DEX and all 22 native fixture data-source files unchanged; they were not rerun for this layout-only change.
+
+Prepare one complete code 38 APK for direct compatible upgrades from code 36 and older official
+installations; no intermediate release is required. Metadata uses `previousVersionCode: 36`
+only for optional/required prompts. The compiled permission set must also satisfy installed
+updaters' package checks; metadata alone cannot repair incompatible permission policies,
+retired update addresses or missing installer support. The final offline direct-upgrade audit passed.
+Background jobs are non-persisted to retain the existing requested-permission set and preserve
+installed updater compatibility. No boot permission is added. The first foreground opening after
+reboot checks overdue playlists and reconciles scheduling; cached data and successful timestamps
+remain stored. Exact-APK identity, permissions and offline compatibility checks passed; owner publication is pending.
+No upload, deployment, GitHub call/publication, key change, companion/rebranding or buffer work
+is included.
+
 ## 1.0.5 (version code 36)
 
 - Manage playlists from Settings without another Settings PIN during the same protected visit.

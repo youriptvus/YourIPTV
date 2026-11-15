@@ -46,8 +46,9 @@ With **Automatic updates** enabled, YourIPTV checks for updates when opened and 
 available update. Android may require installation permission or confirmation. To update manually,
 download and open the latest APK, then accept Android's update/install prompt. **Do not uninstall
 YourIPTV or clear its data**: a compatible in-place update keeps playlists and local app data.
-The 1.0.1 update deliberately turns Settings protection on for all installations; read the
-[Settings migration details](docs/SETTINGS_SECURITY.md).
+Settings lock defaults to **On** for new installations and migration from earlier releases.
+In 1.0.7, only the master PIN can turn it **Off** or back **On**; read the
+[Settings policy and migration details](docs/SETTINGS_SECURITY.md).
 
 If Android reports a signing conflict or refuses an older version, keep the existing app and its
 data and contact the maintainer. Do not uninstall it to force the update. See the
@@ -58,7 +59,73 @@ for the app's automatic-update permissions.
 
 | | |
 |---|---|
-| Current project version | **1.0.5** (`versionCode` 36), application ID `com.youriptv.app` |
+| Current project version | **1.0.7** (`versionCode` 38), application ID `com.youriptv.app` |
+| Stage | **Signed release candidate — scoped local verification passed** |
+| Baseline | Clean official 1.0.5/code 36; unfinished 1.0.6 work remains paused and excluded |
+| Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
+| Publication | Local files prepared; owner publication pending |
+
+**Settings → Playlist Settings** provides **Update Playlist** and **Update EPG** for the active
+playlist without either PIN, with real progress, successful times and failures. **Settings lock**
+defaults to **On** for new and existing installations. Only a successful **master PIN** check can
+turn the lock **Off** or back **On**, or add, change or remove a custom Settings PIN. An absent
+or removed custom PIN never turns the lock off.
+
+With the lock **On**, public **Settings** contains only **Playlist Settings** and **Parental
+Controls**. A separate **Unlock Settings** entry opens all configuration after the existing
+master/custom Settings PIN check; guide preferences are under **TV Guide / EPG → Open EPG
+Settings**. With the lock explicitly **Off**, Main shows only **Settings**, which opens every
+settings category, including playlist refresh, Parental Controls and EPG preferences, without
+a Settings PIN. Parental checks remain independent in both modes; About remains public.
+
+The switch is local to this installation and is never exported, imported or accepted from an
+Intent. Changing it revokes existing visits and pending callbacks. Guide dialogs close when
+the settings activity pauses; a new visit follows the current switch. Stored PINs and content
+restrictions are unchanged.
+
+The main menu header displays the bundled official logo in TV and portrait layouts. The logo
+keeps its proportions and does not add a remote focus target.
+
+EPG defaults to 7 past days and up to 7 future days where supplied. A one-time migration raises
+shorter saved windows to 7 days while retaining longer values; subsequent choices remain saved.
+Past retention can be set from 0 to 14 days and future coverage from 1 to 14 days. Existing custom
+past hours are shown exactly rather than rounded. A provider catch-up window can retain a longer
+supported history. Valid partial feeds merge with useful same-source cached listings, while
+failed imports preserve the guide. The app cannot create absent provider data or restore history
+already deleted. Corrected overlapping schedules replace stale entries; omitted cancellations
+can remain until corrected or expired. Guide reads use bounded time windows and program caches.
+
+Fresh foreground launches request a background EPG refresh after cached data is displayed.
+Resuming a running app does not repeat that startup download. Playlist refresh defaults to
+**16 hours** for new playlists and old playlists with no saved interval. Explicitly saved
+24-hour, disabled or custom intervals are preserved per playlist. Full Settings retains interval
+configuration. Startup checks every playlist for overdue work; manual success uses the same
+successful timestamp as automatic scheduling. Failed updates retain the committed cache.
+
+One coordinator joins overlapping requests and shared EPG downloads. Private staged imports
+publish validated catalog/guide data atomically and notify visible guide data without restarting
+the stream. Android background jobs are network constrained and subject to sleep, power
+management, network availability and force-stop limits; exact 16-hour execution is not promised.
+
+Background refresh keeps the existing requested permissions to preserve installed updaters'
+package checks. Jobs are **not persisted across device reboot**. The first foreground opening
+after reboot checks overdue playlists and schedules background work again. Cached data and
+successful timestamps remain stored locally. Exact-APK and offline archived-client audits passed for compatible direct upgrades. Retired
+update addresses or missing installation support in old clients still need manual intervention.
+The release must be one complete code 38 APK, with `previousVersionCode: 36` controlling only
+optional/required prompts and no intermediate release requirement.
+
+Initial 1.0.7 validation: **394 tests / 55 classes**, **142 isolated native SQLite/policy checks**, and **43 offline archived-updater checks** passed. The final signed APK retains the official certificate and exact existing permissions. On 192.168.1.150, an in-place ADB retest preserved data and pulled installed bytes matched. Scoped menu/logo, public About/parental, protected EPG wording and 7/7 picker, background relock, master-authorized Off/combined/On and real provider guide-refresh checks passed. The Settings lock was restored **On**. Sound is assumed. No fresh phone, actual automatic download/install/success-popup, seven elapsed days of retention or uninterrupted long-duration playback pass is claimed. Publication remains with the owner. See [release notes](docs/RELEASE_NOTES.md).
+
+The final TV-caption cleanup reran all **394 tests / 55 classes** and **43 offline archived-updater checks**. The exact signed revision was installed without clearing data; three fresh TV checks cover the visible logo without its caption, public Settings, the protected PIN prompt and public About. The earlier 142 native checks and 13 broader TV checks are prior-candidate evidence, reused with byte-identical executable DEX and all 22 native fixture data-source files unchanged; they were not rerun for this layout-only change.
+
+Thanks to Dylan B. for the suggestions for the current build.
+
+### Historical 1.0.5 baseline
+
+| | |
+|---|---|
+| Historical baseline version | **1.0.5** (`versionCode` 36), application ID `com.youriptv.app` |
 | Stage | Signed APK, automated checks and scoped TV verification passed; local publication preparation |
 | Distribution | Side-loaded APK via GitHub Releases, with a website update mirror. No Google Play listing |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
@@ -133,15 +200,17 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
    the update source moved to `youriptvus/YourIPTV`; older versions also need a technician install
    because 0.4.0 added updater permissions.
 2. **Automatic updates** are **On by default**. Normal update checks and installation do not ask
-   for the Settings PIN. Changing their configuration requires opening protected Settings.
-   For the smoothest updates, authenticate and open **Settings → App Updates** once:
+   for the Settings PIN. Their configuration is under **Unlock Settings → App Updates** while
+   Settings lock is On, or **Settings → App Updates** when the master has explicitly turned it Off.
+   Open that category once for the smoothest updates:
    - **Allow update installs (technician)** opens Android's *Install unknown apps* page; allow YourIPTV.
      (Google TV shows the full app list; scroll to YourIPTV.) Without it, Android asks once during
      the first update to allow installs from YourIPTV.
    - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
      YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
-   - Settings protection is always enabled from 1.0.1 onward. Keep the master with the responsible
-     technician; an optional custom Settings PIN can also authorize Settings access.
+   - Settings lock defaults to On. Keep the master with the responsible technician: only it can
+     change that switch in either direction or manage custom Settings PINs. An optional custom
+     Settings PIN can open configuration while the lock is On, but cannot change the switch.
 
 **Customer experience:**
 
@@ -157,7 +226,8 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
   version is not required. Official 0.4.1 and later releases using the current GitHub update address
-  can update directly to the complete compatible 1.0.5 / code 36 release once verified and available;
+  can update directly to the complete compatible 1.0.7 / code 38 release once published.
+  Exact-APK and offline archived-updater compatibility checks passed; owner publication is pending.
   0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
   can use the website fallback.
@@ -190,7 +260,7 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 1.0.5 preparation use `--previous 35`, following 1.0.4 / code 35.
+   For 1.0.7 preparation use `--previous 36`, following the official 1.0.5 / code 36 baseline.
    For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
    devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
@@ -230,7 +300,7 @@ app name, logos and branding images, phone launcher icons, Android TV icon/banne
 company and support/contact details.
 
 - Rebranding work is held in a **separate, authorized rebranding tool** outside this repository.
-  Its unfinished companion integration remains paused and is excluded from 1.0.5. The app itself
+  Its unfinished companion integration remains paused and is excluded from 1.0.7. The app itself
   contains no payment screens, "Unlock Premium" buttons, or branding controls.
 - A rebranded app is **never** more capable than the standard app, and the standard app is never
   reduced. Payment covers the custom branding only. It never unlocks, limits, or restricts any player
@@ -260,12 +330,13 @@ restriction.
 - **Parental controls and Settings protection:** these are separate security controls.
   - The parental PIN protects locked groups, adult categories, protected playback and,
     optionally, playlist management.
-  - Settings protection is always enabled. The permanent master and any preserved or optional
-    custom Settings PIN can open Settings; only the master can add, change or remove a custom PIN.
-    New custom Settings PINs must be different from the parental PIN.
+  - Settings lock defaults to On. The permanent master and an optional custom Settings PIN can
+    open Unlock Settings. Only the master can turn the switch Off or On, or manage custom PINs.
+    An absent custom PIN never turns the lock Off; removing one leaves the switch unchanged. New custom Settings
+    PINs must differ from the parental PIN. The switch stays local and is excluded from backups.
   - Master and custom Settings attempts share persistent failed-attempt limits. The master cannot
     bypass a Settings lockout. Parental counters and restrictions remain independent.
-  - The master offers intentional Settings recovery; it never overrides parental checks. Legacy
+  - The master offers intentional protected-configuration recovery; it never overrides parental checks. Legacy
     shared-parental access to Settings ends in 1.0.1. There is no in-app parental PIN recovery.
   - About is available from the main menu without a PIN and does not unlock Settings. See
     [the complete Settings policy](docs/SETTINGS_SECURITY.md).
@@ -282,17 +353,20 @@ All of the following are implemented. Their device-test status is recorded in
   and maximum connections.
 - **YourIPTV login shortcut:** enter only your provider username and password; the server
   `http://cw-25.com` and playlist name YourIPTV are preset. Saved connections use normal Xtream
-  storage and protected editing; an authorized working provider account is required.
+  storage and editing under the current Settings policy; an authorized working provider account is required.
 - **M3U / M3U Plus by URL**, using the `tvg-id`, `tvg-name`, `tvg-logo`, `group-title`,
   `tvg-type`, `#EXTGRP` and `url-tvg` attributes. Large lists are imported in a stream into
   SQLite (tested with about 147,000 entries).
 - **Multiple playlists:** add, edit, delete, refresh and switch the active playlist. A `get.php`
-  link can be imported as Xtream or kept as M3U. **Settings → Playlists → Manage playlists** and
-  its editor share one protected visit; the visible Delete action includes selection/confirmation.
+  link can be imported as Xtream or kept as M3U. **Playlists → Manage playlists** in full Settings
+  and its editor share one authorized visit; the visible Delete action includes selection/confirmation.
 - **Password visibility:** Show password / Hide password in the playlist editor. The password
   starts masked; leaving or switching setup modes masks it again without changing its text.
 - **Stream options:** a live stream format option for Xtream (MPEG-TS or HLS), plus a per-playlist
   and a global custom User-Agent.
+- **Refresh controls:** public **Settings → Playlist Settings** has Update Playlist and Update EPG.
+  The default is 16 hours per playlist; saved explicit intervals are preserved. Staged imports
+  retain valid cached data on failure, and committed generations update the visible guide automatically.
 
 **Live TV and guide**
 
@@ -304,17 +378,19 @@ All of the following are implemented. Their device-test status is recorded in
   - Moving focus alone never tunes a channel.
 - **Back navigation:** Back steps one level at a time: full screen → guide → categories → main
   menu. The channel, category and position are restored, and the preview keeps playing.
-- **Guide grid:** channel × timeline grid with a current-time marker and programme details. Hold
-  LEFT to browse past programmes; RIGHT moves later.
+- **Guide grid:** channel × timeline grid with a current-time marker and program details. Hold
+  LEFT to browse past programs; RIGHT moves later.
 - **XMLTV EPG:** from Xtream `xmltv.php`, the M3U `url-tvg` attribute, or a manual URL.
   - Channels are matched by `tvg-id` and by name.
-  - Settings cover the time shift and how many past and future days to keep.
+  - **TV Guide / EPG → Open EPG Settings** in full Settings covers time offset and past/future
+    storage. It requires a Settings PIN while the lock is On; explicit Off opens it without one.
+    A fresh app launch requests background guide data while cached programs remain available.
 - **Catch-up / archive:**
   - Xtream `timeshift`.
   - M3U `catchup` / `catchup-source` attributes.
   - Archive availability for Xtream-panel M3U links.
   - Only on channels where the provider keeps an archive.
-- **Reminders and recording:** programme reminders, and recording (record now, or scheduled from
+- **Reminders and recording:** program reminders, and recording (record now, or scheduled from
   the guide) to app storage with a Recordings section.
 - **Stream errors:** reconnection, plus clear messages for network, filtered-network, access/limit,
   unavailable and provider errors.
@@ -346,13 +422,18 @@ All of the following are implemented. Their device-test status is recorded in
   - parental PIN and locked groups;
   - blocking of adult categories across the playlist;
   - an optional PIN for playlist management;
-  - permanent Settings protection with a fixed master and optional custom Settings PIN.
-- **Settings:** grouped into categories: General, Playlists, TV Guide / EPG, Playback, Appearance,
-  Remote Controls, Parental Controls, Settings Lock, Backup & Restore, and About. About is also
-  directly accessible from the main menu without opening Settings.
+  - independent parental authorization and a separate, master-controlled Settings lock.
+- **Settings with its lock On:** public Playlist Settings offers PIN-free update controls and
+  status; Parental Controls keeps its independent parental PIN and action guards. **Unlock
+  Settings** opens General, Playlists, TV Guide / EPG, Playback, Appearance, Remote Controls,
+  Settings Lock, Backup & Restore and App Updates after Settings authentication.
+- **Settings with its lock Off:** one Settings entry combines all categories, including Playlist
+  Settings, Parental Controls and **TV Guide / EPG → Open EPG Settings**, without a Settings PIN.
+  Parental authorization remains in force. About is public in both modes.
 - **Local backup and restore** of playlists, favorites and settings, saved as a JSON file in the
   app's folder.
-  - Backups contain playlist logins but never PINs. Treat backup files as private.
+  - Backups contain playlist logins but never PINs or the local Settings lock switch. Importing
+    a backup cannot change that switch. Treat backup files as private.
 
 ### Not implemented or deferred
 
@@ -395,10 +476,12 @@ All of the following are implemented. Their device-test status is recorded in
 
 ### Permissions
 
-The app requests network access and the existing Android install/restart permissions used by
-automatic updates. 1.0.5 adds or removes no requested permissions. It declares no services,
-broadcast receivers or content providers, and no HOME launcher category. The automated test
-`StandaloneAppAuditTest` checks that the player remains a standalone app.
+The app uses network access and Android install/restart permissions for automatic updates.
+The background-refresh JobService is protected by Android's `BIND_JOB_SERVICE` permission.
+Background jobs are non-persisted, with no new boot permission. The existing requested-permission
+set is retained for installed updater compatibility and verified against the exact APK before
+release. The app remains a standalone player with no HOME launcher category;
+it does not replace or configure the device launcher.
 
 ## Setting up a provider
 
@@ -410,13 +493,14 @@ Open **Playlists** in the main menu and add a playlist. Choose **M3U playlist UR
 and custom User-Agent fields. The YourIPTV shortcut uses the provider's normal guide and
 default User-Agent without requesting those fields.
 
-To edit the active playlist, choose **Playlists → Edit current** or
-**Settings → Playlists → Edit current playlist**. **Settings → Playlists → Manage playlists**
-opens the full manager for refresh, editing and deletion. Unlocking Settings once covers its
-authorized manager/editor navigation during the same protected visit. Direct editing from
-outside that flow still requires Settings authentication before connection details are shown
-or saved. Leaving the flow, Home/background, screen-off or recreation relocks it. The independent
-parental check still applies when playlist locking is enabled; this is not a global unlock.
+To edit the active playlist, choose **Playlists → Edit current** or open **Playlists → Edit current
+playlist** inside full Settings. With Settings lock On, enter through **Unlock Settings** using
+the existing Settings PIN; with it explicitly Off, use **Settings** without a Settings PIN.
+**Playlists → Manage playlists** opens the manager for refresh, editing and deletion. One
+authorized visit covers internal manager/editor navigation. Direct editing checks the current
+Settings policy before showing connection details or saving. Leaving the flow, Home/background,
+screen-off or recreation ends the visit; re-entry needs a Settings PIN only while the lock is On.
+The independent parental check still applies when playlist locking is enabled.
 
 Edit its URL, Xtream username/password, name, guide URL or User-Agent, then choose **Save and load**.
 Editing another playlist remains available through its MENU or long-press options. Passwords
@@ -460,7 +544,8 @@ login and retry using the existing editing flow.
 | Password | `YOUR_PASSWORD` |
 
 The EPG is loaded automatically from the panel's `xmltv.php`. The live stream format (MPEG-TS or
-HLS) is under **Settings → Playback**.
+HLS) is under **Playback** in full Settings, through **Unlock Settings** while its lock is On
+or **Settings** when explicitly Off.
 
 ### M3U / M3U Plus
 
@@ -484,8 +569,12 @@ YourIPTV chooses the guide source in this order:
    derived from that URL.
 
 Guide coverage depends on the provider's `tvg-id` / EPG IDs: channels that cannot be matched show
-no programme information. Guide time shift, retention and update options are under
-**Settings → TV Guide / EPG**.
+no program information. Guide time offset, retention and future coverage are under **TV Guide /
+EPG → Open EPG Settings** in full Settings: enter through **Unlock Settings** with a Settings PIN
+while its lock is On, or **Settings** without one when explicitly Off. Source editing remains
+under **Playlists** in the same full settings screen. For PIN-free refresh and status in either mode, use
+**Settings → Playlist Settings → Update EPG**. Use **Update Playlist** beside it to request
+the current playlist and its guide. Last success and last attempt/failure are shown separately.
 
 ## Building from a fresh clone (Windows)
 
@@ -533,7 +622,7 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 | `.\gradlew.bat assembleDebug` | `app\build\outputs\apk\debug\app-debug.apk` (signed with the local debug key) |
 | `.\gradlew.bat assembleRelease` with `keystore.properties` | `app\build\outputs\apk\release\app-release.apk` (signed release) |
 | `.\gradlew.bat assembleRelease` without `keystore.properties` | `app\build\outputs\apk\release\app-release-unsigned.apk` (cannot be installed until signed) |
-| `.\gradlew.bat testDebugUnitTest` | JVM unit tests; HTML report in `app\build\reports\tests\testDebugUnitTest\index.html` |
+| `.\gradlew.bat testReleaseUnitTest assembleRelease lintVitalRelease` | JVM unit tests; HTML report in `app\build\reports\tests\testDebugUnitTest\index.html` |
 
 Generated APKs are git-ignored. Do not commit them.
 
@@ -553,7 +642,7 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **1.0.5 (version code 36)**. Build and verify the matching signed APK
+The current project targets **1.0.7 (version code 38)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
 The higher-version in-app installation path has not yet been tested for this release.
 
@@ -576,10 +665,16 @@ install apps.
 ## Testing
 
 ```powershell
-.\gradlew.bat testDebugUnitTest
+.\gradlew.bat testReleaseUnitTest assembleRelease lintVitalRelease
 ```
 
-- Final 1.0.5 evidence: **324 tests in 44 classes**, zero failures/errors/skips, run
+- Current 1.0.7 caption revision: 394 JVM tests and 43 offline archived-updater checks passed again,
+  along with three fresh TV checks for the banner, public menu and PIN prompt. The earlier 142
+  native checks and 13 broader TV checks remain prior-candidate evidence; executable DEX and the
+  22 native fixture data-source files are unchanged. Native fixtures use
+  prefixed temporary databases/preferences and loopback data; they must not change owner playlists,
+  credentials, PINs or device time. ADB installation does not prove the automatic updater path.
+- Historical final 1.0.5 evidence: **324 tests in 44 classes**, zero failures/errors/skips, run
   `20261112T002351Z-939036f5`; signed release assembly/vital lint, native/compiled APK checks,
   15 archived updater checks, 21 retained-APK identity audits and three actual-SQL deletion
   fixtures passed. The initial run's obsolete Main routing assertion was corrected to verify
@@ -686,7 +781,7 @@ YourIPTV/
 | Release APK is `app-release-unsigned.apk` | `keystore.properties` is missing; see [Release signing](#release-signing) |
 | Playback stops or fails with an access/limit message | The provider's connection limit is reached. Stop other streams or recordings on the same account |
 | Catch-up shows a network-filter / block message | Some ISPs or networks block the provider's archive host. YourIPTV reports this; it includes no VPN |
-| Guide shows "No programme information" | The channel has no `tvg-id` or no EPG match; check the provider's EPG |
+| Guide shows "No program information" | The channel has no `tvg-id` or no EPG match; check the provider's EPG |
 | Choppy video with "Prefer software video decoding" on | Software decoding is CPU-limited on some phones at 1080p60. Use the default hardware decoding |
 | GUIDE key opens Google TV instead of YourIPTV | Expected on Google TV; open the guide from TV in the main menu |
 
@@ -709,9 +804,9 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.5 |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through the locally verified 1.0.7 candidate; owner publication pending |
 | [docs/VOD_NAVIGATION.md](docs/VOD_NAVIGATION.md) | Movies/Shows posters, movie details, season rows, artwork and verification limits |
-| [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Always-on Settings protection, custom PINs and migration |
+| [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Master-controlled Settings lock, independent parental policy and migration |
 | [docs/UPGRADING_TO_1_0.md](docs/UPGRADING_TO_1_0.md) | Direct upgrades, older-version exceptions and publication |
 | [docs/REQUIREMENTS_CHECKLIST.md](docs/REQUIREMENTS_CHECKLIST.md) | Requirements and implementation status |
 | [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) | Full hands-on QA pass |

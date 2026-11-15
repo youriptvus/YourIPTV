@@ -168,24 +168,19 @@ object Nav {
 object Refresher {
     /**
      * Refreshes a playlist and then its guide. Returns a warning when only the guide failed.
-     * Runs on the calling (background) thread.
+     * Legacy protected screens join the same app-owned work as public controls and jobs.
+     * The awaiting screen owns its progress observer; its cancellation cannot cancel shared work.
      */
-    fun refreshAll(p: Playlist, progress: (String) -> Unit): String? {
-        val app = YourIptvApp.instance
-        app.repo.refresh(p, progress)
-        val fresh = app.repo.playlist(p.id) ?: return null
-        return refreshEpg(fresh, progress)
+    suspend fun refreshAll(p: Playlist, progress: (String) -> Unit): String? {
+        val coordinator = YourIptvApp.instance.refreshCoordinator
+        val result = coordinator.awaitRequest(p.id, coordinator.requestPlaylist(p.id), progress)
+        if (!result.success && !result.catalogUpdated) throw IllegalStateException(result.message)
+        return result.message.takeUnless { result.success }
     }
 
-    fun refreshEpg(p: Playlist, progress: (String) -> Unit): String? {
-        val app = YourIptvApp.instance
-        if (app.repo.epgSource(p).isBlank()) return "No guide (EPG) URL is configured for this playlist."
-        return try {
-            val n = app.repo.refreshEpg(p, app.settings.epgPastHours, app.settings.epgFutureDays, progress)
-            app.settings.setEpgUpdated(p.id, System.currentTimeMillis())
-            if (n == 0) "The guide loaded but no programmes matched these channels." else null
-        } catch (e: Throwable) {
-            "Guide update failed: ${Nav.describeError(e)}"
-        }
+    suspend fun refreshEpg(p: Playlist, progress: (String) -> Unit): String? {
+        val coordinator = YourIptvApp.instance.refreshCoordinator
+        val result = coordinator.awaitRequest(p.id, coordinator.requestEpg(p.id), progress)
+        return result.message.takeUnless { result.success }
     }
 }

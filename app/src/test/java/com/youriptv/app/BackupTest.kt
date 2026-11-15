@@ -10,6 +10,7 @@ import com.youriptv.app.data.BackupPlaylist
 import com.youriptv.app.data.BackupRestore
 import com.youriptv.app.data.Playlist
 import com.youriptv.app.data.SourceType
+import com.youriptv.app.data.SettingsLockPolicy
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -62,6 +63,21 @@ class BackupTest {
             "skip_sec" to 30.5, "epg_future_d" to 7, "unknown_key" to 1, "audio_delay_ms" to -100,
         ))
         assertEquals(mapOf("epg_future_d" to 7, "audio_delay_ms" to -100), clean)
+    }
+
+    @Test
+    fun portableBackupsCannotExportOrOverrideTheLocalSettingsLockInEitherDirection() {
+        assertFalse(BackupKeys.SETTINGS.containsKey(SettingsLockPolicy.LOCAL_KEY))
+        for (enabled in listOf(false, true)) {
+            val encoded = BackupCodec.encode(sample.copy(settings = sample.settings + (SettingsLockPolicy.LOCAL_KEY to enabled)))
+            assertFalse(JSONObject(encoded).getJSONObject("settings").has(SettingsLockPolicy.LOCAL_KEY))
+            val crafted = JSONObject(encoded).apply { getJSONObject("settings").put(SettingsLockPolicy.LOCAL_KEY, enabled) }
+            val decoded = BackupCodec.decode(crafted.toString())
+            assertFalse(decoded.settings.containsKey(SettingsLockPolicy.LOCAL_KEY))
+            assertEquals(sample.settings, decoded.settings)
+            assertEquals(sample.parental, decoded.parental)
+            assertFalse(BackupKeys.sanitize(mapOf(SettingsLockPolicy.LOCAL_KEY to enabled)).containsKey(SettingsLockPolicy.LOCAL_KEY))
+        }
     }
 
     @Test
@@ -118,12 +134,15 @@ class BackupTest {
         val exported = Regex("\"([a-z0-9_]+)\" to ").findAll(settingsSrc.substringAfter("fun backupValues()").substringBefore("fun restoreValues"))
             .map { it.groupValues[1] }.toSet()
         assertEquals(BackupKeys.SETTINGS.keys, exported)
+        assertFalse("One-time migration history must remain local", exported.contains("epg_window_v7_migrated"))
+        assertFalse("The local Settings lock is never portable", exported.contains(SettingsLockPolicy.LOCAL_KEY))
         // Every simple preference in Settings is either backed up, parental (merged separately), or deliberately excluded.
         val allKeys = Regex("sp\\.get(?:Boolean|Int|Long|String|StringSet)\\(\"([a-z0-9_]+)\"").findAll(settingsSrc).map { it.groupValues[1] }
             .filterNot { BackupKeys.isSecret(it) }.toSet()
         val parental = setOf("block_adult", "hide_locked", "lock_playlists", "locked_groups")
         // active_playlist is remapped to the restored playlist's new id; update keys are per-device technician state.
-        val excluded = setOf("active_playlist", "automatic_app_updates", "last_update_info", "pending_update_code")
+        // The retention migration marker records local upgrade history, not a portable user choice.
+        val excluded = setOf("active_playlist", "automatic_app_updates", "last_update_info", "pending_update_code", "epg_window_v7_migrated")
         assertEquals(emptySet<String>(), allKeys - BackupKeys.SETTINGS.keys - parental - excluded)
     }
 

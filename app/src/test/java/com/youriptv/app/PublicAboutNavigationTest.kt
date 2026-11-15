@@ -47,7 +47,21 @@ class PublicAboutNavigationTest {
         assertFalse(settings.contains("putExtra") || settings.contains("EXTRA_UNLOCKED"))
         assertFalse("Settings must authenticate inside the target activity", settings.contains("Dialogs."))
         assertFalse("The legacy disable-lock migration must be gone", source.contains("Turn off Settings lock"))
-        assertTrue(source.contains("navViews[Section.SETTINGS]?.text = \"Unlock Settings\""))
+        assertTrue(source.contains("navViews[Section.SETTINGS]?.text = \"Settings\""))
+        assertTrue(source.contains("navViews[Section.ADMIN]?.text = \"Unlock Settings\""))
+        val routes = source.substringAfter("private fun onNav(s: Section)").substringBefore("private fun unlockSettings()")
+        assertTrue("The approved public Settings route stays in Main without acquiring an Admin grant",
+            routes.contains("Section.SETTINGS -> if (app.settings.isSettingsLocked()) CustomerSettingsPanel.show(this,") &&
+                routes.contains("else unlockSettings()"))
+        assertTrue("Only explicit off policy hides the separate Unlock Settings entry",
+            source.contains("navViews[Section.ADMIN]?.visibility = if (app.settings.isSettingsLocked()) View.VISIBLE else View.GONE"))
+        assertTrue("Admin still enters the original authenticated Settings activity",
+            routes.contains("Section.ADMIN -> unlockSettings()"))
+        val target = listOf(File("src/main/java/com/youriptv/app/ui/SettingsActivity.kt"),
+            File("app/src/main/java/com/youriptv/app/ui/SettingsActivity.kt")).first { it.exists() }.readText()
+        val gate = target.substringAfter("private fun authenticateSettings()").substringBefore("override fun onResume()")
+        assertTrue("Admin must retain the existing Settings PIN checker", gate.contains("Dialogs.requireSettingsPin(this, \"unlock Settings\""))
+        assertTrue("Admin authority follows only a completed current visit", gate.indexOf("!visit.authorize(token)") in 0 until gate.indexOf("flow.authenticate(this, settingsRoute)"))
     }
 
     @Test

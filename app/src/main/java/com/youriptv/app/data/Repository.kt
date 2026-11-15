@@ -9,11 +9,18 @@ import android.util.Xml
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStreamReader
+import java.io.File
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.util.concurrent.CancellationException
 
-class Repository(context: Context) {
+class Repository(context: Context) : java.io.Closeable {
 
     private val helper = Db(context.applicationContext)
+    private val settings = Settings(context.applicationContext)
+    private val stageDir = File(context.applicationContext.cacheDir, "refresh-stage").apply { mkdirs() }
     private val db: SQLiteDatabase get() = helper.writableDatabase
+    override fun close() = helper.close()
 
     // ---------------- Playlists ----------------
 
@@ -23,6 +30,18 @@ class Repository(context: Context) {
 
     fun playlist(id: Long): Playlist? = db.rawQuery("SELECT * FROM playlists WHERE id=?", arrayOf(id.toString())).use { c ->
         if (c.moveToFirst()) Db.readPlaylist(c) else null
+    }
+
+    fun itemsByUrls(playlistId: Long, urls: List<String>): Map<String, MediaItem> {
+        val result = HashMap<String, MediaItem>()
+        for (chunk in urls.distinct().chunked(800)) {
+            val arguments = arrayOf(playlistId.toString(), *chunk.toTypedArray())
+            val placeholders = chunk.joinToString(",") { "?" }
+            db.rawQuery("SELECT * FROM items WHERE playlist_id=? AND url IN ($placeholders)", arguments).use { cursor ->
+                while (cursor.moveToNext()) Db.readItem(cursor).let { result[it.url] = it }
+            }
+        }
+        return result
     }
 
     /** Provider stream limit for [id]; 0 when unknown. */
@@ -38,9 +57,61 @@ class Repository(context: Context) {
             put("name", p.name); put("type", p.type.name); put("url", p.url)
             put("username", p.username); put("password", p.password)
             put("epg_url", p.epgUrl); put("user_agent", p.userAgent)
+            if (p.id == 0L) put("refresh_hours", RefreshPolicy.migratedHours(p.refreshHours))
         }
         return if (p.id == 0L) db.insert("playlists", null, v)
         else if (db.update("playlists", v, "id=?", arrayOf(p.id.toString())) > 0) p.id else -1L
+    }
+
+    fun setRefreshHours(id: Long, hours: Int) {
+        require(hours in 0..168)
+        db.update("playlists", ContentValues().apply { put("refresh_hours", hours) }, "id=?", arrayOf(id.toString()))
+    }
+
+    fun initializeRefreshIntervals(legacyExplicit: Int?) {
+        db.execSQL("UPDATE playlists SET refresh_hours=? WHERE refresh_hours IS NULL", arrayOf<Any>(RefreshPolicy.migratedHours(legacyExplicit)))
+    }
+
+    fun beginRefreshAttempt(id: Long, epg: Boolean, time: Long = System.currentTimeMillis(), expectedIdentity: String? = null) {
+        updateRefreshStatus(id, ContentValues().apply {
+            put(if (epg) "epg_attempt" else "catalog_attempt", time)
+            put(if (epg) "epg_error" else "catalog_error", "")
+        }, expectedIdentity)
+    }
+
+    /** Callers provide fixed safe text; exception messages can contain credential-bearing URLs. */
+    fun failRefreshAttempt(id: Long, epg: Boolean, error: String, expectedIdentity: String? = null) {
+        updateRefreshStatus(id, ContentValues().apply { put(if (epg) "epg_error" else "catalog_error", error.take(300)) }, expectedIdentity)
+    }
+
+    private fun updateRefreshStatus(id: Long, values: ContentValues, expectedIdentity: String?) {
+        val database = db
+        database.beginTransaction()
+        try {
+            val current = playlist(id) ?: return
+            if (expectedIdentity != null && sourceIdentity(current) != expectedIdentity) return
+            database.update("playlists", values, "id=?", arrayOf(id.toString()))
+            database.setTransactionSuccessful()
+        } finally { database.endTransaction() }
+    }
+
+    fun recoverInterruptedRefreshes() {
+        for ((attempt, success, error) in listOf(Triple("catalog_attempt", "last_updated", "catalog_error"), Triple("epg_attempt", "epg_updated", "epg_error"))) {
+            db.execSQL("UPDATE playlists SET $error='The previous update was interrupted. Try again.' WHERE $attempt>$success AND $error=''")
+        }
+        // Only run at process initialization, before any coordinator begins a staged import.
+        stageDir.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
+    }
+
+    fun sourceIdentity(p: Playlist): String = RefreshPolicy.fingerprint(p.type.name, p.url, p.username,
+        p.password, p.epgUrl, Http.effectiveUserAgent(p.userAgent))
+
+    fun sourceKey(p: Playlist): String = RefreshPolicy.fingerprint(epgSource(p), Http.effectiveUserAgent(p.userAgent))
+
+    private fun requireCurrent(p: Playlist, expectedIdentity: String = sourceIdentity(p)): Playlist {
+        val current = playlist(p.id) ?: throw StaleRefreshData()
+        if (sourceIdentity(current) != expectedIdentity) throw StaleRefreshData()
+        return current
     }
 
     fun playlistHasUrl(id: Long, url: String): Boolean = url.isNotEmpty() &&
@@ -62,23 +133,26 @@ class Repository(context: Context) {
 
     // ---------------- Refresh ----------------
 
-    fun refresh(p: Playlist, progress: (String) -> Unit) {
+    fun refresh(p: Playlist, progress: (String) -> Unit, isCancelled: () -> Boolean = { false }) {
+        RefreshPolicy.checkCancelled(isCancelled)
+        requireCurrent(p)
         when (p.type) {
-            SourceType.M3U -> refreshM3u(p, progress)
-            SourceType.XTREAM -> refreshXtream(p, progress)
+            SourceType.M3U -> refreshM3u(p, progress, isCancelled)
+            SourceType.XTREAM -> refreshXtream(p, progress, isCancelled)
         }
     }
 
-    private fun refreshM3u(p: Playlist, progress: (String) -> Unit) {
-        val archive = xtreamArchiveDays(p, progress)
+    private fun refreshM3u(p: Playlist, progress: (String) -> Unit, isCancelled: () -> Boolean) {
+        val expectedIdentity = sourceIdentity(p)
+        val archive = xtreamArchiveDays(p, progress, isCancelled)
         progress("Downloading playlist…")
         var headerEpg = ""
         var headerAttrs: Map<String, String> = emptyMap()
         val counts = IntArray(ItemKind.entries.size)
-        Http.open(p.url, p.userAgent, 60_000).use { input ->
-            replaceItems(p.id) { insert ->
+        val staged = stageItems(isCancelled) { insert ->
+            Http.open(p.url, p.userAgent, 15_000).use { input ->
                 var liveNum = 0
-                M3uParser.parse(input, onHeader = { headerEpg = it.epgUrl; headerAttrs = it.attributes }) { e ->
+                M3uParser.parse(input, onHeader = { headerEpg = it.epgUrl; headerAttrs = it.attributes }, strict = true, isCancelled = isCancelled) { e ->
                     val num = if (e.kind == ItemKind.LIVE) {
                         e.attributes["tvg-chno"]?.toIntOrNull() ?: ++liveNum
                     } else 0
@@ -107,7 +181,7 @@ class Repository(context: Context) {
             put("series_count", counts[ItemKind.EPISODE.ordinal])
             if (p.epgUrl.isBlank() && headerEpg.isNotBlank()) put("epg_url", headerEpg)
         }
-        db.update("playlists", v, "id=?", arrayOf(p.id.toString()))
+        try { publishCatalog(p, staged, counts.sum(), v, isCancelled, expectedIdentity) } finally { staged.delete() }
     }
 
     /**
@@ -115,26 +189,40 @@ class Repository(context: Context) {
      * have a provider archive (`tv_archive`) and for how many days. Empty when not applicable or on error;
      * the playlist still loads without catch-up in that case.
      */
-    private fun xtreamArchiveDays(p: Playlist, progress: (String) -> Unit): Map<String, Int> {
+    private fun xtreamArchiveDays(p: Playlist, progress: (String) -> Unit, isCancelled: () -> Boolean): Map<String, Int> {
         val login = XtreamUrls.parseLogin(p.url) ?: return emptyMap()
         progress("Checking the provider's catch-up archive…")
         val out = HashMap<String, Int>()
         return try {
             streamArray(XtreamUrls.api(login.base, login.username, login.password, "get_live_streams"), p.userAgent) { o ->
+                RefreshPolicy.checkCancelled(isCancelled)
                 val id = o["stream_id"].orEmpty()
                 val days = if (o["tv_archive"] == "1") o["tv_archive_duration"]?.toIntOrNull() ?: 0 else 0
                 if (id.isNotEmpty() && days > 0) out[id] = days
             }
             out
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             android.util.Log.w("YourIPTV", "Archive info unavailable: ${e.javaClass.simpleName}")
             emptyMap()
         }
     }
 
-    private fun refreshXtream(p: Playlist, progress: (String) -> Unit) {
+    private fun refreshXtream(p: Playlist, progress: (String) -> Unit, isCancelled: () -> Boolean) {
+        val expectedIdentity = sourceIdentity(p)
         progress("Signing in to provider…")
-        val auth = JSONObject(Http.readText(XtreamUrls.api(p.url, p.username, p.password), p.userAgent))
+        val auth = JSONObject(Http.open(XtreamUrls.api(p.url, p.username, p.password), p.userAgent, 15_000).use { input ->
+            val bytes = ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                RefreshPolicy.checkCancelled(isCancelled)
+                val n = input.read(buffer)
+                if (n < 0) break
+                if (bytes.size() + n > 2 * 1024 * 1024) throw InvalidRefreshData("The provider account response is too large.")
+                bytes.write(buffer, 0, n)
+            }
+            bytes.toString("UTF-8")
+        })
         val user = auth.optJSONObject("user_info")
             ?: throw IllegalStateException("Provider did not return account information. Check server URL and credentials.")
         if (user.optInt("auth", 1) == 0) throw IllegalStateException("Provider rejected the username or password.")
@@ -144,22 +232,25 @@ class Repository(context: Context) {
         val serverTz = auth.optJSONObject("server_info")?.optString("timezone").orEmpty().trim()
 
         val counts = IntArray(ItemKind.entries.size)
-        replaceItems(p.id) { insert ->
+        val staged = stageItems(isCancelled) { insert ->
             for ((kind, catAction, listAction) in listOf(
                 Triple(ItemKind.LIVE, "get_live_categories", "get_live_streams"),
                 Triple(ItemKind.MOVIE, "get_vod_categories", "get_vod_streams"),
                 Triple(ItemKind.SERIES, "get_series_categories", "get_series"),
             )) {
+                RefreshPolicy.checkCancelled(isCancelled)
                 progress("Loading ${kind.name.lowercase()} categories…")
                 val cats = HashMap<String, String>()
                 streamArray(XtreamUrls.api(p.url, p.username, p.password, catAction), p.userAgent) { o ->
+                    RefreshPolicy.checkCancelled(isCancelled)
                     cats[o["category_id"].orEmpty()] = o["category_name"].orEmpty().trim()
                 }
                 progress("Loading ${kind.name.lowercase()} list…")
                 var n = 0
                 streamArray(XtreamUrls.api(p.url, p.username, p.password, listAction), p.userAgent) { o ->
+                    RefreshPolicy.checkCancelled(isCancelled)
                     val id = (if (kind == ItemKind.SERIES) o["series_id"] else o["stream_id"]).orEmpty()
-                    if (id.isEmpty()) return@streamArray
+                    if (id.isEmpty()) throw InvalidRefreshData("The provider returned an incomplete catalog entry.")
                     val ext = o["container_extension"].orEmpty()
                     val url = when (kind) {
                         ItemKind.LIVE -> XtreamUrls.live(p.url, p.username, p.password, id)
@@ -190,18 +281,18 @@ class Repository(context: Context) {
             put("series_count", counts[ItemKind.SERIES.ordinal])
             put("max_conn", maxConn); put("status", status); put("expires", expires); put("server_tz", serverTz)
         }
-        db.update("playlists", v, "id=?", arrayOf(p.id.toString()))
+        try { publishCatalog(p, staged, counts.sum(), v, isCancelled, expectedIdentity) } finally { staged.delete() }
     }
 
     /** Streams a JSON array of flat objects; nested values are skipped. */
     private fun streamArray(url: String, ua: String, onObject: (Map<String, String?>) -> Unit) {
-        Http.open(url, ua, 60_000).use { input ->
+        Http.open(url, ua, 15_000).use { input ->
             JsonReader(InputStreamReader(input, Charsets.UTF_8)).use { r ->
-                if (r.peek() != JsonToken.BEGIN_ARRAY) { r.skipValue(); return }
+                if (r.peek() != JsonToken.BEGIN_ARRAY) throw InvalidRefreshData("The provider returned an invalid catalog response.")
                 r.beginArray()
                 val map = HashMap<String, String?>()
                 while (r.hasNext()) {
-                    if (r.peek() != JsonToken.BEGIN_OBJECT) { r.skipValue(); continue }
+                    if (r.peek() != JsonToken.BEGIN_OBJECT) throw InvalidRefreshData("The provider returned an invalid catalog entry.")
                     map.clear()
                     r.beginObject()
                     while (r.hasNext()) {
@@ -217,20 +308,49 @@ class Repository(context: Context) {
                     onObject(map)
                 }
                 r.endArray()
+                if (r.peek() != JsonToken.END_DOCUMENT) throw InvalidRefreshData("The provider returned trailing catalog data.")
             }
         }
     }
 
-    private fun replaceItems(playlistId: Long, block: ((MediaItem) -> Unit) -> Unit) {
+    private fun stageItems(isCancelled: () -> Boolean, block: ((MediaItem) -> Unit) -> Unit): File {
+        val file = File.createTempFile("catalog-", ".bin", stageDir)
+        try {
+            DataOutputStream(file.outputStream().buffered()).use { out ->
+                block { item ->
+                    RefreshPolicy.checkCancelled(isCancelled)
+                    if (item.name.isBlank() || item.url.isBlank()) throw InvalidRefreshData("The provider returned an incomplete channel.")
+                    RefreshStage.writeItem(out, item)
+                    RefreshStage.checkSize(file)
+                }
+            }
+            RefreshStage.checkSize(file)
+            return file
+        } catch (e: Throwable) { file.delete(); throw e }
+    }
+
+    private fun publishCatalog(p: Playlist, staged: File, count: Int, metadata: ContentValues, isCancelled: () -> Boolean, expectedIdentity: String) {
+        if (count <= 0) throw InvalidRefreshData("The playlist contained no valid channels. The previous playlist was kept.")
+        val playlistId = p.id
         val database = db
         database.beginTransaction()
         try {
+            RefreshPolicy.checkCancelled(isCancelled)
+            val current = requireCurrent(p, expectedIdentity)
+            // Inferred guide IDs belong to stable stream URLs, not regenerated item row IDs.
+            val mappings = HashMap<String, String>()
+            database.rawQuery("SELECT url,tvg_id FROM items WHERE playlist_id=? AND kind=0 AND tvg_id<>''", arrayOf(playlistId.toString())).use { c ->
+                while (c.moveToNext()) mappings[c.getString(0)] = c.getString(1)
+            }
             database.delete("items", "playlist_id=?", arrayOf(playlistId.toString()))
             val stmt = database.compileStatement(
                 "INSERT INTO items(playlist_id,kind,name,name_lc,grp,logo,url,tvg_id,num,remote_id,ext,catchup_days,catchup_type,catchup_src) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             )
-            block { i ->
-                stmt.clearBindings()
+            stmt.use { statement -> DataInputStream(staged.inputStream().buffered()).use { input -> repeat(count) {
+                RefreshPolicy.checkCancelled(isCancelled)
+                val loaded = RefreshStage.readItem(input, playlistId)
+                val i = if (loaded.tvgId.isBlank() && loaded.kind == ItemKind.LIVE) loaded.copy(tvgId = mappings[loaded.url].orEmpty()) else loaded
+                statement.clearBindings()
                 stmt.bindLong(1, i.playlistId); stmt.bindLong(2, i.kind.ordinal.toLong())
                 stmt.bindString(3, i.name); stmt.bindString(4, i.name.lowercase()); stmt.bindString(5, i.group)
                 stmt.bindString(6, i.logo); stmt.bindString(7, i.url); stmt.bindString(8, i.tvgId)
@@ -238,7 +358,12 @@ class Repository(context: Context) {
                 stmt.bindLong(12, i.catchupDays.toLong())
                 stmt.bindString(13, i.catchupType); stmt.bindString(14, i.catchupSource)
                 stmt.executeInsert()
-            }
+            }; if (input.read() != -1) throw InvalidRefreshData("The staged playlist is invalid.") } }
+            RefreshPolicy.checkCancelled(isCancelled)
+            metadata.put("last_updated", System.currentTimeMillis())
+            metadata.put("catalog_generation", current.catalogGeneration + 1)
+            metadata.put("catalog_error", "")
+            database.update("playlists", metadata, "id=?", arrayOf(playlistId.toString()))
             database.setTransactionSuccessful()
         } finally { database.endTransaction() }
     }
@@ -267,70 +392,156 @@ class Repository(context: Context) {
         return ch.copy(id = 0, kind = ItemKind.MOVIE, name = "${prog.title} · ${ch.name}", url = url, isCatchup = true)
     }
 
-    /** Downloads XMLTV and stores programmes for this playlist's live channels. Returns programme count. */
-    fun refreshEpg(p: Playlist, pastHours: Int, futureDays: Int, progress: (String) -> Unit): Int {
-        val src = epgSource(p)
-        if (src.isBlank()) throw IllegalStateException("No EPG source is configured for this playlist.")
-        progress("Downloading guide data…")
-        val pid = p.id.toString()
-        val known = HashSet<String>()
-        db.rawQuery("SELECT DISTINCT tvg_id FROM items WHERE playlist_id=? AND kind=0 AND tvg_id<>''", arrayOf(pid)).use { c ->
-            while (c.moveToNext()) known.add(c.getString(0))
-        }
-        val nameToId = HashMap<String, String>()
-        val now = System.currentTimeMillis()
-        // Keep past programmes for the whole provider archive so every catch-up programme can be picked in the guide.
-        val archiveDays = db.rawQuery("SELECT MAX(catchup_days) FROM items WHERE playlist_id=? AND kind=0", arrayOf(pid))
-            .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
-        val from = now - Catchup.pastWindowHours(pastHours, archiveDays) * 3_600_000L
-        val to = now + futureDays * 86_400_000L
-        var matched = false
-        var count = 0
-        val database = db
-        Http.open(src, p.userAgent, 60_000).use { input ->
-            database.beginTransaction()
-            try {
-                database.delete("programs", "playlist_id=?", arrayOf(pid))
-                val stmt = database.compileStatement("INSERT INTO programs(playlist_id,channel_id,start,stop,title,descr) VALUES(?,?,?,?,?,?)")
-                val parser = Xml.newPullParser()
-                parser.setInput(input, null)
-                XmltvParser.parse(
-                    parser,
-                    onChannel = { ch -> if (ch.displayName.isNotBlank()) nameToId.putIfAbsent(normalize(ch.displayName), ch.id) },
-                    acceptChannel = { id ->
-                        if (!matched) { matched = true; matchByName(p.id, nameToId, known); progress("Importing guide…") }
-                        id in known
-                    },
-                ) { prog ->
-                    if (prog.end >= from && prog.start <= to) {
-                        stmt.clearBindings()
-                        stmt.bindLong(1, p.id); stmt.bindString(2, prog.channelId)
-                        stmt.bindLong(3, prog.start); stmt.bindLong(4, prog.end)
-                        stmt.bindString(5, prog.title); stmt.bindString(6, prog.description)
-                        stmt.executeInsert()
-                        count++
-                        if (count % 20000 == 0) progress("Imported $count programmes…")
-                    }
+    /** Downloads only; the coordinator may share this private file across matching sources. */
+    fun stageEpg(p: Playlist, destination: File, isCancelled: () -> Boolean = { false }) {
+        val expectedIdentity = sourceIdentity(p)
+        requireCurrent(p, expectedIdentity)
+        val source = epgSource(p)
+        if (source.isBlank()) throw InvalidRefreshData("No EPG source is configured for this playlist.")
+        try {
+            Http.open(source, p.userAgent, 15_000).use { input -> destination.outputStream().buffered().use { output ->
+                val buffer = ByteArray(64 * 1024)
+                var size = 0L
+                while (true) {
+                    RefreshPolicy.checkCancelled(isCancelled)
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    size += n
+                    if (size > RefreshStage.MAX_BYTES) throw InvalidRefreshData("The guide is too large for this device.")
+                    output.write(buffer, 0, n)
                 }
-                database.setTransactionSuccessful()
-            } finally { database.endTransaction() }
-        }
-        return count
+                if (size == 0L) throw InvalidRefreshData("The provider returned an empty guide. The previous guide was kept.")
+            } }
+            requireCurrent(p, expectedIdentity)
+        } catch (e: Throwable) { destination.delete(); throw e }
     }
 
-    /** Assigns EPG ids to channels without tvg-id when their name matches an XMLTV display name. */
-    private fun matchByName(playlistId: Long, nameToId: Map<String, String>, known: MutableSet<String>) {
-        if (nameToId.isEmpty()) return
-        val updates = ArrayList<Pair<Long, String>>()
-        db.rawQuery("SELECT id,name FROM items WHERE playlist_id=? AND kind=0 AND (tvg_id IS NULL OR tvg_id='')", arrayOf(playlistId.toString())).use { c ->
+    fun refreshEpg(p: Playlist, pastHours: Int, futureDays: Int, progress: (String) -> Unit,
+                   isCancelled: () -> Boolean = { false }): Int {
+        val source = File.createTempFile("source-", ".xml", stageDir)
+        return try {
+            progress("Downloading guide data…")
+            stageEpg(p, source, isCancelled)
+            refreshEpgFromFile(p, pastHours, futureDays, source, progress, isCancelled)
+        } finally { source.delete() }
+    }
+
+    /** Parse/validate off-database, then publish programmes, inferred associations and success together. */
+    fun refreshEpgFromFile(p: Playlist, pastHours: Int, futureDays: Int, file: File,
+                          progress: (String) -> Unit, isCancelled: () -> Boolean = { false },
+                          expectedWindow: Pair<Int, Int>? = null): Int {
+        val windowSnapshot = expectedWindow ?: settings.epgWindow()
+        if (settings.epgWindow() != windowSnapshot) throw StaleRefreshData()
+        val shiftSnapshot = settings.epgShiftHours
+        val expectedIdentity = sourceIdentity(p)
+        val snapshot = requireCurrent(p, expectedIdentity)
+        val pid = p.id.toString()
+        val known = HashSet<String>()
+        val blankNames = HashMap<String, MutableList<String>>()
+        db.rawQuery("SELECT url,name,tvg_id FROM items WHERE playlist_id=? AND kind=0", arrayOf(pid)).use { c ->
             while (c.moveToNext()) {
-                nameToId[normalize(c.getString(1))]?.let { updates.add(c.getLong(0) to it) }
+                val guideId = c.getString(2).orEmpty()
+                if (guideId.isNotBlank()) known.add(guideId)
+                else blankNames.getOrPut(normalize(c.getString(1))) { ArrayList() }.add(c.getString(0))
             }
         }
-        for ((id, epg) in updates) {
-            db.execSQL("UPDATE items SET tvg_id=? WHERE id=?", arrayOf<Any>(epg, id))
-            known.add(epg)
-        }
+        val mappings = LinkedHashMap<String, String>()
+        val now = System.currentTimeMillis()
+        val archiveDays = db.rawQuery("SELECT MAX(catchup_days) FROM items WHERE playlist_id=? AND kind=0", arrayOf(pid))
+            .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        // XMLTV stores provider times; the selection window is expressed in displayed guide time.
+        val rawNow = now - shiftSnapshot * 3_600_000L
+        val from = rawNow - Catchup.pastWindowHours(pastHours.coerceIn(0, EpgRetentionPolicy.MAX_PAST_HOURS), archiveDays) * 3_600_000L
+        val to = rawNow + futureDays.coerceIn(1, EpgRetentionPolicy.MAX_FUTURE_DAYS) * 86_400_000L
+        val staged = File.createTempFile("programs-", ".bin", stageDir)
+        var count = 0
+        try {
+            progress("Importing guide…")
+            DataOutputStream(staged.outputStream().buffered()).use { out -> file.inputStream().buffered().use { input ->
+                val parser = Xml.newPullParser().apply { setInput(input, null) }
+                XmltvParser.parse(parser, onChannel = { channel ->
+                    if (channel.id.isNotBlank() && channel.displayName.isNotBlank()) {
+                        blankNames[normalize(channel.displayName)]?.forEach { url ->
+                            val selected = mappings.getOrPut(url) { channel.id }
+                            known.add(selected)
+                        }
+                    }
+                }, acceptChannel = { it in known }, isCancelled = isCancelled) { program ->
+                    RefreshPolicy.checkCancelled(isCancelled)
+                    if (program.end > from && program.start < to && program.title.isNotBlank()) {
+                        RefreshStage.writeProgram(out, program)
+                        count++
+                        RefreshStage.checkSize(staged)
+                        if (count % 20000 == 0) progress("Imported $count programs…")
+                    }
+                }
+            } }
+            RefreshStage.checkSize(staged)
+            if (count == 0) throw InvalidRefreshData("The guide contained no matching programs. The previous guide was kept.")
+            val database = db
+            database.beginTransaction()
+            var readyToCommit = false
+            try {
+                RefreshPolicy.checkCancelled(isCancelled)
+                val current = requireCurrent(p, expectedIdentity)
+                if (current.catalogGeneration != snapshot.catalogGeneration) throw StaleRefreshData()
+                val committedSource = database.rawQuery("SELECT epg_source_key FROM playlists WHERE id=?", arrayOf(pid))
+                    .use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+                val incomingSource = sourceKey(current)
+                if (committedSource.isBlank() || committedSource != incomingSource) {
+                    // A different/unknown source is replaced only after the new feed is validated.
+                    database.delete("programs", "playlist_id=?", arrayOf(pid))
+                } else {
+                    // Omitted channels and days survive rolling/partial responses inside this window.
+                    database.delete("programs", "playlist_id=? AND (stop<=? OR start>=?)", arrayOf(pid, from.toString(), to.toString()))
+                }
+                database.compileStatement("DELETE FROM programs WHERE playlist_id=? AND channel_id=? AND start<? AND stop>?").use { replace ->
+                    database.compileStatement("INSERT INTO programs(playlist_id,channel_id,start,stop,title,descr) VALUES(?,?,?,?,?,?)").use { statement ->
+                        DataInputStream(staged.inputStream().buffered()).use { input ->
+                            repeat(count) {
+                                RefreshPolicy.checkCancelled(isCancelled)
+                                val program = RefreshStage.readProgram(input)
+                                // Newer feed records win both exact duplicates and overlapping corrections.
+                                // This also deduplicates records repeated inside one response (last wins).
+                                replace.clearBindings()
+                                replace.bindLong(1, p.id); replace.bindString(2, program.channelId)
+                                replace.bindLong(3, program.end); replace.bindLong(4, program.start)
+                                replace.executeUpdateDelete()
+                                RefreshPolicy.checkCancelled(isCancelled)
+                                statement.clearBindings()
+                                statement.bindLong(1, p.id); statement.bindString(2, program.channelId)
+                                statement.bindLong(3, program.start); statement.bindLong(4, program.end)
+                                statement.bindString(5, program.title); statement.bindString(6, program.description)
+                                statement.executeInsert()
+                            }
+                            if (input.read() != -1) throw InvalidRefreshData("The staged guide is invalid.")
+                        }
+                    }
+                }
+                for ((url, guideId) in mappings) database.execSQL(
+                    "UPDATE items SET tvg_id=? WHERE playlist_id=? AND url=? AND kind=0 AND (tvg_id IS NULL OR tvg_id='')",
+                    arrayOf<Any>(guideId, p.id, url))
+                RefreshPolicy.checkCancelled(isCancelled)
+                database.update("playlists", ContentValues().apply {
+                    put("epg_updated", System.currentTimeMillis()); put("epg_generation", current.epgGeneration + 1); put("epg_error", "")
+                    put("epg_source_key", incomingSource)
+                }, "id=?", arrayOf(pid))
+                readyToCommit = true
+            } finally {
+                // Preference setters wait for the final commit only, never for parsing or bulk writes.
+                // A mid-import edit rolls back pruning, corrections, status and source provenance.
+                synchronized(EpgRetentionPolicy.preferenceLock) {
+                    try {
+                        if (readyToCommit) {
+                            RefreshPolicy.checkCancelled(isCancelled)
+                            if (settings.epgWindow() != windowSnapshot || settings.epgShiftHours != shiftSnapshot) throw StaleRefreshData()
+                            database.setTransactionSuccessful()
+                        }
+                    } finally { database.endTransaction() }
+                }
+            }
+            return count
+        } finally { staged.delete() }
     }
 
     fun nowAndNext(playlistId: Long, channelId: String, now: Long = System.currentTimeMillis()): List<Program> {
@@ -339,18 +550,53 @@ class Repository(context: Context) {
     }
 
     fun programs(playlistId: Long, channelId: String, from: Long, to: Long): List<Program> {
-        if (channelId.isBlank()) return emptyList()
+        if (channelId.isBlank() || from >= to) return emptyList()
         return programsQuery(
             "playlist_id=? AND channel_id=? AND stop>? AND start<?",
-            arrayOf(playlistId.toString(), channelId, from.toString(), to.toString()), 500,
+            arrayOf(playlistId.toString(), channelId, from.toString(), to.toString()),
         )
+    }
+
+    /** Compact drawing rows; an over-dense window is explicit, never a misleading oldest-N tail. */
+    fun guidePrograms(playlistId: Long, channelId: String, from: Long, to: Long): GuideWindowResult {
+        if (channelId.isBlank() || from >= to) return GuideWindowResult(emptyList())
+        val rows = compactProgramsQuery("playlist_id=? AND channel_id=? AND stop>? AND start<?",
+            arrayOf(playlistId.toString(), channelId, from.toString(), to.toString()), "start", 513, 0)
+        return if (rows.size > 512) GuideWindowResult(emptyList(), dense = true) else GuideWindowResult(rows)
+    }
+
+    /** Real nearby programmes for actions/details even when a drawing window is too dense. */
+    fun guideNeighbours(playlistId: Long, channelId: String, time: Long, from: Long, to: Long): List<Program> {
+        if (channelId.isBlank() || from >= to) return emptyList()
+        val where = "playlist_id=? AND channel_id=? AND stop>? AND start<?"
+        val args = arrayOf(playlistId.toString(), channelId, from.toString(), to.toString())
+        val current = compactProgramsQuery("$where AND start<=? AND stop>?", args + arrayOf(time.toString(), time.toString()), "start DESC", 1, 16_384).firstOrNull()
+        val previous = compactProgramsQuery("$where AND stop<=?", args + (current?.start ?: time).toString(), "stop DESC", 1, 16_384).firstOrNull()
+        val next = compactProgramsQuery("$where AND start>?", args + time.toString(), "start", 1, 16_384).firstOrNull()
+        return listOfNotNull(previous, current, next).distinctBy { it.start }.sortedBy { it.start }
+    }
+
+    private fun compactProgramsQuery(where: String, args: Array<String>, order: String, limit: Int, descriptionChars: Int): List<Program> =
+        // Every compact query binds one known channel as args[1]; share that string instead of
+        // materialising another potentially large XMLTV identifier for every returned row.
+        db.rawQuery("SELECT start,stop,substr(title,1,512),substr(descr,1,$descriptionChars) FROM programs WHERE $where ORDER BY $order LIMIT $limit", args).use { c ->
+            buildList { while (c.moveToNext()) add(Program(args[1], c.getLong(0), c.getLong(1), c.getString(2).orEmpty(), c.getString(3).orEmpty())) }
+        }
+
+    /** Search one channel without loading its entire retained guide into the display cache. */
+    fun findProgram(playlistId: Long, channelId: String, text: String, from: Long, to: Long): Program? {
+        val value = text.trim()
+        if (channelId.isBlank() || value.isEmpty() || from >= to) return null
+        val escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return compactProgramsQuery("playlist_id=? AND channel_id=? AND stop>? AND start<? AND title LIKE ? ESCAPE '\\'",
+            arrayOf(playlistId.toString(), channelId, from.toString(), to.toString(), "%$escaped%"), "start", 1, 16_384).firstOrNull()
     }
 
     fun programCount(playlistId: Long): Int =
         db.rawQuery("SELECT COUNT(*) FROM programs WHERE playlist_id=?", arrayOf(playlistId.toString())).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
-    private fun programsQuery(where: String, args: Array<String>, limit: Int): List<Program> =
-        db.rawQuery("SELECT channel_id,start,stop,title,descr FROM programs WHERE $where ORDER BY start LIMIT $limit", args).use { c ->
+    private fun programsQuery(where: String, args: Array<String>, limit: Int? = null): List<Program> =
+        db.rawQuery("SELECT channel_id,start,stop,title,descr FROM programs WHERE $where ORDER BY start" + (limit?.let { " LIMIT $it" } ?: ""), args).use { c ->
             buildList { while (c.moveToNext()) add(Program(c.getString(0), c.getLong(1), c.getLong(2), c.getString(3).orEmpty(), c.getString(4).orEmpty())) }
         }
 

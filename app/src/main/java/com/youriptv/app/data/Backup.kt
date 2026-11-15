@@ -23,6 +23,7 @@ data class BackupPlaylist(
     val epgUrl: String = "",
     val userAgent: String = "",
     val favorites: List<BackupFavorite> = emptyList(),
+    val refreshHours: Int? = null,
 )
 
 data class BackupParental(
@@ -61,7 +62,7 @@ object BackupKeys {
         "live_format" to Text(8, setOf("ts", "m3u8")),
         "sw_decode" to Bool,
         "user_agent" to Text(512),
-        "epg_past_h" to IntRange(0, 168),
+        "epg_past_h" to IntRange(0, EpgRetentionPolicy.MAX_PAST_HOURS),
         "epg_future_d" to IntRange(1, 14),
         "epg_shift_h" to IntRange(-23, 23),
         "clock_24h" to Bool,
@@ -104,6 +105,7 @@ object BackupCodec {
                 .put("ref", p.ref).put("name", p.name).put("type", p.type.name).put("url", p.url)
                 .put("username", p.username).put("password", p.password)
                 .put("epg_url", p.epgUrl).put("user_agent", p.userAgent)
+                .apply { p.refreshHours?.let { put("refresh_hours", RefreshPolicy.migratedHours(it)) } }
                 .put("favorites", JSONArray().apply {
                     p.favorites.forEach { put(JSONObject().put("url", it.url).put("added", it.added)) }
                 }))
@@ -152,6 +154,8 @@ object BackupCodec {
                         val f = favs.optJSONObject(j) ?: return@mapNotNull null
                         f.optString("url").takeIf { it.isNotEmpty() }?.let { BackupFavorite(it, f.optLong("added", 0)) }
                     },
+                    refreshHours = if (o.has("refresh_hours") && !o.isNull("refresh_hours"))
+                        o.optInt("refresh_hours", -1).takeIf { it in 0..168 } else null,
                 )
             }
             return BackupData(

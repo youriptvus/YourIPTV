@@ -186,7 +186,9 @@ class ParentalControlTest {
         assertTrue(settings.contains("visit.endVisit()"))
         assertFalse(settings.contains("EXTRA_UNLOCKED"))
         val main = src("MainActivity.kt")
-        assertTrue(main.contains("\"Unlock Settings\""))
+        assertTrue(main.contains("Section.ADMIN -> unlockSettings()"))
+        assertTrue(main.contains("Section.SETTINGS -> if (app.settings.isSettingsLocked()) CustomerSettingsPanel.show(this,"))
+        assertTrue("Only the explicit Settings policy can open the combined destination", main.contains("else unlockSettings()"))
         assertTrue(main.contains("startActivity(Intent(this, SettingsActivity::class.java))"))
     }
 

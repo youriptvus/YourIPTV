@@ -94,20 +94,26 @@ object Dialogs {
     fun requirePin(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
         requireCode(a, PinKind.PARENTAL, "Enter parental PIN — $reason", onCancel, onOk)
 
-    /** Settings always require the permanent master or a custom Settings PIN, including when none is stored. */
-    fun requireSettingsPin(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
-        requireCode(a, PinKind.SETTINGS, "Enter Settings PIN — $reason", onCancel, onOk)
+    /** Settings require the master or custom PIN while the explicit Settings lock is enabled. */
+    fun requireSettingsPin(a: Activity, reason: String, onCancel: (() -> Unit)? = null, canUse: () -> Boolean = { true }, onOk: () -> Unit) =
+        requireCode(a, PinKind.SETTINGS, "Enter Settings PIN — $reason", onCancel, onOk, canUse = canUse)
 
     /** Custom Settings PIN changes require the master, with the same Settings attempt counter. */
-    fun requireSettingsMaster(a: Activity, reason: String, onCancel: (() -> Unit)? = null, onOk: () -> Unit) =
-        requireCode(a, PinKind.SETTINGS, "Enter Settings master PIN — $reason", onCancel, onOk, masterOnly = true)
+    fun requireSettingsMaster(a: Activity, reason: String, onCancel: (() -> Unit)? = null, canUse: () -> Boolean = { true }, onOk: () -> Unit) =
+        requireCode(a, PinKind.SETTINGS, "Enter Settings master PIN — $reason", onCancel, onOk, masterOnly = true, canUse = canUse)
 
-    private fun requireCode(a: Activity, kind: PinKind, title: String, onCancel: (() -> Unit)?, onOk: () -> Unit, masterOnly: Boolean = false) {
-        val vault = YourIptvApp.instance.settings.pins
+    private fun requireCode(a: Activity, kind: PinKind, title: String, onCancel: (() -> Unit)?, onOk: () -> Unit, masterOnly: Boolean = false, canUse: () -> Boolean = { true }) {
+        if (a.isFinishing || a.isDestroyed || !canUse()) { onCancel?.invoke(); return }
+        val settings = YourIptvApp.instance.settings
+        val policy = if (kind == PinKind.SETTINGS) YourIptvApp.instance.settingsFlow.policyToken() else null
+        val vault = settings.pins
+        if (kind == PinKind.SETTINGS && !masterOnly && !settings.isSettingsLocked()) { onOk(); return }
         if (kind != PinKind.SETTINGS && !vault.has(kind)) { onOk(); return }
         val wait = vault.lockoutRemaining(kind)
         if (wait > 0) { toast(a, lockoutText(kind, wait)); onCancel?.invoke(); return }
         input(a, title, "", numeric = true, password = true, onCancel = onCancel) { pin ->
+            if (a.isFinishing || a.isDestroyed || !canUse() ||
+                (policy != null && !YourIptvApp.instance.settingsFlow.isCurrentPolicy(policy))) { onCancel?.invoke(); return@input }
             if (pin.isEmpty()) { toast(a, "No PIN entered"); onCancel?.invoke(); return@input }
             val result = when {
                 kind != PinKind.SETTINGS -> vault.check(kind, pin)

@@ -8,6 +8,63 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SettingsFlowAuthorizationTest {
+    @Test fun lockDefaultsOnAndOnlyExplicitOffCanAuthorizeWithoutPin() {
+        val flow = SettingsFlowAuthorization()
+        val owner = Any()
+        assertFalse(flow.authorizeWithoutPin(owner, settings))
+        assertFalse(flow.isAuthorized(owner))
+        assertTrue(flow.synchronizePolicy(false))
+        assertTrue(flow.authorizeWithoutPin(owner, settings))
+        assertTrue(flow.isAuthorized(owner))
+        assertFalse("An unlocked Settings visit must not grant parental permission", flow.hasParentalPermission(owner))
+    }
+
+    @Test fun policyChangeRevokesVisitsParentalGrantsAndPendingHandoffs() {
+        val flow = SettingsFlowAuthorization()
+        val owner = Any(); val child = Any()
+        flow.synchronizePolicy(false)
+        assertTrue(flow.authorizeWithoutPin(owner, settings))
+        flow.allowParental(owner)
+        val visitToken = flow.token(owner)!!
+        val policyToken = flow.policyToken()
+        val ticket = flow.forward(owner, editor)!!
+        flow.paused(owner)
+        assertTrue(flow.synchronizePolicy(true))
+        assertFalse(flow.isCurrentPolicy(policyToken))
+        assertFalse(flow.isAuthorized(owner, visitToken))
+        assertFalse(flow.retains(owner))
+        assertFalse(flow.enter(child, editor, ticket))
+        assertFalse(flow.hasParentalPermission(child))
+        assertFalse(flow.authorizeWithoutPin(child, editor))
+    }
+
+    @Test fun unchangedPolicyKeepsCurrentVisitButOffOnOffCannotReviveItsTokens() {
+        val flow = SettingsFlowAuthorization()
+        val owner = Any()
+        flow.synchronizePolicy(false)
+        flow.authorizeWithoutPin(owner, settings)
+        val policy = flow.policyToken(); val visit = flow.token(owner)!!
+        assertFalse(flow.synchronizePolicy(false))
+        assertTrue(flow.isAuthorized(owner, visit))
+        flow.synchronizePolicy(true); flow.synchronizePolicy(false)
+        assertFalse(flow.isCurrentPolicy(policy))
+        assertFalse(flow.isAuthorized(owner, visit))
+        assertTrue(flow.authorizeWithoutPin(owner, settings))
+        assertFalse(flow.isAuthorized(owner, visit))
+    }
+
+    @Test fun changedPolicyInvalidatesRetainedFilePickerVisitBeforeItCanReturn() {
+        val flow = SettingsFlowAuthorization()
+        val owner = Any()
+        flow.synchronizePolicy(false)
+        flow.authorizeWithoutPin(owner, settings)
+        val pickerPolicy = flow.policyToken()
+        flow.paused(owner); flow.revoke()
+        flow.synchronizePolicy(true)
+        assertFalse("An original RAM picker is insufficient after a policy change", flow.isCurrentPolicy(pickerPolicy))
+        assertFalse(flow.enter(owner, settings))
+        assertFalse(flow.authorizeWithoutPin(owner, settings))
+    }
     private val settings = Route(SETTINGS)
     private val manager = Route(PLAYLISTS)
     private val editor = Route(EDITOR, 7L)
@@ -28,6 +85,26 @@ class SettingsFlowAuthorizationTest {
         assertTrue(flow.isAuthorized(owner))
         assertFalse(flow.isAuthorized(Any()))
         assertFalse(flow.hasParentalPermission(owner))
+    }
+
+    @Test fun protectedDialogCannotUseARetainedLocalTokenAfterFlowRevocationOrANewVisit() {
+        val flow = SettingsFlowAuthorization()
+        val owner = Any()
+        val visit = SettingsVisitAuthorization()
+        val captured = visit.beginVisit()
+        assertTrue(visit.authorize(captured))
+        fun canUseCapturedDialog() = visit.isAuthorized(captured) && flow.isAuthorized(owner)
+        assertFalse("A local visit alone must not open protected preferences", canUseCapturedDialog())
+        flow.authenticate(owner, settings)
+        assertTrue(canUseCapturedDialog())
+        assertFalse(flow.hasParentalPermission(owner))
+        flow.revoke() // Screen-off can revoke the flow before the Activity's pause callback.
+        assertTrue(visit.isAuthorized(captured))
+        assertFalse("The old dialog must reject reads, saves and update callbacks", canUseCapturedDialog())
+        visit.endVisit()
+        assertTrue(visit.authorize(visit.beginVisit()))
+        flow.authenticate(owner, settings)
+        assertFalse("A new unlock cannot revive a captured dialog token", canUseCapturedDialog())
     }
 
     @Test fun exactForwardTicketSurvivesOnlyThePreparedInternalPauseAndIsOneUse() {

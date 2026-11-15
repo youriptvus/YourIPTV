@@ -6,7 +6,8 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 5) {
+class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 7) {
+    private val settings = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     override fun onConfigure(db: SQLiteDatabase) {
         db.enableWriteAheadLogging()
@@ -46,6 +47,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 5) {
         addV3(db)
         addV4(db)
         addV5(db)
+        addV6(db)
+        addV7(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -53,6 +56,39 @@ class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 5) {
         if (oldVersion < 3) addV3(db)
         if (oldVersion < 4) addV4(db)
         if (oldVersion < 5) addV5(db)
+        if (oldVersion < 6) addV6(db)
+        if (oldVersion < 7) addV7(db)
+    }
+
+    private fun addV7(db: SQLiteDatabase) {
+        // A legacy cache has no reliable source provenance. Keep it visible, but replace it on
+        // the first validated import instead of assigning the currently configured source to it.
+        db.execSQL("ALTER TABLE playlists ADD COLUMN epg_source_key TEXT NOT NULL DEFAULT ''")
+        // Historical feeds could contain duplicates. Last received row wins for a channel/start.
+        db.execSQL("DELETE FROM programs WHERE rowid NOT IN (SELECT MAX(rowid) FROM programs GROUP BY playlist_id,channel_id,start)")
+        db.execSQL("DROP INDEX IF EXISTS idx_programs")
+        db.execSQL("CREATE UNIQUE INDEX idx_programs ON programs(playlist_id,channel_id,start)")
+    }
+
+    private fun addV6(db: SQLiteDatabase) {
+        // NULL identifies old rows until the saved legacy preference has been migrated.
+        db.execSQL("ALTER TABLE playlists ADD COLUMN refresh_hours INTEGER DEFAULT NULL")
+        for (column in listOf("catalog_attempt", "epg_updated", "epg_attempt", "catalog_generation", "epg_generation")) {
+            db.execSQL("ALTER TABLE playlists ADD COLUMN $column INTEGER NOT NULL DEFAULT 0")
+        }
+        for (column in listOf("catalog_error", "epg_error")) {
+            db.execSQL("ALTER TABLE playlists ADD COLUMN $column TEXT NOT NULL DEFAULT ''")
+        }
+        val hours = RefreshPolicy.migratedHours(if (settings.contains("auto_refresh_h")) settings.getInt("auto_refresh_h", 16) else null)
+        db.execSQL("UPDATE playlists SET refresh_hours=? WHERE refresh_hours IS NULL", arrayOf<Any>(hours))
+        db.execSQL("UPDATE playlists SET catalog_generation=1 WHERE last_updated>0")
+        db.rawQuery("SELECT id FROM playlists", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val updated = settings.getLong("epg_updated_$id", 0L)
+                db.execSQL("UPDATE playlists SET epg_updated=?,epg_generation=? WHERE id=?", arrayOf<Any>(updated, if (updated > 0) 1 else 0, id))
+            }
+        }
     }
 
     // v5: Xtream server timezone for catch-up (timeshift) URLs.
@@ -169,6 +205,14 @@ class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 5) {
             accountStatus = c.getString(c.getColumnIndexOrThrow("status")).orEmpty(),
             expiresAt = c.getLong(c.getColumnIndexOrThrow("expires")),
             serverTimeZone = c.getColumnIndex("server_tz").let { if (it >= 0) c.getString(it).orEmpty() else "" },
+            refreshHours = c.getColumnIndex("refresh_hours").let { if (it >= 0 && !c.isNull(it)) c.getInt(it) else 16 },
+            lastRefreshAttempt = c.getLong(c.getColumnIndexOrThrow("catalog_attempt")),
+            lastRefreshError = c.getString(c.getColumnIndexOrThrow("catalog_error")).orEmpty(),
+            epgLastUpdated = c.getLong(c.getColumnIndexOrThrow("epg_updated")),
+            epgLastAttempt = c.getLong(c.getColumnIndexOrThrow("epg_attempt")),
+            epgLastError = c.getString(c.getColumnIndexOrThrow("epg_error")).orEmpty(),
+            catalogGeneration = c.getLong(c.getColumnIndexOrThrow("catalog_generation")),
+            epgGeneration = c.getLong(c.getColumnIndexOrThrow("epg_generation")),
         )
     }
 }

@@ -9,13 +9,13 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.doOnNextLayout
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.youriptv.app.BuildConfig
 import com.youriptv.app.data.BackupData
 import com.youriptv.app.data.BackupException
 import com.youriptv.app.data.BackupManager
 import com.youriptv.app.data.BackupRestore
-import com.youriptv.app.data.ItemKind
 import com.youriptv.app.data.PinKind
 import com.youriptv.app.updates.AppUpdates
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +28,11 @@ import java.util.Locale
 internal enum class SettingsCategory(val title: String, val description: String) {
     GENERAL("General", "Startup and viewing history"),
     PLAYLISTS("Playlists", "Edit the current playlist and automatic updates"),
-    EPG("TV Guide / EPG", "Programme storage, time shift, and guide updates"),
+    EPG("TV Guide / EPG", "Guide storage, time offset and updates"),
     PLAYBACK("Playback", "Buffer, video, audio, stream format, and user agent"),
     APPEARANCE("Appearance", "Channel numbers and clock format"),
     REMOTE("Remote Controls", "Channel up/down direction"),
-    PARENTAL("Parental Controls", "Parental PIN, adult categories, group and playlist locks"),
-    SETTINGS_LOCK("Settings Lock", "Always-on protection and optional custom Settings PIN"),
+    SETTINGS_LOCK("Settings Lock", "Master-controlled Settings protection and optional custom PIN"),
     BACKUP("Backup & Restore", "Save playlists, favorites, and settings to a local file, or restore them"),
     UPDATES("App Updates", "Automatic GitHub update checks"),
 }
@@ -51,6 +50,7 @@ class SettingsActivity : ListActivity() {
     private val flow get() = app.settingsFlow
     private val settingsRoute = SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.SETTINGS)
     private var authenticating = false
+    private var visitPolicy = -1L
     private var restoredCategory: SettingsCategory? = null
     private var restoredRowFocus = 0
 
@@ -58,7 +58,7 @@ class SettingsActivity : ListActivity() {
         super.onCreate(savedInstanceState)
         // Authenticate here: an old/restored Intent must never grant Settings access.
         adapter = TextAdapter(
-            bind = { e -> e.title to e.value() },
+            bind = { e -> if (authorizedToken() != null) e.title to e.value() else "" to "" },
             onClick = { e, _ -> if (authorizedToken() != null) e.action(e) },
         )
         list.adapter = adapter
@@ -85,15 +85,23 @@ class SettingsActivity : ListActivity() {
     }
 
     private fun showPage(selected: SettingsCategory?, focus: Int = 0) {
-        if (!visit.isAuthorized) return
+        if (authorizedToken() == null) return
         category = selected
-        listTitle.text = selected?.title ?: "Settings"
+        listTitle.text = selected?.title ?: if (s.isSettingsLocked()) "Unlock Settings" else "Settings"
         listSubtitle.text = subtitle()
         list.clearFocus()
         adapter.submit(if (selected == null) {
-            SettingsCategory.entries.mapIndexed { index, c ->
+            val customer = if (s.isSettingsLocked()) emptyList() else listOf(
+                Entry("Playlist Settings", { "Update Playlist, Update EPG and update status" }, {
+                    CustomerSettingsPanel.showRefreshControls(this, s.activePlaylistId)
+                }),
+                Entry("Parental Controls", { "Independent parental PIN and content restrictions" }, {
+                    startActivity(Intent(this, ParentalControlsActivity::class.java))
+                }),
+            )
+            customer + SettingsCategory.entries.mapIndexed { index, c ->
                 Entry(c.title, { c.description }, {
-                    categoryFocus = index
+                    categoryFocus = index + customer.size
                     showPage(c)
                 })
             }
@@ -106,31 +114,56 @@ class SettingsActivity : ListActivity() {
 
     // A payload keeps the same row views so D-pad focus stays on the edited setting.
     private fun refresh() {
-        if (!visit.isAuthorized) return
+        if (authorizedToken() == null) return
         listSubtitle.text = subtitle()
         adapter.notifyItemRangeChanged(0, adapter.itemCount, "refresh")
     }
 
-    private fun subtitle() = "Unlocked for this visit only. Settings protection always stays on. About is available from the main menu without a PIN."
+    private fun subtitle() = if (s.isSettingsLocked())
+        "Unlocked for this visit only with the Settings PIN. Parental Controls under Settings uses its own parental PIN."
+    else "Settings lock is off. The master PIN is required to change the lock or custom PINs. Parental protection is independent."
 
-    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed || (!pickingFile && !flow.isAuthorized(this))) null else visit.authorizedToken()
+    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed || !flow.isCurrentPolicy(visitPolicy) ||
+        (!pickingFile && !flow.isAuthorized(this))) null else visit.authorizedToken()
 
-    private fun hasAuthorization(token: Long) = !isFinishing && !isDestroyed && visit.isAuthorized(token) && (pickingFile || flow.isAuthorized(this))
+    private fun hasAuthorization(token: Long) = authorizedToken() == token && visit.isAuthorized(token)
+
+    /** Protected dialogs cannot inherit a file-picker exception or a later Settings visit. */
+    internal fun canUseEpgSettings(token: Long) = !pickingFile && hasAuthorization(token) &&
+        lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+
+    internal fun onSettingsPolicyChanged() {
+        visit.endVisit()
+        authenticating = false
+        filePickerToken = null
+        pickingFile = false
+        hideProtectedContent()
+        finish()
+    }
 
     private fun hideProtectedContent() {
         list.visibility = View.INVISIBLE
         listTitle.text = "Settings locked"
-        listSubtitle.text = "Enter the Settings PIN to continue. About is available from the main menu without a PIN."
+        listSubtitle.text = "Enter the existing Settings PIN to continue. Customer refresh controls are available from Settings without a PIN."
     }
 
     private fun authenticateSettings() {
         if (authenticating || isFinishing) return
+        visitPolicy = flow.policyToken()
+        val policy = visitPolicy
         val token = visit.beginVisit()
         authenticating = true
-        Dialogs.requireSettingsPin(this, "unlock Settings", onCancel = {
+        if (!s.isSettingsLocked()) {
+            if (!flow.isCurrentPolicy(policy) || !flow.authorizeWithoutPin(this, settingsRoute) || !visit.authorize(token)) return
+            authenticating = false
+            list.visibility = View.VISIBLE
+            showPage(restoredCategory, restoredRowFocus)
+            return
+        }
+        Dialogs.requireSettingsPin(this, "unlock Settings", canUse = { visit.isCurrent(token) && flow.isCurrentPolicy(policy) }, onCancel = {
             if (visit.isCurrent(token)) { authenticating = false; finish() }
         }) {
-            if (isFinishing || !visit.authorize(token)) return@requireSettingsPin
+            if (isFinishing || !flow.isCurrentPolicy(policy) || !visit.authorize(token)) return@requireSettingsPin
             flow.authenticate(this, settingsRoute)
             authenticating = false
             list.visibility = View.VISIBLE
@@ -145,6 +178,7 @@ class SettingsActivity : ListActivity() {
         pickingFile = false
         if (!::adapter.isInitialized || isFinishing) return
         if (flow.enter(this, settingsRoute)) {
+            visitPolicy = flow.policyToken()
             if (!visit.isAuthorized) visit.authorize(visit.beginVisit())
             authenticating = false
             list.visibility = View.VISIBLE
@@ -152,7 +186,7 @@ class SettingsActivity : ListActivity() {
             return
         }
         // Retain the pre-existing, narrowly scoped system-file-picker operation, never an Intent grant.
-        if (returningFromPicker && visit.isAuthorized) flow.authenticate(this, settingsRoute)
+        if (returningFromPicker && visit.isAuthorized && flow.isCurrentPolicy(visitPolicy)) flow.authenticate(this, settingsRoute)
         if (!visit.isAuthorized) authenticateSettings()
         else { list.visibility = View.VISIBLE; refresh() }
     }
@@ -197,7 +231,7 @@ class SettingsActivity : ListActivity() {
         val token = filePickerToken
         filePickerToken = null
         pickingFile = false
-        if (token == null || isFinishing || isDestroyed || !visit.isAuthorized(token)) return null
+        if (token == null || isFinishing || isDestroyed || !flow.isCurrentPolicy(visitPolicy) || !visit.isAuthorized(token)) return null
         // Activity results may arrive at STARTED, before onResume, after the system picker hid this app.
         flow.authenticate(this, settingsRoute)
         return token
@@ -328,9 +362,7 @@ class SettingsActivity : ListActivity() {
                 runCatching {
                     val r = backups.restore(data)
                     val failed = r.addedPlaylists.filter { p ->
-                        runCatching { Refresher.refreshAll(p) { m -> runOnUiThread {
-                            if (hasAuthorization(token)) listSubtitle.text = "\"${p.name}\": $m"
-                        } } }.isFailure
+                        !app.refreshCoordinator.requestPlaylist(p.id).await().success
                     }
                     r to failed
                 }
@@ -402,7 +434,15 @@ class SettingsActivity : ListActivity() {
             Entry("Edit current playlist", {
                 app.repo.playlist(s.activePlaylistId)?.name?.let { "$it · uses this Settings unlock" } ?: "No active playlist"
             }, { editCurrentPlaylist() }),
-            number("Auto-update playlist and guide every", "hours (0 = off)", { s.autoRefreshHours }, 0, 168) { s.autoRefreshHours = it },
+            number("Auto-update playlist and guide every", "hours (0 = off)", {
+                app.repo.playlist(s.activePlaylistId)?.refreshHours ?: 16
+            }, 0, 168) { hours ->
+                if (app.repo.playlist(s.activePlaylistId) == null) Dialogs.toast(this, "No active playlist")
+                else {
+                    app.repo.setRefreshHours(s.activePlaylistId, hours)
+                    app.refreshCoordinator.reconcileSchedule()
+                }
+            },
         )
         SettingsCategory.PLAYBACK -> listOf(
             number("Buffer size", "ms", { s.bufferMs }, 500, 30_000) { s.bufferMs = it },
@@ -422,10 +462,10 @@ class SettingsActivity : ListActivity() {
             }),
         )
         SettingsCategory.EPG -> listOf(
-            number("Keep past programmes", "hours", { s.epgPastHours }, 0, 168) { s.epgPastHours = it },
-            number("Download future programmes", "days", { s.epgFutureDays }, 1, 14) { s.epgFutureDays = it },
-            number("Guide time shift", "hours", { s.epgShiftHours }, -23, 23) { s.epgShiftHours = it },
-            Entry("Update guide now", { guideStatus() }, { updateGuideNow() }),
+            Entry("Open EPG Settings", { "Past and future coverage, guide time offset, update status and Update EPG" }, entry@ {
+                val token = authorizedToken() ?: return@entry
+                if (canUseEpgSettings(token)) EpgSettingsPanel.show(this, s.activePlaylistId, token)
+            }),
         )
         SettingsCategory.APPEARANCE -> listOf(
             toggle("Show channel numbers", { s.showChannelNumbers }, { s.showChannelNumbers = it }),
@@ -437,22 +477,11 @@ class SettingsActivity : ListActivity() {
                 else "Off · in the player, UP selects the previous channel number"
             }, { s.invertZap = !s.invertZap; refresh() }),
         )
-        SettingsCategory.PARENTAL -> listOf(
-            Entry("Parental PIN", { if (s.hasPin()) "Set · change or remove" else "Not set" }, { pinAction() }),
-            lockToggle("Block adult categories", "hides adult groups in every playlist (live, movies, series); uses the parental PIN", { s.blockAdult }) { s.blockAdult = it },
-            Entry("Locked groups", { if (s.lockedGroups.isEmpty()) "None" else "${s.lockedGroups.size} locked" }, { lockedGroups() }),
-            toggle("Hide locked groups", { s.hideLockedGroups }, change@ { v ->
-                val token = authorizedToken() ?: return@change
-                Dialogs.requirePin(this, "change visibility") {
-                    if (hasAuthorization(token)) { s.hideLockedGroups = v; refresh() }
-                }
-            }),
-            lockToggle("Lock playlists", "PIN needed to add, edit, switch, or delete playlists", { s.lockPlaylists }) { s.lockPlaylists = it },
-        )
         SettingsCategory.SETTINGS_LOCK -> listOf(
             Entry("Lock Settings", {
-                if (s.pins.has(PinKind.SETTINGS)) "Always on · master and custom Settings PIN · master required to manage the custom PIN"
-                else "Always on · permanent Settings master PIN · optional custom PIN can be added"
+                if (!s.isSettingsLocked()) "Off · master PIN required to change the lock or custom PINs"
+                else if (s.pins.has(PinKind.SETTINGS)) "On · master or custom Settings PIN · master required to change protection"
+                else "On · Settings master PIN · optional custom PIN can be added"
             }, { settingsLockAction() }),
         )
         SettingsCategory.BACKUP -> listOf(
@@ -531,100 +560,32 @@ class SettingsActivity : ListActivity() {
         }
     }
 
-    private fun guideStatus(): String {
-        val t = s.epgUpdated(s.activePlaylistId)
-        return if (t > 0) "Last updated ${Format.dayTime(t)}" else "Not downloaded yet"
-    }
-
-    private fun updateGuideNow() {
-        val token = authorizedToken() ?: return
-        val p = app.repo.playlist(s.activePlaylistId) ?: run { Dialogs.toast(this, "No active playlist"); return }
-        setBusy(true, "Updating guide…")
-        lifecycleScope.launch {
-            val warning = withContext(Dispatchers.IO) { Refresher.refreshEpg(p) { m -> runOnUiThread {
-                if (hasAuthorization(token)) listSubtitle.text = m
-            } } }
-            if (!hasAuthorization(token)) return@launch
-            setBusy(false, warning ?: "Guide updated.")
-            refresh()
-        }
-    }
-
-    private fun lockToggle(t: String, note: String, get: () -> Boolean, set: (Boolean) -> Unit) =
-        Entry(t, { (if (get() && s.hasPin()) "On" else "Off") + " · $note" }, entry@ {
-            val token = authorizedToken() ?: return@entry
-            val v = !(get() && s.hasPin())
-            val apply = { if (hasAuthorization(token)) { set(v); refresh() } }
-            if (!s.hasPin()) {
-                if (!v) apply() else { Dialogs.toast(this, "Set a parental PIN first"); newPin { apply() } }
-            } else Dialogs.requirePin(this, "change \"$t\"") { apply() }
-        })
-
-    private fun pinAction() {
-        val token = authorizedToken() ?: return
-        if (!s.hasPin()) { newPin(); return }
-        Dialogs.choose(this, "Parental PIN", listOf("Change parental PIN", "Remove parental PIN")) { i ->
-            if (!hasAuthorization(token)) return@choose
-            Dialogs.requirePin(this, "confirm current parental PIN") {
-                if (!hasAuthorization(token)) return@requirePin
-                if (i == 0) newPin() else {
-                    s.pins.set(PinKind.PARENTAL, null)
-                    Dialogs.toast(this, "Parental PIN removed; locked groups, adult categories, and playlists are now unlocked")
-                    refresh()
-                }
-            }
-        }
-    }
-
-    private fun newPin(after: (() -> Unit)? = null) {
-        val token = authorizedToken() ?: return
-        Dialogs.createPin(this, PinKind.PARENTAL, canSave = { hasAuthorization(token) }) {
-            if (hasAuthorization(token)) { refresh(); after?.invoke() }
-        }
-    }
-
-    /** The master manages only the optional custom PIN. Settings protection cannot be disabled. */
+    /** Every policy/custom-PIN change needs a fresh master check, even while access is unlocked. */
     private fun settingsLockAction() {
         val token = authorizedToken() ?: return
-        val options = if (s.pins.has(PinKind.SETTINGS)) listOf("Change custom Settings PIN", "Remove custom Settings PIN") else listOf("Add custom Settings PIN")
-        Dialogs.choose(this, "Settings protection is always on", options) { i ->
+        val locked = s.isSettingsLocked()
+        val toggle = if (locked) "Turn off Settings lock" else "Turn on Settings lock"
+        val options = listOf(toggle) + if (s.pins.has(PinKind.SETTINGS)) listOf("Change custom Settings PIN", "Remove custom Settings PIN") else listOf("Add custom Settings PIN")
+        Dialogs.choose(this, "Settings protection", options) { i ->
             if (!hasAuthorization(token)) return@choose
-            Dialogs.requireSettingsMaster(this, "manage the custom Settings PIN") {
+            val reason = if (i == 0) if (locked) "turn Settings lock off" else "turn Settings lock on" else "manage the custom Settings PIN"
+            Dialogs.requireSettingsMaster(this, reason, canUse = { hasAuthorization(token) }) {
                 if (!hasAuthorization(token)) return@requireSettingsMaster
-                if (i == 0) Dialogs.createPin(this, PinKind.SETTINGS, canSave = { hasAuthorization(token) }) { refresh() }
+                if (i == 0) {
+                    // End this local visit before changing policy; the shared flow revokes all retained screens/tickets.
+                    visit.endVisit()
+                    hideProtectedContent()
+                    s.setSettingsLockEnabled(!locked)
+                    flow.policyToken()
+                    Dialogs.toast(this, if (locked) "Settings lock turned off" else "Settings lock turned on")
+                    finish()
+                } else if (i == 1) Dialogs.createPin(this, PinKind.SETTINGS, canSave = { hasAuthorization(token) }) { refresh() }
                 else {
                     s.pins.set(PinKind.SETTINGS, null)
                     s.clearLegacySettingsLock()
-                    Dialogs.toast(this, "Custom Settings PIN removed. Master protection remains on.")
+                    Dialogs.toast(this, "Custom Settings PIN removed. The Settings lock choice is unchanged.")
                     refresh()
                 }
-            }
-        }
-    }
-
-    private fun lockedGroups() {
-        val token = authorizedToken() ?: return
-        val p = app.repo.playlist(s.activePlaylistId) ?: run { Dialogs.toast(this, "No active playlist"); return }
-        if (!s.hasPin()) { Dialogs.toast(this, "Set a parental PIN first"); newPin { lockedGroups() }; return }
-        Dialogs.requirePin(this, "edit locked groups") {
-            if (!hasAuthorization(token)) return@requirePin
-            lifecycleScope.launch {
-                val groups = withContext(Dispatchers.IO) {
-                    listOf(ItemKind.LIVE, ItemKind.MOVIE, ItemKind.SERIES, ItemKind.EPISODE).flatMap { app.repo.groups(p.id, it) }.map { it.name }.distinct()
-                }
-                if (!hasAuthorization(token)) return@launch
-                if (groups.isEmpty()) { Dialogs.toast(this@SettingsActivity, "The active playlist has no groups yet"); return@launch }
-                val checked = BooleanArray(groups.size) { groups[it] in s.lockedGroups }
-                val dialog = androidx.appcompat.app.AlertDialog.Builder(this@SettingsActivity).setTitle("Locked groups")
-                    .setMultiChoiceItems(groups.toTypedArray(), checked) { _, i, v -> if (hasAuthorization(token)) checked[i] = v }
-                    .setPositiveButton("Save") { _, _ ->
-                        if (hasAuthorization(token)) {
-                            val other = s.lockedGroups - groups.toSet()
-                            s.lockedGroups = other + groups.filterIndexed { i, _ -> checked[i] }
-                            refresh()
-                        }
-                    }.setNegativeButton("Cancel", null).show()
-                RemoteBack.bind(dialog, this@SettingsActivity)
             }
         }
     }

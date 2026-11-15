@@ -22,6 +22,7 @@ class PlaylistsActivity : ListActivity() {
     private val flow get() = app.settingsFlow
     private val route = SettingsFlowAuthorization.Route(SettingsFlowAuthorization.Destination.PLAYLISTS)
     private var protectedVisit = false
+    private var visitPolicy = -1L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +40,7 @@ class PlaylistsActivity : ListActivity() {
         hideProtectedContent()
     }
 
-    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed ||
+    private fun authorizedToken(): Long? = if (isFinishing || isDestroyed || !flow.isCurrentPolicy(visitPolicy) ||
         (protectedVisit && !flow.isAuthorized(this))) null else visit.authorizedToken()
     private fun hasAuthorization(token: Long) = authorizedToken() == token && visit.isAuthorized(token)
 
@@ -53,10 +54,12 @@ class PlaylistsActivity : ListActivity() {
     override fun onResume() {
         super.onResume()
         if (isFinishing) return
+        visitPolicy = flow.policyToken()
         protectedVisit = flow.enter(this, route)
+        if (!protectedVisit) protectedVisit = flow.authorizeWithoutPin(this, route)
         val token = visit.beginVisit()
         val allowed = allowed@{
-            if (isFinishing || (protectedVisit && !flow.isAuthorized(this)) || !visit.authorize(token)) return@allowed
+            if (isFinishing || !flow.isCurrentPolicy(visitPolicy) || (protectedVisit && !flow.isAuthorized(this)) || !visit.authorize(token)) return@allowed
             if (protectedVisit && app.settings.isPlaylistsLocked()) flow.allowParental(this)
             list.visibility = View.VISIBLE
             actions.visibility = View.VISIBLE
@@ -73,6 +76,12 @@ class PlaylistsActivity : ListActivity() {
         flow.paused(this)
         visit.endVisit()
         super.onPause()
+    }
+
+    internal fun onSettingsPolicyChanged() {
+        visit.endVisit()
+        hideProtectedContent()
+        finish()
     }
 
     override fun onStop() {
@@ -177,7 +186,7 @@ class PlaylistsActivity : ListActivity() {
         val token = authorizedToken() ?: return
         if (busy) return
         if (flow.isAuthorized(this)) confirmDelete(selected, token)
-        else Dialogs.requireSettingsPin(this, "delete playlist") {
+        else Dialogs.requireSettingsPin(this, "delete playlist", canUse = { hasAuthorization(token) && !busy }) {
             if (!hasAuthorization(token) || busy) return@requireSettingsPin
             flow.authenticate(this, route)
             if (app.settings.isPlaylistsLocked()) flow.allowParental(this)

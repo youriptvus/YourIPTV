@@ -3,6 +3,7 @@ package com.youriptv.app
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 class BrandingCentralizationTest {
     private fun res(path: String) = listOf(File("src/main/res/$path"), File("app/src/main/res/$path")).first { it.exists() }
@@ -15,6 +16,24 @@ class BrandingCentralizationTest {
     @Test fun defaultBrandNameMatchesTheIntegrityPin() {
         val branding = res("values/branding.xml").readText()
         assertTrue(branding.contains("<string name=\"app_name\">${BrandIntegrity.EXPECTED_BRAND_NAME}</string>"))
+    }
+
+    @Test fun mainMenuShowsTheBundledOfficialLogoWithoutAddingARemoteFocusTarget() {
+        val android = "http://schemas.android.com/apk/res/android"
+        for (layout in listOf("layout/activity_main.xml", "layout-port/activity_main.xml")) {
+            val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            val document = res(layout).inputStream().use { factory.newDocumentBuilder().parse(it) }
+            val images = document.getElementsByTagName("ImageView")
+            val logo = (0 until images.length).map { images.item(it) as org.w3c.dom.Element }
+                .single { it.getAttributeNS(android, "id") == "@+id/brand" }
+            assertEquals("@drawable/banner", logo.getAttributeNS(android, "src"))
+            assertEquals("@string/app_name", logo.getAttributeNS(android, "contentDescription"))
+            assertEquals("fitCenter", logo.getAttributeNS(android, "scaleType"))
+            assertEquals("false", logo.getAttributeNS(android, "focusable"))
+            assertEquals("false", logo.getAttributeNS(android, "clickable"))
+        }
+        assertTrue(res("drawable-xhdpi/banner.png").isFile)
+        assertTrue(res("drawable-xxxhdpi/banner.png").isFile)
     }
 
     @Test fun defaultAboutWebsiteIsYourIPTVUs() {

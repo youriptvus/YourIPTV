@@ -11,6 +11,15 @@ class Settings(context: Context) {
         if (!sp.contains("auto_updates_forced_on")) {
             sp.edit().putBoolean("automatic_app_updates", true).putBoolean("auto_updates_forced_on", true).apply()
         }
+        // Apply the approved seven-day minimum once; later explicit shorter choices remain valid.
+        synchronized(EpgRetentionPolicy.preferenceLock) {
+            if (!sp.getBoolean("epg_window_v7_migrated", false)) {
+                sp.edit()
+                    .putInt("epg_past_h", EpgRetentionPolicy.migratedPastHours(sp.getInt("epg_past_h", EpgRetentionPolicy.DEFAULT_PAST_HOURS)))
+                    .putInt("epg_future_d", EpgRetentionPolicy.migratedFutureDays(sp.getInt("epg_future_d", EpgRetentionPolicy.DEFAULT_FUTURE_DAYS)))
+                    .putBoolean("epg_window_v7_migrated", true).commit()
+            }
+        }
     }
 
     var activePlaylistId: Long
@@ -61,17 +70,26 @@ class Settings(context: Context) {
         set(v) = sp.edit().putString("user_agent", v).apply()
 
     var epgPastHours: Int
-        get() = sp.getInt("epg_past_h", 12)
-        set(v) = sp.edit().putInt("epg_past_h", v).apply()
+        get() = sp.getInt("epg_past_h", EpgRetentionPolicy.DEFAULT_PAST_HOURS).coerceIn(0, EpgRetentionPolicy.MAX_PAST_HOURS)
+        set(v) { synchronized(EpgRetentionPolicy.preferenceLock) {
+            sp.edit().putInt("epg_past_h", v.coerceIn(0, EpgRetentionPolicy.MAX_PAST_HOURS)).apply()
+        } }
 
     var epgFutureDays: Int
-        get() = sp.getInt("epg_future_d", 2)
-        set(v) = sp.edit().putInt("epg_future_d", v).apply()
+        get() = sp.getInt("epg_future_d", EpgRetentionPolicy.DEFAULT_FUTURE_DAYS).coerceIn(1, EpgRetentionPolicy.MAX_FUTURE_DAYS)
+        set(v) { synchronized(EpgRetentionPolicy.preferenceLock) {
+            sp.edit().putInt("epg_future_d", v.coerceIn(1, EpgRetentionPolicy.MAX_FUTURE_DAYS)).apply()
+        } }
+
+    /** A coherent snapshot for an import; callers must not mix values from two preference edits. */
+    fun epgWindow(): Pair<Int, Int> = synchronized(EpgRetentionPolicy.preferenceLock) { epgPastHours to epgFutureDays }
 
     /** Shifts displayed guide times, in hours, for providers with wrong time zones. */
     var epgShiftHours: Int
         get() = sp.getInt("epg_shift_h", 0)
-        set(v) = sp.edit().putInt("epg_shift_h", v).apply()
+        set(v) { synchronized(EpgRetentionPolicy.preferenceLock) {
+            sp.edit().putInt("epg_shift_h", v.coerceIn(-23, 23)).apply()
+        } }
 
     var use24h: Boolean
         get() = sp.getBoolean("clock_24h", false)
@@ -88,8 +106,11 @@ class Settings(context: Context) {
 
     /** Refresh the active playlist and guide on start when older than this many hours (0 = never). */
     var autoRefreshHours: Int
-        get() = sp.getInt("auto_refresh_h", 24)
+        get() = sp.getInt("auto_refresh_h", 16)
         set(v) = sp.edit().putInt("auto_refresh_h", v).apply()
+
+    val legacyAutoRefreshHours: Int?
+        get() = if (sp.contains("auto_refresh_h")) sp.getInt("auto_refresh_h", 16) else null
 
     /** On by default and independent of every other setting; excluded from portable backup/restore settings. */
     var automaticAppUpdates: Boolean
@@ -127,7 +148,7 @@ class Settings(context: Context) {
                 is String -> e.putString(k, v)
             }
         }
-        e.commit()
+        synchronized(EpgRetentionPolicy.preferenceLock) { e.commit() }
     }
 
     var parentalRestrictions: BackupParental
@@ -182,7 +203,7 @@ class Settings(context: Context) {
 
     // ---- PINs ----
     // The parental PIN and the Settings PIN are independent and must differ (see PinVault).
-    // Settings protection is permanent. The stored Settings PIN is an optional additional credential.
+    // Settings protection defaults on. Its explicit local switch is independent of stored PINs.
 
     val pins = PinVault(object : StringStore {
         override fun get(key: String): String? = sp.getString(key, null)
@@ -195,7 +216,17 @@ class Settings(context: Context) {
 
     fun hasPin() = pins.has(PinKind.PARENTAL)
 
-    fun isSettingsLocked() = true
+    /** Local security policy, deliberately excluded from portable backups and Intent extras. */
+    val settingsLockEnabled: Boolean
+        get() = SettingsLockPolicy.enabled(if (sp.contains(SettingsLockPolicy.LOCAL_KEY))
+            sp.getBoolean(SettingsLockPolicy.LOCAL_KEY, true) else null)
+
+    /** Trusted UI calls only after fresh Settings-master authentication and a current-visit check. */
+    internal fun setSettingsLockEnabled(enabled: Boolean) {
+        sp.edit().putBoolean(SettingsLockPolicy.LOCAL_KEY, enabled).commit()
+    }
+
+    fun isSettingsLocked() = settingsLockEnabled
 
     /** True for an install upgraded from the build that locked Settings with the parental PIN; see [ParentalRules.legacySettingsLockPending]. */
     fun isLegacySettingsLock(): Boolean {
