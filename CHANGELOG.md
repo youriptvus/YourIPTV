@@ -4,6 +4,10 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 1.0.8 (version code 39)
+
+- Maintenance release based on 1.0.7.
+
 ## 1.0.7 (version code 38) — signed candidate; local verification passed
 
 - Refresh the guide in the background on a fresh app start while the cached guide stays available.

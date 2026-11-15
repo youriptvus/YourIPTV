@@ -59,11 +59,17 @@ for the app's automatic-update permissions.
 
 | | |
 |---|---|
-| Current project version | **1.0.7** (`versionCode` 38), application ID `com.youriptv.app` |
-| Stage | **Signed release candidate — scoped local verification passed** |
-| Baseline | Clean official 1.0.5/code 36; unfinished 1.0.6 work remains paused and excluded |
+| Current project version | **1.0.8** (`versionCode` 39), application ID `com.youriptv.app` |
+| Stage | **Release preparation — verification recorded in local publication instructions** |
+| Baseline | Official 1.0.7/code 38; unfinished 1.0.6 work remains paused and excluded |
 | Supported Android | `minSdk` 23 (Android 6.0) to `targetSdk` 36 |
 | Publication | Local files prepared; owner publication pending |
+
+### Current 1.0.8 release
+
+Maintenance release based on 1.0.7. The complete code 39 APK preserves the official package, signing identity, playback features and existing user settings. Compatible earlier official installations can update directly; `previousVersionCode: 38` controls optional versus required prompts and does not require intermediate versions. See [release notes](docs/RELEASE_NOTES.md) and the local publication instructions for completed verification.
+
+### Historical 1.0.7 baseline
 
 **Settings → Playlist Settings** provides **Update Playlist** and **Update EPG** for the active
 playlist without either PIN, with real progress, successful times and failures. **Settings lock**
@@ -226,7 +232,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
   replace its version name, size, SHA-256 or required-update threshold.
 - Compatible earlier versions can update directly to the latest release; installing each intervening
   version is not required. Official 0.4.1 and later releases using the current GitHub update address
-  can update directly to the complete compatible 1.0.7 / code 38 release once published.
+  can update directly to the complete compatible 1.0.8 / code 39 release once published.
   Exact-APK and offline archived-updater compatibility checks passed; owner publication is pending.
   0.5.2 and 0.5.3 need no intermediate install.
   Apps older than 0.5.6 need that first update through GitHub or a technician install before they
@@ -260,7 +266,7 @@ rejected, so a permission change always needs a technician install.
 1. Raise `versionCode`/`versionName` in `app/build.gradle.kts`, add its customer-facing notes to
    `InstalledChangelog.kt`, and build the signed release.
 2. Run `py scripts/make_update_json.py --previous <immediately previous published versionCode>`.
-   For 1.0.7 preparation use `--previous 36`, following the official 1.0.5 / code 36 baseline.
+   For 1.0.8 preparation use `--previous 38`, following the official 1.0.7 / code 38 baseline.
    For future releases use the immediately previous actually published code. Devices at that code may Install or Ignore;
    devices below it must update. Unpublished builds are not intermediate install requirements.
 3. Create a published (non-draft, non-prerelease) release tagged `v<versionName>`. Attach two assets:
@@ -642,7 +648,7 @@ excludes them.
 
 ## Installing on a device
 
-The current project targets **1.0.7 (version code 38)**. Build and verify the matching signed APK
+The current project targets **1.0.8 (version code 39)**. Build and verify the matching signed APK
 before distributing it. A compatible official update retains app data; no publication is implied.
 The higher-version in-app installation path has not yet been tested for this release.
 
@@ -668,7 +674,7 @@ install apps.
 .\gradlew.bat testReleaseUnitTest assembleRelease lintVitalRelease
 ```
 
-- Current 1.0.7 caption revision: 394 JVM tests and 43 offline archived-updater checks passed again,
+- Historical 1.0.7 caption revision: 394 JVM tests and 43 offline archived-updater checks passed again,
   along with three fresh TV checks for the banner, public menu and PIN prompt. The earlier 142
   native checks and 13 broader TV checks remain prior-candidate evidence; executable DEX and the
   22 native fixture data-source files are unchanged. Native fixtures use
@@ -804,7 +810,7 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 
 | Document | Contents |
 |---|---|
-| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through the locally verified 1.0.7 candidate; owner publication pending |
+| [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Changelog through 1.0.8; owner publication pending |
 | [docs/VOD_NAVIGATION.md](docs/VOD_NAVIGATION.md) | Movies/Shows posters, movie details, season rows, artwork and verification limits |
 | [docs/SETTINGS_SECURITY.md](docs/SETTINGS_SECURITY.md) | Master-controlled Settings lock, independent parental policy and migration |
 | [docs/UPGRADING_TO_1_0.md](docs/UPGRADING_TO_1_0.md) | Direct upgrades, older-version exceptions and publication |

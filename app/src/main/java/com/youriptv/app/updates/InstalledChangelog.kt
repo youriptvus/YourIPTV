@@ -6,6 +6,9 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        39L to Release("1.0.8", listOf(
+            "Maintenance release based on 1.0.7.",
+        )),
         38L to Release("1.0.7", listOf(
             "Refresh the guide in the background on a fresh app start while the cached guide stays available.",
             "Refresh playlists every 16 hours by default; keep explicitly saved refresh intervals.",

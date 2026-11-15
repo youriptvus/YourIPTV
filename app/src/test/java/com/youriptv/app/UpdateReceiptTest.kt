@@ -58,6 +58,26 @@ class UpdateReceiptTest {
     }
 
     @Test
+    fun maintenance108ReceiptKeepsItsOwnNotesUntilAcknowledged() {
+        val store = Store(38)
+        val updated = receipt(store, code = 39, name = "1.0.8")
+        val confirmation = updated.current()!!
+        assertEquals(39L, confirmation.installedCode)
+        assertEquals("1.0.8", confirmation.installedName)
+        assertEquals(38L, confirmation.completedTargetCode)
+        assertEquals(listOf("Maintenance release based on 1.0.7."), confirmation.changes)
+        assertNull(confirmation.credit)
+        assertEquals(38L, store.pendingCode)
+        assertEquals(confirmation, receipt(store, code = 39, name = "1.0.8").current())
+        val futureRelease = receipt(Store(38), code = 40, name = "1.0.9").current()!!
+        assertTrue(futureRelease.changes.isEmpty())
+        assertNull(futureRelease.credit)
+        updated.acknowledge(confirmation)
+        assertEquals(0L, store.pendingCode)
+        assertNull(receipt(store, code = 39, name = "1.0.8").current())
+    }
+
+    @Test
     fun directUpgradeShows105PlaylistNotesAndCreditUntilAcknowledged() {
         val store = Store(30)
         val updated = receipt(store, code = 36, name = "1.0.5")
