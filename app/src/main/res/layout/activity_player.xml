@@ -20,7 +20,7 @@
         android:paddingStart="24dp" android:paddingEnd="24dp" android:paddingTop="8dp" android:paddingBottom="8dp"
         android:textSize="44sp" android:textStyle="bold" android:visibility="gone" />
 
-    <!-- Info banner (OK / INFO / RIGHT) -->
+    <!-- Info banner (OK / INFO) -->
     <LinearLayout
         android:id="@+id/banner" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:background="@color/overlay" android:orientation="horizontal"
@@ -71,7 +71,7 @@
             <TextView
                 android:id="@+id/banner_hint" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:textSize="12sp" android:textColor="@color/text_dim" android:paddingTop="8dp"
-                android:text="▲▼ channels   ◀ channel list   OK / ▶ info   MENU options   0-9 number   BACK exit" />
+                android:text="@string/live_player_controls_hint" />
         </LinearLayout>
     </LinearLayout>
 

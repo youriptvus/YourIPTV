@@ -58,6 +58,47 @@ class UpdateReceiptTest {
     }
 
     @Test
+    fun revised109ReceiptIncludesLastChannelAlongsideRecoveryAndKeepsItsIdentity() {
+        val store = Store(42)
+        val updated = receipt(store, code = 44, name = "1.0.9")
+        val shown = updated.current()!!
+        assertEquals(44L, shown.installedCode)
+        assertEquals(42L, shown.completedTargetCode)
+        assertEquals(listOf(
+            "Reconnect sooner after a fullscreen live TS stream ends.",
+            "Keep later retry delays and existing playback, parental and connection-limit protections.",
+            "Press Right during fullscreen live TV to return to the last channel watched.",
+        ), shown.changes)
+        assertNull(shown.credit)
+        assertEquals(shown, receipt(store, code = 44, name = "1.0.9").current())
+        assertTrue(receipt(Store(42), code = 44, name = "1.0.9-test").current()!!.changes.isEmpty())
+        updated.acknowledge(shown)
+        assertNull(updated.current())
+    }
+
+    @Test
+    fun release109ShowsItsOwnRecoveryNotesAcrossDirectUpgradesWithoutACredit() {
+        val notes = listOf(
+            "Reconnect sooner after a fullscreen live TS stream ends.",
+            "Keep later retry delays and existing playback, parental and connection-limit protections.",
+        )
+        for (priorTarget in listOf(27L, 39L, 41L)) {
+            val store = Store(priorTarget)
+            val updated = receipt(store, code = 42, name = "1.0.9")
+            val shown = updated.current()!!
+            assertEquals(42L, shown.installedCode)
+            assertEquals("1.0.9", shown.installedName)
+            assertEquals(priorTarget, shown.completedTargetCode)
+            assertEquals(notes, shown.changes)
+            assertNull(shown.credit)
+            assertEquals(shown, receipt(store, code = 42, name = "1.0.9").current())
+            assertTrue(receipt(Store(priorTarget), code = 42, name = "1.0.9-test").current()!!.changes.isEmpty())
+            updated.acknowledge(shown)
+            assertNull(updated.current())
+        }
+    }
+
+    @Test
     fun maintenance108ReceiptKeepsItsOwnNotesUntilAcknowledged() {
         val store = Store(38)
         val updated = receipt(store, code = 39, name = "1.0.8")

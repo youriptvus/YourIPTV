@@ -68,7 +68,8 @@ locked message while browsing; OK asks for the parental PIN.
 | Up / Down | Tune the previous / next channel in the current group |
 | OK | Show playback controls |
 | Left | Open the channel list |
-| Right / Info | Show the channel and programme information banner |
+| Right | Return to the last channel watched in the current fullscreen channel list; press again to switch back |
+| Info | Show the channel and programme information banner |
 | Menu / long-press OK | Open player options |
 | Options > Audio delay | LEFT/RIGHT: ±50 ms, DOWN: reset to 0, OK: done |
 | Options > Record this channel | Choose a duration; the recording appears under Recordings |
@@ -76,6 +77,11 @@ locked message while browsing; OK asks for the parental PIN.
 | Hold Back | Hide the channel list, controls, information banner and number entry; keep the current stream in full screen |
 | Digits | Enter a channel number; tuning occurs after the entry timeout |
 | Last channel | Return to the previous channel |
+
+Right first closes an open channel-list overlay. With no previous channel, it leaves the
+current channel playing. Catch-up/local playback and an unfinished numeric entry retain
+their existing Right-key behavior. Movie and episode seeking is unchanged.
+The Info banner's bottom row shows **▶ Previous channel** during normal live playback.
 
 ## Movies and episodes
 

@@ -153,8 +153,13 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         notifyObservers()
     }
 
-    fun retryAutomatically(p: ExoPlayer, item: MediaItem, delayMs: Long): Boolean =
-        canRestart(p, item) && bufferingRecovery.scheduleRestart(delayMs)
+    fun retryAutomatically(p: ExoPlayer, item: MediaItem, delayMs: Long): Boolean {
+        val fastEligible = LiveCleanEndRecovery.eligible(item, fullScreen = fullScreen,
+            ended = p.playbackState == Player.STATE_ENDED, hasError = p.playerError != null,
+            streamUrl = p.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty())
+        val selectedDelay = bufferingRecovery.cleanEndDelayMs(delayMs, fastEligible)
+        return canRestart(p, item) && bufferingRecovery.scheduleRestart(selectedDelay)
+    }
 
     private fun canRestart(p: ExoPlayer, item: MediaItem): Boolean =
         player === p && p.playWhenReady && owners.isNotEmpty() && isCurrentAuthorized(item) &&

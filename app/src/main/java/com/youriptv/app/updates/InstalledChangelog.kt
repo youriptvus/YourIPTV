@@ -6,6 +6,20 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        44L to Release("1.0.9", listOf(
+            "Reconnect sooner after a fullscreen live TS stream ends.",
+            "Keep later retry delays and existing playback, parental and connection-limit protections.",
+            "Press Right during fullscreen live TV to return to the last channel watched.",
+        )),
+        43L to Release("1.0.9", listOf(
+            "Reconnect sooner after a fullscreen live TS stream ends.",
+            "Keep later retry delays and existing playback, parental and connection-limit protections.",
+            "Press Right during fullscreen live TV to return to the last channel watched.",
+        )),
+        42L to Release("1.0.9", listOf(
+            "Reconnect sooner after a fullscreen live TS stream ends.",
+            "Keep later retry delays and existing playback, parental and connection-limit protections.",
+        )),
         39L to Release("1.0.8", listOf(
             "Maintenance release based on 1.0.7.",
         )),

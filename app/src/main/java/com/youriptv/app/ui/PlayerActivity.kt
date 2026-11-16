@@ -773,7 +773,11 @@ class PlayerActivity : RemoteActivity() {
         val remaining = findViewById<TextView>(R.id.banner_remaining)
         val desc = findViewById<TextView>(R.id.banner_desc)
         val next = findViewById<TextView>(R.id.banner_next)
-        findViewById<View>(R.id.banner_hint).visibility = if (item.kind == ItemKind.LIVE) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.banner_hint).apply {
+            visibility = if (item.kind == ItemKind.LIVE) View.VISIBLE else View.GONE
+            setText(if (item.isCatchup || item.isLocal || numberEntry.visibility == View.VISIBLE)
+                R.string.archive_player_controls_hint else R.string.live_player_controls_hint)
+        }
         title.text = if (item.kind == ItemKind.LIVE) item.name else item.name
         time.text = ""; remaining.text = ""; desc.text = ""; next.text = ""
         progress.visibility = View.GONE
@@ -1153,7 +1157,14 @@ class PlayerActivity : RemoteActivity() {
             KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> { if (down) zap(1); return true }
             KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> { if (down) zap(-1); return true }
             KeyEvent.KEYCODE_DPAD_LEFT -> { if (up) showOverlay(); return true }
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_INFO -> { if (up) showBanner(); return true }
+            KeyEvent.KEYCODE_INFO -> { if (up) showBanner(); return true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (up) {
+                    if (current?.isCatchup == true || current?.isLocal == true || numberEntry.visibility == View.VISIBLE) showBanner()
+                    else if (previousIndex in queue.indices) switchTo(previousIndex)
+                }
+                return true
+            }
             KeyEvent.KEYCODE_LAST_CHANNEL -> { if (up && previousIndex in queue.indices) switchTo(previousIndex); return true }
             KeyEvent.KEYCODE_GUIDE -> {
                 if (up) current?.let { openGuide(it) }

@@ -149,7 +149,8 @@ is started directly or through the launcher.
 | OK: playback panel (channel, now/next, progress, controls) | DONE (TV) |
 | LEFT: channel-list overlay | DONE (TV) |
 | MENU / long-press OK: options (audio track, subtitles, video track/info, aspect ratio, PIP, favorite, external player) | DONE (TV; long-press fixed) |
-| INFO / RIGHT: info banner with quality info | DONE (TV) |
+| INFO: info banner with quality info | DONE (TV) |
+| RIGHT: return to the last watched channel in the current fullscreen live channel list | Implemented; scoped release verification recorded in local publication instructions |
 | Digit keys: numeric channel entry with timeout | DONE (TV) |
 | BACK: leave the player (to the guide/browser) | DONE (TV) |
 | Last channel on start (setting, on by default) | DONE (TV: launch opens the player on the last channel) |

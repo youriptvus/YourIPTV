@@ -23,6 +23,12 @@ internal class LiveBufferingRecovery(
 
     val hasPendingRestart get() = pendingRestart != null
 
+    /** Selects the first clean-end delay without scheduling or resetting the shared budget. */
+    fun cleanEndDelayMs(normalDelayMs: Long, fastEligible: Boolean): Long {
+        require(normalDelayMs >= 0)
+        return if (fastEligible && attempts == 0) 0L else normalDelayMs
+    }
+
     fun update(buffering: Boolean, playing: Boolean, playWhenReady: Boolean = true) {
         if (!playWhenReady) {
             timeout?.let(remove)

@@ -1,5 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="live_player_controls_hint">▲▼ channels   ◀ channel list   ▶ Previous channel   OK / INFO info   MENU options   0-9 number   BACK exit</string>
+    <string name="archive_player_controls_hint">▲▼ channels   ◀ channel list   OK / INFO / ▶ info   MENU options   0-9 number   BACK exit</string>
     <!-- app_name lives in branding.xml (the centralized, rebrandable resource file). -->
     <string name="free_notice">%1$s is free. Every feature is available to everyone — no account, purchase, activation code, trial, or subscription. Your IPTV provider may still require its own login, and provider connection limits and device capabilities still apply.</string>
     <string name="signing_error_title">YourIPTV integrity check</string>

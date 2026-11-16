@@ -4,6 +4,12 @@ All notable changes to YourIPTV. Website: https://youriptv.us
 
 This file mirrors [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
+## 1.0.9 (version code 44)
+
+- Reconnect sooner after a fullscreen live TS stream ends.
+- Keep later retry delays and existing playback, parental and connection-limit protections.
+- Press Right during fullscreen live TV to return to the last channel watched.
+
 ## 1.0.8 (version code 39)
 
 - Maintenance release based on 1.0.7.

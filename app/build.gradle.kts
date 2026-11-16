@@ -12,9 +12,9 @@ android {
         applicationId = "com.youriptv.app"
         minSdk = 23
         targetSdk = 36
-        // 1.0.8: maintenance release based on 1.0.7.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 39
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.8"
+        // 1.0.9: measured first clean-ended live TS recovery; preserve permissions and signing.
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 44
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.0.9"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {
