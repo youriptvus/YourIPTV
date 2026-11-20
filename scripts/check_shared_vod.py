@@ -4,7 +4,7 @@ import argparse, hashlib, json, re
 
 JAVA = "app/src/main/java/com/youriptv/app/"
 COMMON = [JAVA + name for name in (
-    "data/Models.kt", "data/Db.kt", "data/Repository.kt", "data/VodMetadata.kt", "data/WatchPolicy.kt", "data/WatchProgressStore.kt",
+    "data/SettingsLockPolicy.kt", "data/Models.kt", "data/Db.kt", "data/Repository.kt", "data/VodMetadata.kt", "data/WatchPolicy.kt", "data/WatchProgressStore.kt",
     "data/Backup.kt", "data/ContentLengthInputStream.kt", "ui/MainActivity.kt", "ui/Adapters.kt", "ui/MovieDetailsActivity.kt", "ui/SeriesActivity.kt",
     "ui/SeriesBrowseState.kt", "ui/SeriesEpisodeAdapters.kt", "ui/PlayerActivity.kt", "ui/RemoteActivity.kt", "ui/AudioDelayProcessor.kt",
     "ui/CustomerSettingsPanel.kt", "ui/EpgSettingsPanel.kt")] + ["app/src/main/res/" + name for name in (
@@ -43,7 +43,7 @@ def main():
     checks["matching release version"] = versions[0] == versions[1]
     result = {"passed": all(checks.values()), "versions": versions, "checks": checks, "shared_sha256": hashes,
         "intentional_differences": ["distribution signing/build configuration", "customer updater and permissions", "Play HTTPS transport policy",
-            "approved Settings Lock/Admin initialization and customer source presets"]}
+            "approved Admin initialization and customer source presets"]}
     if args.output: args.output.write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
     print(json.dumps({"passed": result["passed"], "checks": len(checks), "failed": [k for k,v in checks.items() if not v]}))
     raise SystemExit(0 if result["passed"] else 1)

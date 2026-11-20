@@ -224,7 +224,7 @@ below supersede that layout limitation and include actual movie video/resume.
       relock and Cancel passed. Master/custom management and every parental/provider configuration
       were not re-exercised physically; the unchanged policies have offline regression coverage.
 - [x] Retained app fatal blocks: **zero on both devices** in the observed final-test logs. Provider
-      credentials/settings were not changed; no extra artwork streams, TiviMate switching or
+      credentials/settings were not changed; no extra artwork streams, reference player switching or
       workspace GitHub calls were used. This does not establish a long-duration playback soak.
 - [x] JVM receipt/lifecycle/acknowledgement and exact final DEX/documentation checks verify four notes
       and the exact Dylan B. credit. No fake update receipt was installed.
@@ -342,7 +342,7 @@ native APK identity checks do not substitute for that missing source fixture.
 Local evidence: `D:\APK\work\YourIPTV-1.0.2-verification`. Record actual final results and
 limitations without provider credentials, PIN values, private keys or credential-bearing URLs.
 `device-verification.json` records 12 passed TV checks, 11 screenshot hashes and the limits above.
-No extra artwork streams, provider credential changes, TiviMate switching or workspace GitHub
+No extra artwork streams, provider credential changes, reference player switching or workspace GitHub
 calls were used. These are scoped checks on this TV and playlist, not a guarantee for every
 provider, codec or device.
 Sound is assumed working unless a problem is reported or observed; do not mark it user-confirmed
@@ -472,7 +472,7 @@ new tests or fixes. Buffer-change approval remains withdrawn; rebranding has not
       verified. Cause remains undetermined; acceptance does not establish zero interruptions on every device.
 - [x] Working-stream guide browse/return, launcher Home/reopen and one fresh cold app restart:
       current channel retained with changing video/advancing audio. Synthetic ADB input does not
-      certify physical remote timing or the user's exact launcher tile. TiviMate was never opened.
+      certify physical remote timing or the user's exact launcher tile. reference player was never opened.
 - [x] Fresh offline connection-limit tests: 5 passed; existing playback/recovery tests: 29 passed.
       Together with the updater run, 63 focused tests passed; this is not a fresh full-suite run.
       Explicit provider limits above one remain supported; no global one-stream cap was added.
@@ -515,8 +515,8 @@ The owner's current Settings lock is Off after their playlist correction and was
 the earlier PIN/relocking checks above belong to the initial checkpoint. Current buffer 3000 ms,
 MPEG-TS, default user agent, software decoding Off and auto frame rate Off were left unchanged.
 An earlier temporary HLS comparison was restored to MPEG-TS before the working-playback phase.
-The owner reports more ordinary-live interruptions than TiviMate, while Bizarre Foods is known
-to interrupt in both. No comparative TiviMate test was performed and no second playback app was
+The owner reports more ordinary-live interruptions than reference player, while Bizarre Foods is known
+to interrupt in both. No comparative reference player test was performed and no second playback app was
 opened. Audio output processing is verified, not physical speaker audibility. See the report's
 latest resumed section and `playback-resume/resumed-results.json` for evidence and limits.
 The owner's practical pass does not certify uninterrupted stability or change the
@@ -723,7 +723,7 @@ Evidence: `D:\APK\qa_evidence\040\` (local only). Device: onn 4K Pro, Android 14
     `onn_soak_038.txt`, `onn_soak_038_fullscreen.txt`, `onn_recovery_stream_038.txt`.
   - The final 0.3.8 build was installed on the onn. box only; the moto g was disconnected and
     still has 0.3.7.
-- **TiviMate reference:** Bizarre Foods played normally in TiviMate on the onn. box for about two
+- **reference player reference:** Bizarre Foods played normally in reference player on the onn. box for about two
   minutes; its automatic restart was not observed.
 - **onn. box playlist:** the existing Xtream playlist reported the provider account as expired with
   0 channels (last refreshed while 0.3.4 was installed). The authorized test M3U was added as
@@ -755,7 +755,7 @@ This earlier device test covered the moto g fullscreen playback fix in 0.3.3.
 
 ## 0.3.1 compact guide
 
-See TEST_REPORT.md "0.3.1 compact guide" for the guide sizing comparison with TiviMate and the device results.
+See TEST_REPORT.md "0.3.1 compact guide" for the guide sizing comparison with reference player and the device results.
 ## 0.3.0 Live TV / guide merge
 
 See TEST_REPORT.md "0.3.0 Live TV / guide merge" for the device results. The rows below that
@@ -774,7 +774,7 @@ hardware serial `<box-serial>` was checked before installation.
   `B42663E81C656419345690FFD97A15560EAB4D14B37579A4EAF8DA10580D7190`.
 - **Automated:** `testDebugUnitTest assembleRelease` passed; 121 tests, 0 failures.
   The ended-stream checks in `QaRegressionTest` are source-level guards, not device playback tests.
-- **Evidence:** screenshots are in `qa_evidence\youriptv_preview\`. TiviMate observations
+- **Evidence:** screenshots are in `qa_evidence\youriptv_preview\`. reference player observations
   and evidence are documented separately in [LIVE_PREVIEW_REFERENCE.md](LIVE_PREVIEW_REFERENCE.md).
 - **Data:** only the authorized provider was used. The temporary test playlist and its test
   history, temporary recordings, temporary PINs, and the temporary group restriction were removed;

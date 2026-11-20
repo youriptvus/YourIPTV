@@ -67,7 +67,7 @@ class MainActivity : RemoteActivity() {
     private data class GroupEntry(val info: GroupInfo, val special: String? = null)
 
     /**
-     * Live TV on a TV screen slides between three levels, as in TiviMate: MENU (rail, categories and guide side by side),
+     * Live TV on a TV screen slides between three levels: MENU (rail, categories and guide side by side),
      * CATEGORIES (rail folded away, the guide follows the focused category) and GUIDE (the guide fills the screen).
      * BACK climbs GUIDE -> CATEGORIES -> MENU. Other sections always use MENU.
      */
@@ -356,7 +356,7 @@ class MainActivity : RemoteActivity() {
                     return true
                 }
             }
-            // The category list wraps around at either end, as TiviMate's does.
+            // The category list wraps around at either end.
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (inGroups && groupAdapter.itemCount > 1) {
                 val pos = groupsView.findContainingViewHolder(focused)?.bindingAdapterPosition ?: return false
                 val last = groupAdapter.itemCount - 1
@@ -598,7 +598,7 @@ class MainActivity : RemoteActivity() {
         navRail?.visibility = if (target == LiveLevel.MENU) View.VISIBLE else View.GONE
         sizeContentColumn()
         if (section == Section.TV) groupsView.visibility = if (target == LiveLevel.GUIDE) View.GONE else View.VISIBLE
-        // Like TiviMate, the categories and guide drop the page header; its heading moves beside the fixed-size preview.
+        // The categories and guide drop the page header; its heading moves beside the fixed-size preview.
         val headerVisibility = if (target == LiveLevel.MENU) View.VISIBLE else View.GONE
         title.visibility = headerVisibility
         status.visibility = headerVisibility
@@ -607,7 +607,7 @@ class MainActivity : RemoteActivity() {
 
     /**
      * In the categories and guide levels the guide keeps its full-screen size, so opening the categories slides it
-     * right (partly off screen) as in TiviMate instead of squeezing the timeline. The menu level fits the space left.
+     * right (partly off screen) without squeezing the timeline. The menu level fits the space left.
      */
     private fun sizeContentColumn() {
         val column = contentColumn ?: return
@@ -682,7 +682,7 @@ class MainActivity : RemoteActivity() {
     }
 
     /**
-     * OK or RIGHT on a category slides to its guide at the first channel in playlist order, as in TiviMate.
+     * OK or RIGHT on a category slides to its guide at the first channel in playlist order.
      * Only Back from full screen ([openGuide]) returns to the playing channel.
      */
     private fun openGroupGuide(pos: Int) {

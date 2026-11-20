@@ -1,10 +1,10 @@
 # Live TV preview reference
 
-## Firsthand TiviMate inspection
+## Firsthand reference player inspection
 
 - Device: onn. Streaming Device 4K Pro, ADB `<onn-4k-pro-box>`,
   hardware serial `<box-serial>`.
-- TiviMate 5.0.1, inspected on 2026-10-31 using remote-equivalent ADB input.
+- reference player 5.0.1, inspected on 2026-10-31 using remote-equivalent ADB input.
 - The TV section combines a category list with a vertically scrollable channel
   and programme grid. The expanded guide uses the same kind of grid; it was
   not observed as a separate plain channel-list screen.
@@ -21,8 +21,8 @@
   the category list was opened and another category was selected.
 - The inspected settings were Preview On, Animated transition On, Autoplay
   channels Off, Stay on TV guide when switching channels On, and Full screen
-  switching timeout 120 seconds. No TiviMate settings were changed. After
-  waiting more than 120 seconds on a preview, TiviMate had automatically
+  switching timeout 120 seconds. No reference player settings were changed. After
+  waiting more than 120 seconds on a preview, reference player had automatically
   switched to full screen. YourIPTV deliberately does not copy that timeout:
   the requested interaction requires a separate second selection, regardless
   of elapsed time.
@@ -30,7 +30,7 @@
   channel subsequently produced actual video; selecting the A&E channel
   switched the preview to different live video, with one active audio track.
 
-Evidence on this computer is under `qa_evidence\tivimate_preview\`:
+Comparison screenshots are retained privately outside release archives:
 `t10_channel_focus.png`, `t11_ok1.png`, `t12_ok2.png`, `t13_back_full.png`,
 `t14_focus_only.png`, `t15_switch_preview.png`, `t16_group_focus.png`,
 `t17_category.png`, `t23_guide_options.png`, `t24_preview_modes.png`,
@@ -40,10 +40,10 @@ Evidence on this computer is under `qa_evidence\tivimate_preview\`:
 ## YourIPTV comparison
 
 YourIPTV 0.2.0 placed the category list beside a scrollable channel/programme grid in Live TV,
-with TV Guide as its own screen. From 0.3.0 the two are one TiviMate-style flow (menu →
+with TV Guide as its own screen. From 0.3.0 the two are one integrated flow (menu →
 categories → guide); see RELEASE_NOTES.md. The views keep the preview while browsing, do not tune
 on focus alone, and use a later selection of the playing channel for full screen. Back restores
-the originating view and its selection. Unlike the inspected TiviMate configuration, YourIPTV
+the originating view and its selection. Unlike the inspected reference player configuration, YourIPTV
 does not automatically enter full screen after a timeout.
 
 On-device comparison results and their limitations are recorded in [QA_CHECKLIST.md](QA_CHECKLIST.md).

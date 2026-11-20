@@ -1,15 +1,15 @@
-# TiviMate functional reference — observations
+# reference player functional reference — observations
 
-TiviMate (package `ar.tvplayer.tv`, v5.0.1) is used **only as a functional reference**.
-YourIPTV is an independent implementation: no TiviMate code, assets, strings, or branding are reused.
-Nothing in TiviMate's free/premium split carries over: **every YourIPTV feature is free** (see
+The reference player (v5.0.1) is used **only as a functional reference**.
+YourIPTV is an independent implementation: no reference player code, assets, strings, or branding are reused.
+Nothing in reference player's free/premium split carries over: **every YourIPTV feature is free** (see
 [REQUIREMENTS_CHECKLIST.md](REQUIREMENTS_CHECKLIST.md)).
 
 Evidence levels used below:
 
 - **[DEVICE]** — observed directly on the Onn 4K Pro test box (`<onn-4k-pro-box>`); screenshots in
   `testing\streaming-box\screenshots\` (`tvm_*.png`).
-- **[OFFICIAL]** — stated on tivimate.com or the Google Play listing.
+- **[OFFICIAL]** — stated on the reference player's official documentation or the Google Play listing.
 - **[3RD-PARTY]** — community guides only (troypoint.com, store.grapevine.is, iptvjournal.com,
   dualiptv.com, tvtech.support). Indicative, not authoritative.
 - **[UNKNOWN]** — not observed and not documented; YourIPTV makes its own design decision.
@@ -56,7 +56,7 @@ Evidence levels used below:
 | The playing channel shows a ▶ marker | [DEVICE] tvm_52 |
 | "No information" cells for channels without EPG | [DEVICE] tvm_52 |
 | Long-press OK menu — Program: open in external player, record, custom recording, add to My list, description. Channel: favorites, assign EPG, block, hide, channel options. Group: manage favorites/blocking/visibility, reorder, copy, create group, group options | [DEVICE] tvm_34–tvm_36 |
-| Meaning of the "◉" dot next to some channel names: it is **part of the provider's channel name string**, not a TiviMate marker. YourIPTV shows the same character in "US - A&E EAST HD ◉" from the same provider. The separate ↺ icon is TiviMate's catch-up indicator (third-party guides) | [DEVICE] tvm_r11, yi_41 (resolved 2026-10-29) |
+| Meaning of the "◉" dot next to some channel names: it is **part of the provider's channel name string**, not a reference player marker. YourIPTV shows the same character in "US - A&E EAST HD ◉" from the same provider. The separate ↺ icon is reference player's catch-up indicator (third-party guides) | [DEVICE] tvm_r11, yi_41 (resolved 2026-10-29) |
 
 ## 4. Playlists, EPG sources, catch-up
 
@@ -83,14 +83,14 @@ This is the user's authorized test source, and the only one used for live testin
 
 | Unknown | YourIPTV decision |
 |---|---|
-| RIGHT key in fullscreen live playback | Shows the info banner (same as INFO). This now matches the observed TiviMate behavior |
-| Previous-channel recall key | The LAST_CHANNEL remote key recalls the previous channel (verified on TV). BACK from the LEFT overlay only closes the overlay in YourIPTV, a deliberate choice for predictability; TiviMate recalls the previous channel there |
+| RIGHT key in fullscreen live playback | Shows the info banner (same as INFO). This now matches the observed reference player behavior |
+| Previous-channel recall key | The LAST_CHANNEL remote key recalls the previous channel (verified on TV). BACK from the LEFT overlay only closes the overlay in YourIPTV, a deliberate choice for predictability; reference player recalls the previous channel there |
 | Color keys | Not mapped in v1 |
 | Search scope | Searches channels, movies and series by name; EPG program titles are searched too |
-| Audio delay UI | TiviMate shows an "audio delay (0 ms)" control in the long-OK control bar [DEVICE tvm_30]; its exact step size is not documented. YourIPTV: "Audio delay" in player options, LEFT/RIGHT in 50 ms steps, DOWN resets, also in Settings |
-| VOD resume | Implemented: resume from saved position (TiviMate shows "Resume SxEy" [DEVICE]) |
+| Audio delay UI | reference player shows an "audio delay (0 ms)" control in the long-OK control bar [DEVICE tvm_30]; its exact step size is not documented. YourIPTV: "Audio delay" in player options, LEFT/RIGHT in 50 ms steps, DOWN resets, also in Settings |
+| VOD resume | Implemented: resume from saved position (reference player shows "Resume SxEy" [DEVICE]) |
 | "◉" marker | Resolved: it is provider name text, shown as-is. YourIPTV now shows its own catch-up indicator for archive-enabled channels |
-| Recording UI | TiviMate offers record / custom recording from the programme menu and a Recordings section [DEVICE tvm_34, tvm_41]. YourIPTV: guide MENU → "Record programme" / "Record channel now" (duration picker), player MENU → "Record this channel", Recordings section in the rail. Its own layout and wording; free |
-| Reminders | TiviMate lists "My reminders" under My list [DEVICE tvm_42]; its exact reminder lead time is not documented. YourIPTV: guide MENU → "Remind me", 🔔 mark, dialog 1 min before start ("Watch now" / "Dismiss"), listed in Recordings; in-app only (no background alarms) |
-| Auto frame rate | TiviMate's setting exists [3RD-PARTY]; its switching details are not documented. YourIPTV: Settings toggle (default Off), switches to a same-resolution mode whose refresh rate is a multiple of the video rate; frame rate estimated from timestamps when the container (MPEG-TS) declares none |
-| Multiview | TiviMate has Multiview in the control bar [DEVICE tvm_30]. Not built in YourIPTV: the authorized provider allows one connection, so it could not work or be tested |
+| Recording UI | reference player offers record / custom recording from the programme menu and a Recordings section [DEVICE tvm_34, tvm_41]. YourIPTV: guide MENU → "Record programme" / "Record channel now" (duration picker), player MENU → "Record this channel", Recordings section in the rail. Its own layout and wording; free |
+| Reminders | reference player lists "My reminders" under My list [DEVICE tvm_42]; its exact reminder lead time is not documented. YourIPTV: guide MENU → "Remind me", 🔔 mark, dialog 1 min before start ("Watch now" / "Dismiss"), listed in Recordings; in-app only (no background alarms) |
+| Auto frame rate | reference player's setting exists [3RD-PARTY]; its switching details are not documented. YourIPTV: Settings toggle (default Off), switches to a same-resolution mode whose refresh rate is a multiple of the video rate; frame rate estimated from timestamps when the container (MPEG-TS) declares none |
+| Multiview | reference player has Multiview in the control bar [DEVICE tvm_30]. Not built in YourIPTV: the authorized provider allows one connection, so it could not work or be tested |

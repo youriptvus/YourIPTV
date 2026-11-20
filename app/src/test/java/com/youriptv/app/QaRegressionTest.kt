@@ -235,13 +235,13 @@ class QaRegressionTest {
         val views = ui("GuideViews.kt")
         assertTrue(views.contains("val span = 120 * 60_000L"))
         assertTrue("guide rows draw channel logos from the shared cache", views.contains("ImageLoader.cached(url"))
-        assertFalse("row text is 14sp like TiviMate, not the old 16sp", views.contains("sp(this@GuideRowView, 16f)"))
+        assertFalse("row text uses the compact 14sp setting", views.contains("sp(this@GuideRowView, 16f)"))
         val levels = ui("MainActivity.kt").substringAfter("private fun setLiveLevel(").substringBefore("private fun showCategories()")
         assertTrue("categories and guide hide the page header", levels.contains("if (target == LiveLevel.MENU) View.VISIBLE else View.GONE"))
         assertTrue("its heading moves beside the preview", levels.contains("liveLevel != LiveLevel.MENU && heading.text.isNotBlank()"))
         assertTrue("categories and guide keep the full-screen guide size and slide it", levels.contains("val fixed = section == Section.TV && liveLevel != LiveLevel.MENU"))
         val layout = java.io.File(listOf("src", "app/src").first { java.io.File(it).exists() } + "/main/res/layout/activity_main.xml").readText()
-        assertTrue("the preview keeps TiviMate's 320dp size at every level", layout.contains("layout=\"@layout/live_preview\" android:layout_width=\"320dp\""))
+        assertTrue("the preview stays 320dp wide at every level", layout.contains("layout=\"@layout/live_preview\" android:layout_width=\"320dp\""))
     }
 
     @Test
