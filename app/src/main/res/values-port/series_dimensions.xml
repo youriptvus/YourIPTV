@@ -4,5 +4,5 @@
     <dimen name="series_cover_height">106dp</dimen>
     <dimen name="series_episode_width">156dp</dimen>
     <dimen name="series_episode_image_height">83dp</dimen>
-    <dimen name="series_episode_rail_height">138dp</dimen>
+    <dimen name="series_episode_rail_height">166dp</dimen>
 </resources>

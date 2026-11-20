@@ -20,7 +20,83 @@ class Repository(context: Context) : java.io.Closeable {
     private val settings = Settings(context.applicationContext)
     private val stageDir = File(context.applicationContext.cacheDir, "refresh-stage").apply { mkdirs() }
     private val db: SQLiteDatabase get() = helper.writableDatabase
-    override fun close() = helper.close()
+    private val watchStore = WatchProgressStore({ db }, ::playlist)
+    override fun close() { watchStore.close(); helper.close() }
+
+    fun watchProgress(items: List<MediaItem>): Map<String, WatchProgress> {
+        val result = HashMap<String, WatchProgress>()
+        items.groupBy { it.playlistId }.forEach { (id, rows) ->
+            val source = playlist(id) ?: return@forEach
+            result.putAll(watchStore.read(source, rows))
+            if (watchStore.isClearing(id)) return@forEach
+            // Bounded legacy migration, including old episode history absent from the catalogue.
+            for (chunk in rows.filter { WatchPolicy.supports(it) && it.url !in result }.chunked(500)) {
+                db.rawQuery("SELECT url,position,duration,watched FROM history WHERE playlist_id=? AND (scope='' OR scope=?) AND url IN (${chunk.joinToString(",") { "?" }})",
+                    arrayOf(id.toString(), WatchPolicy.scope(source), *chunk.map { it.url }.toTypedArray())).use { c -> while (c.moveToNext()) {
+                    result[c.getString(0)] = WatchProgress(c.getLong(1), c.getLong(2), false, c.getLong(3))
+                } }
+            }
+        }
+        return result
+    }
+
+    fun watchProgress(item: MediaItem): WatchProgress? = watchProgress(listOf(item))[item.url]
+
+    fun saveWatchProgress(item: MediaItem, position: Long, duration: Long, ended: Boolean = false) =
+        watchStore.save(item, position, duration, ended)
+
+    fun markWatched(item: MediaItem, watched: Boolean) {
+        val old = watchProgress(item)
+        watchStore.save(item, if (watched) old?.duration ?: 0 else 0, old?.duration ?: 0, watched = watched)
+    }
+
+    fun clearWatchProgress(item: MediaItem) {
+        watchStore.clear(item)
+    }
+
+    fun withWatchProgress(items: List<MediaItem>): List<MediaItem> {
+        val saved = watchProgress(items)
+        return items.map { it.copy(watch = saved[it.url]) }
+    }
+
+    fun continueWatching(id: Long, kind: ItemKind): List<MediaItem> {
+        val source = playlist(id) ?: return emptyList()
+        val entries = WatchPolicy.continuation(watchStore.entries(source)).filter {
+            if (kind == ItemKind.MOVIE) it.item.kind == ItemKind.MOVIE else it.item.kind == ItemKind.EPISODE
+        }
+        val catalog = itemsByUrls(id, entries.flatMap { listOf(it.item.url, it.item.seriesUrl) })
+        val remoteIds = entries.map { it.item.remoteId }.filter { it.isNotBlank() }.distinct()
+        val byRemote = HashMap<Pair<ItemKind, String>, MediaItem>()
+        if (source.type == SourceType.XTREAM) for (chunk in remoteIds.chunked(500)) {
+            db.rawQuery("SELECT * FROM items WHERE playlist_id=? AND remote_id IN (${chunk.joinToString(",") { "?" }})",
+                arrayOf(id.toString(), *chunk.toTypedArray())).use { c -> while (c.moveToNext()) {
+                val fresh = Db.readItem(c); byRemote[fresh.kind to fresh.remoteId] = fresh
+            } }
+        }
+        val byStableKey = HashMap<String, MediaItem>()
+        if (source.type == SourceType.M3U) {
+            val missing = entries.filter { it.item.url !in catalog }.mapTo(HashSet()) { it.key }
+            if (missing.isNotEmpty()) db.rawQuery("SELECT * FROM items WHERE playlist_id=? AND kind IN (?,?)",
+                arrayOf(id.toString(), ItemKind.MOVIE.ordinal.toString(), ItemKind.EPISODE.ordinal.toString())).use { c ->
+                // Stream the existing catalogue only when signed URLs changed. Retain just matching recent items.
+                while (missing.isNotEmpty() && c.moveToNext()) {
+                    val fresh = Db.readItem(c); val key = WatchPolicy.key(source, fresh)
+                    if (missing.remove(key)) byStableKey[key] = fresh
+                }
+            }
+        }
+        return entries.take(100).mapNotNull { entry ->
+            val item = entry.item
+            val parent = catalog[item.seriesUrl]
+            val fresh = byRemote[item.kind to item.remoteId] ?: catalog[item.url] ?: byStableKey[entry.key]
+            // Missing movies/M3U episodes are no longer playable. Xtream episode rows live in detail metadata.
+            if (item.kind == ItemKind.EPISODE && item.seriesUrl.isNotBlank() && source.type == SourceType.XTREAM && parent == null) null
+            else if (fresh == null && (item.kind == ItemKind.MOVIE || source.type == SourceType.M3U)) null
+            else (fresh?.copy(seriesKey = item.seriesKey, seriesName = item.seriesName, seriesUrl = item.seriesUrl,
+                seriesRemoteId = item.seriesRemoteId, season = item.season, episode = item.episode) ?: item)
+                .let { if (parent != null) it.copy(group = parent.group, seriesName = parent.name) else it }.copy(watch = entry.progress)
+        }
+    }
 
     // ---------------- Playlists ----------------
 
@@ -53,6 +129,9 @@ class Repository(context: Context) : java.io.Closeable {
     fun savePlaylist(p: Playlist): Long {
         // A server/account edit keeps the playlist id but must not reuse details from the previous account.
         invalidateDetails()
+        if (p.id != 0L) playlist(p.id)?.let { old ->
+            db.execSQL("UPDATE history SET scope=? WHERE playlist_id=? AND scope=''", arrayOf(WatchPolicy.scope(old), p.id))
+        }
         val v = ContentValues().apply {
             put("name", p.name); put("type", p.type.name); put("url", p.url)
             put("username", p.username); put("password", p.password)
@@ -122,7 +201,7 @@ class Repository(context: Context) : java.io.Closeable {
         val a = arrayOf(id.toString())
         db.beginTransaction()
         try {
-            for (t in listOf("items", "programs", "favorites", "history", "reminders")) db.delete(t, "playlist_id=?", a)
+            for (t in listOf("items", "programs", "favorites", "history", "watch_progress", "reminders")) db.delete(t, "playlist_id=?", a)
             // Finished recordings stay playable, but no stream URL (which may embed credentials) is kept.
             db.delete("recordings", "playlist_id=? AND status IN ('SCHEDULED','MISSED')", a)
             db.update("recordings", ContentValues().apply { put("channel_url", "") }, "playlist_id=?", a)
@@ -692,24 +771,19 @@ class Repository(context: Context) : java.io.Closeable {
         if (item.isCatchup || item.isLocal) return
         db.insertWithOnConflict("history", null, ContentValues().apply {
             put("playlist_id", item.playlistId); put("url", item.url); put("watched", System.currentTimeMillis())
+            put("scope", playlist(item.playlistId)?.let(WatchPolicy::scope).orEmpty())
             put("position", position); put("duration", duration)
             put("name", item.name); put("kind", item.kind.ordinal); put("grp", item.group); put("logo", item.logo)
         }, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
-    fun resumePosition(item: MediaItem): Long = if (item.isCatchup || item.isLocal) 0 else
-        db.rawQuery("SELECT position, duration FROM history WHERE playlist_id=? AND url=?", arrayOf(item.playlistId.toString(), item.url)).use { c ->
-            if (c.moveToFirst()) {
-                val pos = c.getLong(0); val dur = c.getLong(1)
-                if (dur > 0 && pos > 10_000 && pos < dur - 30_000) pos else 0
-            } else 0
-        }
+    fun resumePosition(item: MediaItem): Long = if (WatchPolicy.supports(item)) watchProgress(item)?.resume ?: 0 else 0
 
-    fun history(playlistId: Long, limit: Int = 100): List<MediaItem> = db.rawQuery(
+    fun history(playlistId: Long, limit: Int = 100): List<MediaItem> = if (watchStore.isClearing(playlistId)) emptyList() else db.rawQuery(
         "SELECT h.url AS h_url, h.name AS h_name, h.kind AS h_kind, h.grp AS h_grp, h.logo AS h_logo, i.* " +
             "FROM history h LEFT JOIN items i ON i.playlist_id=h.playlist_id AND i.url=h.url " +
-            "WHERE h.playlist_id=? GROUP BY h.url ORDER BY MAX(h.watched) DESC LIMIT $limit",
-        arrayOf(playlistId.toString()),
+            "WHERE h.playlist_id=? AND (h.scope='' OR h.scope=?) GROUP BY h.url ORDER BY MAX(h.watched) DESC LIMIT $limit",
+        arrayOf(playlistId.toString(), playlist(playlistId)?.let(WatchPolicy::scope).orEmpty()),
     ).use { c ->
         val idCol = c.getColumnIndexOrThrow("id")
         buildList {
@@ -731,7 +805,9 @@ class Repository(context: Context) : java.io.Closeable {
         }
     }
 
-    fun clearHistory(playlistId: Long) { db.delete("history", "playlist_id=?", arrayOf(playlistId.toString())) }
+    fun clearHistory(playlistId: Long) {
+        watchStore.clearPlaylist(playlistId)
+    }
 
     // ---------------- Reminders ----------------
 

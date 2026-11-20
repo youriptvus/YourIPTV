@@ -2,8 +2,8 @@
 
 Status legend: **DONE** (implemented and verified), **CODED** (written and compiled, but not yet
 device-verified), **TODO** (planned for v1), **DEFERRED** (out of v1 scope; reason given).
-The evidence for each TiviMate reference behavior is in
-[TIVIMATE_OBSERVATIONS.md](TIVIMATE_OBSERVATIONS.md).
+The evidence for each reference player reference behavior is in
+[REFERENCE_PLAYER_OBSERVATIONS.md](REFERENCE_PLAYER_OBSERVATIONS.md).
 Live progress is tracked in a local task-progress file (not in the repository).
 
 ## 0. Mandatory: all player features free; custom rebranding is the only paid offering
@@ -19,7 +19,7 @@ Live progress is tracked in a local task-progress file (not in the repository).
       About-screen company/contact details), produced by a **separate** authorized tool (not part of
       this app). Rebranding must NOT add player capability or reduce standard-app functionality — it
       changes branding only. See section 0b and `docs/BRANDING.md`.
-- [x] Player features that TiviMate reportedly gates behind Premium are free here:
+- [x] Player features that reference player reportedly gates behind Premium are free here:
   - multiple playlists
   - favorites management
   - parental PIN
@@ -181,7 +181,7 @@ is started directly or through the launcher.
 |---|---|
 | Settings category selection and separate category pages | DONE (onn: all 25 existing controls in General, Playlists, TV Guide / EPG, Playback, Appearance, Remote Controls, Parental Controls, Settings Lock, About; D-pad, scrolling, Back/focus restoration and preference persistence verified) |
 | Parental PIN (salted hash), lock groups, PIN prompt to open them | DONE (TV: M3U `General` locked, PIN-gated, hide/show verified) |
-| Parental lock for playlist management (TiviMate "Require PIN for: Playlists") | DONE (TV: wrong PIN keeps the screen closed, correct PIN opens Playlists; turning the lock on or off needs the PIN; inactive when no PIN is set) |
+| Parental lock for playlist management (reference player "Require PIN for: Playlists") | DONE (TV: wrong PIN keeps the screen closed, correct PIN opens Playlists; turning the lock on or off needs the PIN; inactive when no PIN is set) |
 | Settings lock with its own Settings PIN, independent of the parental PIN | DONE (TV: parental PIN refused as the new Settings PIN; "Enter Settings PIN" prompt; parental PIN refused, Settings PIN opens Settings; turning off needs the Settings PIN) |
 | Two independent PINs (must differ), throttled attempts, temporary Settings unlock per visit, remote-reachable "Unlock Settings", legacy shared-PIN migration, restrictions enforced in player/PiP/number entry/recordings | DONE (onn box audit; see TEST_REPORT "Parental controls and Settings lock") |
 | Block adult categories across the whole playlist (parental PIN) | DONE (TV: "For Adults" hidden from groups, All channels 5742 → 5590, search "XXX" 160 → 9 non-adult VOD titles; blocked groups also excluded from guide, favorites, history, and resume; keyword detection unit-tested) |
@@ -223,7 +223,7 @@ All of these were verified on the TV box:
 - An M3U playlist without `url-tvg` derives `xmltv.php` from its Xtream-style login URL.
 - LEFT from a channel or VOD list returns focus to the selected group.
 - An M3U playlist's series count is labelled "series episodes".
-- Audio delay (TiviMate control-bar feature): free, adjustable live from the player options; persisted in Settings.
+- Audio delay (reference player control-bar feature): free, adjustable live from the player options; persisted in Settings.
 - Local recordings play through `DefaultDataSource` (fixed: `file://` playback failed with a ClassCastException when only the HTTP data source was used).
 - Returning from playing a recording keeps focus on the recording row (in-place refresh instead of a full section reload).
 - Recording file names no longer repeat the channel name when the programme title equals it.

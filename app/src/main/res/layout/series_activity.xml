@@ -17,16 +17,25 @@
                 <TextView android:id="@+id/series_title" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:textSize="24sp" android:textStyle="bold"
                     android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/series_metadata" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="13sp" android:textColor="@color/text_dim" android:maxLines="2" android:ellipsize="end" />
                 <TextView android:id="@+id/series_selected" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:textSize="14sp" android:textColor="@color/accent"
                     android:maxLines="1" android:ellipsize="end" android:paddingTop="4dp" />
                 <TextView android:id="@+id/series_plot" android:layout_width="match_parent"
                     android:layout_height="wrap_content" android:textSize="14sp" android:textColor="@color/text_dim"
                     android:maxLines="3" android:ellipsize="end" android:paddingTop="4dp" />
+                <TextView android:id="@+id/series_watch_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="13sp" android:textColor="@color/accent" android:maxLines="1" android:ellipsize="end" />
                 <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:fillViewport="true" android:focusable="false" android:scrollbars="none">
                     <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:orientation="horizontal">
+                        <Button android:id="@+id/series_continue" style="@style/Button.Tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Play" />
+                        <Button android:id="@+id/series_beginning" style="@style/Button.Tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Play from beginning" />
+                        <Button android:id="@+id/series_next" style="@style/Button.Tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Next episode" />
+                        <Button android:id="@+id/series_choose_season" style="@style/Button.Tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Choose season" />
+                        <Button android:id="@+id/series_episode_list" style="@style/Button.Tv" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Episode list" />
                         <Button android:id="@+id/series_favorite" style="@style/Button.Tv"
                             android:layout_width="wrap_content" android:layout_height="wrap_content"
                             android:text="Add to favorites" />

@@ -1,5 +1,6 @@
 package com.youriptv.app.ui
 
+import android.annotation.SuppressLint
 import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,9 +14,11 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.WindowCompat
@@ -100,16 +103,41 @@ class PlayerActivity : RemoteActivity() {
         }
     }
     private val commitNumber = Runnable { commitDigits() }
+    private var progressItem: MediaItem? = null
+    private var progressReady = false
+    private var progressGeneration = 0L
+    private var fromBeginning = false
+    private var nextDialog: androidx.appcompat.app.AlertDialog? = null
+    private var nextTick: Runnable? = null
+    private var endedItem: MediaItem? = null
+
+    private fun cancelNextCountdown() {
+        nextTick?.let(handler::removeCallbacks)
+        nextTick = null
+        nextDialog?.dismiss()
+        nextDialog = null
+    }
+
+    override fun onPause() {
+        savePosition()
+        cancelNextCountdown()
+        super.onPause()
+    }
+
     private val savePositionTick = object : Runnable {
-        override fun run() { savePosition(); handler.postDelayed(this, 15_000) }
+        override fun run() { savePosition(); handler.postDelayed(this, 5_000) }
     }
     private val playbackListener = object : Player.Listener {
         override fun onPlaybackStateChanged(state: Int) {
             when (state) {
-                Player.STATE_READY -> { retries = 0; if (!errorShown) message.visibility = View.GONE }
+                Player.STATE_READY -> { progressReady = true; retries = 0; if (!errorShown) message.visibility = View.GONE }
                 Player.STATE_ENDED -> onEnded()
                 else -> Unit
             }
+        }
+        override fun onIsPlayingChanged(isPlaying: Boolean) { if (!isPlaying) savePosition() }
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) savePosition()
         }
         override fun onPlayerError(error: PlaybackException) = handleError(error)
         override fun onTracksChanged(tracks: Tracks) { updateBadges(); applyFrameRate() }
@@ -129,6 +157,17 @@ class PlayerActivity : RemoteActivity() {
         numberEntry = findViewById(R.id.number_entry)
         banner = findViewById(R.id.banner)
         overlay = findViewById(R.id.channel_overlay)
+        // Clamp the shared remote overlay to the available phone/tablet window.
+        findViewById<View>(R.id.root).addOnLayoutChangeListener { root, _, _, _, _, _, _, _, _ ->
+            val width = minOf((520 * resources.displayMetrics.density).toInt(), root.width)
+            if (width > 0 && overlay.layoutParams.width != width)
+                overlay.layoutParams = overlay.layoutParams.apply { this.width = width }
+        }
+        findViewById<Button>(R.id.player_touch_options).apply {
+            visibility = if ((resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+                Configuration.UI_MODE_TYPE_TELEVISION) View.GONE else View.VISIBLE
+            setOnClickListener { showOptions() }
+        }
         overlayList = findViewById(R.id.overlay_list)
         overlayAdapter = ItemAdapter(
             { _, pos -> hideOverlay(); if (pos != index) switchTo(pos) },
@@ -145,6 +184,9 @@ class PlayerActivity : RemoteActivity() {
         active?.get()?.takeIf { it !== this }?.retire()
         active = java.lang.ref.WeakReference(this)
         loadIntent(intent)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = handlePlayerBack()
+        })
         observeCommittedRefreshes()
     }
 
@@ -171,9 +213,10 @@ class PlayerActivity : RemoteActivity() {
                         continue
                     }
                     observedRefreshGenerations[playlistId] = generation
-                    val updated = metadata[item.url] ?: item
-                    queue = oldQueue.mapNotNull {
-                        metadata[it.url] ?: it.takeIf { old -> old.url == item.url || old.kind != ItemKind.LIVE }
+                    val updated = metadata[item.url]?.let { com.youriptv.app.data.WatchPolicy.refreshed(item, it) } ?: item
+                    queue = oldQueue.mapNotNull { old ->
+                        metadata[old.url]?.let { com.youriptv.app.data.WatchPolicy.refreshed(old, it) }
+                            ?: old.takeIf { it.url == item.url || it.kind != ItemKind.LIVE }
                     }
                     index = queue.indexOfFirst { it.url == item.url }.coerceAtLeast(0)
                     previousIndex = queue.indexOfFirst { it.url == oldPreviousUrl }
@@ -243,6 +286,9 @@ class PlayerActivity : RemoteActivity() {
     }
 
     private fun loadIntent(i: Intent) {
+        cancelNextCountdown()
+        fromBeginning = i.getBooleanExtra("vod_from_beginning", false)
+        i.removeExtra("vod_from_beginning")
         queue = YourIptvApp.playQueue
         if (queue.isEmpty()) { finish(); return }
         index = i.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, queue.size - 1)
@@ -332,7 +378,7 @@ class PlayerActivity : RemoteActivity() {
         if (reuse) {
             if (allowedOrPrompt(item)) {
                 playingUrl = PlaybackFactory.streamUrl(item)
-                playerView.useController = false
+                setControllerEnabled(false)
                 val p = player
                 val error = p?.playerError
                 if (app.livePlayback.recoveryFailed) recoveryObserver()
@@ -343,8 +389,13 @@ class PlayerActivity : RemoteActivity() {
                 }
                 showBanner()
             }
+        } else if (item.kind == ItemKind.EPISODE && endedItem?.url == item.url) {
+            // Backgrounding cancels auto-next. Returning must not silently restart a completed episode.
+            progressItem = null
+            progressReady = false
+            if (allowedOrPrompt(item)) showEpisodeEndChoices(item, autoNext = false)
         } else startItem()
-        handler.postDelayed(savePositionTick, 15_000)
+        handler.postDelayed(savePositionTick, 5_000)
     }
 
     private fun adoptLiveSession() {
@@ -507,7 +558,7 @@ class PlayerActivity : RemoteActivity() {
     private fun refreshCurrentCatalogItem(): MediaItem? {
         val old = current ?: return null
         if (old.isLocal || old.isCatchup) return old
-        val fresh = app.repo.itemByUrl(old.playlistId, old.url)
+        val fresh = app.repo.itemByUrl(old.playlistId, old.url)?.let { com.youriptv.app.data.WatchPolicy.refreshed(old, it) }
         // Xtream episode details are intentionally not stored as catalog item rows.
         if (fresh == null && old.kind == ItemKind.EPISODE) return old
         if (fresh == null || app.settings.isGroupHidden(fresh.group)) {
@@ -521,7 +572,18 @@ class PlayerActivity : RemoteActivity() {
     }
 
     private fun startItem() {
+        val progressRequest = ++progressGeneration
+        cancelNextCountdown()
+        progressItem = null
+        progressReady = false
+        endedItem = null
         val item = refreshCurrentCatalogItem() ?: return
+        if (com.youriptv.app.data.WatchPolicy.supports(item) && item.watchScope.isNotBlank() &&
+            app.repo.playlist(item.playlistId)?.let(com.youriptv.app.data.WatchPolicy::scope) != item.watchScope) {
+            player?.stop()
+            showMessage("The playlist account changed. Reopen this title from Movies or Shows.", error = true)
+            return
+        }
         refreshAuthorization()
         if (!allowedOrPrompt(item)) return
         if (item.kind == ItemKind.LIVE && Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
@@ -539,18 +601,23 @@ class PlayerActivity : RemoteActivity() {
         if (app.livePlayback.owns(p)) app.livePlayback.noteFullscreenItem(item, queue, unlockedGroups, authorizedStamp)
         if (app.livePlayback.owns(p)) app.livePlayback.resetRecovery()
         android.util.Log.i("YourIPTV", "Start ${item.kind} stream as ${if (url.contains(".m3u8", true)) "HLS" else "progressive/TS"}; buffer ${app.settings.bufferMs} ms; sw decode ${app.settings.preferSoftwareDecoding}")
+        val restart = fromBeginning
+        fromBeginning = false
+        if (restart) app.repo.clearWatchProgress(item)
         lifecycleScope.launch {
-            val resumeAt = if (item.kind == ItemKind.LIVE) 0L else withContext(Dispatchers.IO) { app.repo.resumePosition(item) }
+            val resumeAt = if (item.kind == ItemKind.LIVE || restart) 0L else withContext(Dispatchers.IO) { app.repo.resumePosition(item) }
             if (player !== p || current != item) return@launch
+            if (item.kind != ItemKind.LIVE && progressRequest != progressGeneration) return@launch
             if (refreshCurrentCatalogItem() != item) { startItem(); return@launch }
             refreshAuthorization()
             if (!allowedOrPrompt(item)) return@launch
             p.setMediaItem(PlaybackFactory.mediaItem(item), resumeAt)
+            progressItem = item
             p.prepare()
             p.playWhenReady = true
             if (resumeAt > 0) Dialogs.toast(this@PlayerActivity, "Resuming from ${Format.duration(resumeAt)}")
         }
-        playerView.useController = item.kind != ItemKind.LIVE
+        setControllerEnabled(item.kind != ItemKind.LIVE)
         playerView.controllerShowTimeoutMs = 4000
         timeBar()?.setKeyTimeIncrement(app.settings.skipSeconds * 1000L)
         if (item.kind == ItemKind.LIVE) {
@@ -596,21 +663,55 @@ class PlayerActivity : RemoteActivity() {
             }
             return
         }
-        player?.let { lifecycleScope.launch(Dispatchers.IO) { app.repo.recordHistory(item, it.duration, it.duration) } }
-        if (item.kind == ItemKind.EPISODE && index + 1 < queue.size) {
-            Dialogs.toast(this, "Playing next episode")
-            previousIndex = index; index++; startItem()
-        } else finish()
+        if (endedItem == item) return
+        val p = player ?: return
+        endedItem = item
+        app.repo.saveWatchProgress(item, p.currentPosition, p.duration, ended = true)
+        if (item.kind != ItemKind.EPISODE) { finish(); return }
+        showEpisodeEndChoices(item, autoNext = app.settings.autoPlayNextEpisode)
+    }
+
+    private fun showEpisodeEndChoices(item: MediaItem, autoNext: Boolean) {
+        val confirmedComplete = app.repo.watchProgress(item)?.completed == true
+        val next = queue.getOrNull(index + 1)?.takeIf { it.kind == ItemKind.EPISODE && it.seriesKey == item.seriesKey }
+        val choices = if (next != null) arrayOf("Play next episode", "Return to episode list", "Exit playback")
+            else arrayOf("Return to episode list", "Exit playback")
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(if (confirmedComplete) "Episode finished" else "Playback ended before completion")
+            .setItems(choices) { _, choice ->
+                cancelNextCountdown()
+                if (next != null && choice == 0) switchTo(index + 1)
+                else if (choice == choices.lastIndex) {
+                    startActivity(android.content.Intent(this, MainActivity::class.java)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                    finish()
+                } else finish()
+            }.setNegativeButton("Stay here") { _, _ -> cancelNextCountdown() }
+            .setOnCancelListener { cancelNextCountdown() }.create()
+        nextDialog = dialog
+        dialog.show()
+        RemoteBack.bind(dialog, this)
+        if (next != null && autoNext && confirmedComplete) {
+            var seconds = 10
+            val countdown = object : Runnable {
+                override fun run() {
+                    if (nextDialog !== dialog || isFinishing || current != item || !dialog.isShowing) return
+                    if (seconds == 0) { cancelNextCountdown(); switchTo(index + 1); return }
+                    dialog.setTitle("Next: S${next.season} E${next.episode} in ${seconds--}s · Cancel to stay")
+                    handler.postDelayed(this, 1000)
+                }
+            }
+            nextTick = countdown
+            handler.post(countdown)
+        }
     }
 
     private fun savePosition() {
-        val item = current ?: return
+        val item = progressItem ?: return
         val p = player ?: return
-        if (item.kind == ItemKind.LIVE) return
-        val pos = p.currentPosition
-        val dur = p.duration
-        if (dur <= 0 || pos <= 0) return
-        lifecycleScope.launch(Dispatchers.IO) { app.repo.recordHistory(item, pos, dur) }
+        if (item.kind == ItemKind.LIVE || !progressReady || current?.url != item.url) return
+        // Read Media3 only on its main looper; the store owns persistence beyond this Activity.
+        app.repo.saveWatchProgress(item, p.currentPosition, p.duration, endedItem == item)
     }
 
     // ---------------- Errors ----------------
@@ -775,7 +876,9 @@ class PlayerActivity : RemoteActivity() {
         val next = findViewById<TextView>(R.id.banner_next)
         findViewById<TextView>(R.id.banner_hint).apply {
             visibility = if (item.kind == ItemKind.LIVE) View.VISIBLE else View.GONE
-            setText(if (item.isCatchup || item.isLocal || numberEntry.visibility == View.VISIBLE)
+            setText(if ((resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) != Configuration.UI_MODE_TYPE_TELEVISION)
+                R.string.player_touch_controls_hint
+            else if (item.isCatchup || item.isLocal || numberEntry.visibility == View.VISIBLE)
                 R.string.archive_player_controls_hint else R.string.live_player_controls_hint)
         }
         title.text = if (item.kind == ItemKind.LIVE) item.name else item.name
@@ -976,6 +1079,24 @@ class PlayerActivity : RemoteActivity() {
             "Positive values play audio later. Not applied to passthrough (bitstream) audio."
         val d = AlertDialog.Builder(this).setTitle("Audio delay").setMessage(text())
             .setPositiveButton("Done", null).create()
+        val touchActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun changeDelay(delta: Int) {
+            audioDelay.delayMs = (audioDelay.delayMs + delta).coerceIn(-AudioDelayProcessor.MAX_MS, AudioDelayProcessor.MAX_MS)
+            app.settings.audioDelayMs = audioDelay.delayMs
+            d.setMessage(text())
+        }
+        listOf(
+            R.string.audio_delay_decrease to -AudioDelayProcessor.STEP_MS,
+            R.string.audio_delay_increase to AudioDelayProcessor.STEP_MS,
+            R.string.audio_delay_reset to 0,
+        ).forEach { (label, delta) ->
+            touchActions.addView(Button(this).apply {
+                setText(label)
+                minHeight = (48 * resources.displayMetrics.density).toInt()
+                setOnClickListener { changeDelay(if (delta == 0) -audioDelay.delayMs else delta) }
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        d.setView(touchActions)
         d.setOnKeyListener { _, keyCode, event ->
             if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             val step = when (keyCode) {
@@ -1034,13 +1155,22 @@ class PlayerActivity : RemoteActivity() {
         }
     }
 
+    private fun setControllerEnabled(enabled: Boolean) {
+        playerView.useController = enabled
+        // VOD's PlayerView owns the full-screen accessibility action. Keep its controls
+        // and the Options button exposed without a second identical container target.
+        // Live playback still exposes the root's banner action. Touch listeners stay intact.
+        findViewById<View>(R.id.root).importantForAccessibility =
+            if (enabled) View.IMPORTANT_FOR_ACCESSIBILITY_NO else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+    }
+
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
             banner.visibility = View.GONE; hideOverlay(); numberEntry.visibility = View.GONE
-            playerView.useController = false
+            setControllerEnabled(false)
         } else {
-            playerView.useController = !isLive
+            setControllerEnabled(!isLive)
         }
     }
 
@@ -1081,6 +1211,28 @@ class PlayerActivity : RemoteActivity() {
 
     // ---------------- Keys ----------------
 
+    /** The AndroidX gesture/button route and a physical remote's short Back share this action. */
+    private fun handlePlayerBack() {
+        when {
+            overlay.visibility == View.VISIBLE -> hideOverlay()
+            numberEntry.visibility == View.VISIBLE -> {
+                handler.removeCallbacks(commitNumber)
+                digits.clear()
+                numberEntry.visibility = View.GONE
+            }
+            errorShown -> finish()
+            banner.visibility == View.VISIBLE && isLive && !intent.getBooleanExtra(EXTRA_FROM_PREVIEW, false) -> {
+                handler.removeCallbacks(hideBanner)
+                banner.visibility = View.GONE
+            }
+            !isLive && playerView.isControllerFullyVisible -> playerView.hideController()
+            else -> finish()
+        }
+    }
+
+    // Physical remote keys remain here for short/held Back and key-up semantics.
+    // Touch/predictive Back is registered with OnBackPressedDispatcher above.
+    @SuppressLint("GestureBackNavigation")
     protected override fun dispatchAppKeyEvent(event: KeyEvent): Boolean {
         val code = event.keyCode
         val down = event.action == KeyEvent.ACTION_DOWN
@@ -1121,17 +1273,7 @@ class PlayerActivity : RemoteActivity() {
         }
 
         if (code == KeyEvent.KEYCODE_BACK) {
-            if (up) {
-                when {
-                    numberEntry.visibility == View.VISIBLE -> { handler.removeCallbacks(commitNumber); digits.clear(); numberEntry.visibility = View.GONE }
-                    errorShown -> finish()
-                    banner.visibility == View.VISIBLE && isLive && !intent.getBooleanExtra(EXTRA_FROM_PREVIEW, false) -> {
-                        handler.removeCallbacks(hideBanner); banner.visibility = View.GONE
-                    }
-                    !isLive && playerView.isControllerFullyVisible -> playerView.hideController()
-                    else -> finish()
-                }
-            }
+            if (up) handlePlayerBack()
             return true
         }
 

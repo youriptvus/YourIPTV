@@ -56,6 +56,16 @@ data class MediaItem(
     val isCatchup: Boolean = false,
     /** Set for local recordings; these are never written to history or favorites. */
     val isLocal: Boolean = false,
+    /** In-memory detail context; identities do not depend on translated titles or SQLite row ids. */
+    val seriesKey: String = "",
+    val seriesName: String = "",
+    val seriesUrl: String = "",
+    val seriesRemoteId: String = "",
+    val season: Int = 0,
+    val episode: Int = 0,
+    val watch: WatchProgress? = null,
+    /** Hash of the source/account at playback launch; an account edit revokes late progress writes. */
+    val watchScope: String = "",
 )
 
 data class Reminder(
@@ -108,6 +118,9 @@ data class Episode(
 
 /** On-demand information; none of it changes persisted playlist identities or playback URLs. */
 data class SeriesDetails(
+    val genre: String = "",
+    val year: String = "",
+    val rating: String = "",
     val episodes: List<Episode> = emptyList(),
     val plot: String = "",
     val cover: String = "",

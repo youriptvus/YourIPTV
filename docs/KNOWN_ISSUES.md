@@ -13,8 +13,8 @@
 - Google TV intercepts the remote's dedicated GUIDE key (re-confirmed on 0.3.0: it opens the
   Google TV home screen). Open the YourIPTV guide from TV in the main menu or from player options →
   TV guide instead; avoiding system privileges is intentional.
-- 0.3.0 Live TV levels differ from TiviMate in these details: the main menu is hidden completely
-  in the categories and guide (TiviMate keeps a narrow icon strip), the main menu level fits the
+- 0.3.0 Live TV levels differ from reference player in these details: the main menu is hidden completely
+  in the categories and guide (reference player keeps a narrow icon strip), the main menu level fits the
   guide beside the menu (with hourly time labels) rather than sliding it further, long-press Back does not jump back to the player, and Back on the
   main menu keeps YourIPTV's "press BACK again to exit".
 - A selected locked category asks for the parental PIN, and each channel preview in it asks again

@@ -19,7 +19,7 @@ import com.youriptv.app.data.Program
 /** Shared geometry and selection state for the guide grid. Times are already shifted for display. */
 class GuideState(context: Context, channelWidthDp: Float = 260f) {
     var windowStart = 0L
-    /** About two hours across the timeline, the same programme density as TiviMate's guide at 1080p. */
+    /** About two hours of programmes across the timeline at 1080p. */
     val span = 120 * 60_000L
     var focusTime = 0L
     var focusedRow = 0

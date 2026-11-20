@@ -9,4 +9,8 @@
     <TextView android:id="@+id/series_episode_title" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:textSize="14sp" android:maxLines="2"
         android:ellipsize="end" android:paddingTop="4dp" />
+    <TextView android:id="@+id/episode_watch_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:textColor="@color/accent" />
+    <ProgressBar android:id="@+id/episode_watch_progress" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="5dp" android:max="1000" />
 </LinearLayout>

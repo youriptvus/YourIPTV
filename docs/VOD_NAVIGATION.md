@@ -94,7 +94,7 @@ a bounded cache, not by downloading full details for the whole catalogue at star
 
 ## Existing installations and release handling
 
-This is an independent YourIPTV implementation. No TiviMate code, UI assets or branding are
+This is an independent YourIPTV implementation. No reference player code, UI assets or branding are
 copied. All player features remain free; only custom rebranding is a paid offering, and its
 unfinished companion integration remains paused and excluded. Adjustable buffering is also paused.
 

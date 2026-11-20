@@ -35,6 +35,9 @@ object VodMetadata {
             is JSONArray -> addEpisodes(episodes)
         }
         return SeriesDetails(
+            genre = text(info, "genre", 256),
+            year = firstText(info, "releaseDate", "releasedate", "release_date", "year").ifBlank { scalar(info, "year") }.take(64),
+            rating = scalar(info, "rating").take(32),
             episodes = result.sortedWith(compareBy({ it.season }, { it.episode })),
             plot = firstText(info, "plot", "description"),
             cover = firstArtwork(info, "cover", "movie_image", "cover_big"),

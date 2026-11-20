@@ -24,11 +24,12 @@
     <LinearLayout
         android:id="@+id/banner" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_gravity="bottom" android:background="@color/overlay" android:orientation="horizontal"
-        android:paddingStart="40dp" android:paddingEnd="40dp" android:paddingTop="20dp" android:paddingBottom="24dp"
+        android:paddingStart="@dimen/player_banner_padding_horizontal" android:paddingEnd="@dimen/player_banner_padding_horizontal"
+        android:paddingTop="@dimen/player_banner_padding_vertical" android:paddingBottom="@dimen/player_banner_padding_vertical"
         android:visibility="gone">
         <ImageView
-            android:id="@+id/banner_logo" android:layout_width="160dp" android:layout_height="90dp"
-            android:scaleType="fitCenter" android:layout_marginEnd="24dp" android:importantForAccessibility="no" />
+            android:id="@+id/banner_logo" android:layout_width="@dimen/player_banner_logo_width" android:layout_height="@dimen/player_banner_logo_height"
+            android:scaleType="fitCenter" android:layout_marginEnd="@dimen/player_banner_logo_margin" android:importantForAccessibility="no" />
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:orientation="vertical">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -55,7 +56,7 @@
                     android:textSize="15sp" android:textColor="@color/text_dim" />
                 <ProgressBar
                     android:id="@+id/banner_progress" style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="160dp" android:layout_height="6dp" android:max="1000"
+                    android:layout_width="@dimen/player_banner_progress_width" android:layout_height="6dp" android:max="1000"
                     android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:progressTint="@color/accent" />
                 <TextView
                     android:id="@+id/banner_remaining" android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -86,4 +87,11 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/overlay_list" android:layout_width="match_parent" android:layout_height="match_parent" />
     </LinearLayout>
+
+    <Button
+        android:id="@+id/player_touch_options" style="@style/Button.Tv"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="top|end" android:layout_margin="8dp"
+        android:minWidth="48dp" android:minHeight="48dp"
+        android:text="@string/player_touch_options" android:visibility="gone" />
 </FrameLayout>

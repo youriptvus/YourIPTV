@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 class MovieDetailsActivity : RemoteActivity() {
     private val app get() = YourIptvApp.instance
     private lateinit var movie: MediaItem
+    private var entrySourceIdentity = ""
     private lateinit var content: View
     private lateinit var play: Button
     private lateinit var beginning: Button
@@ -47,6 +48,8 @@ class MovieDetailsActivity : RemoteActivity() {
             logo = intent.getStringExtra(EXTRA_LOGO).orEmpty(),
             remoteId = intent.getStringExtra(EXTRA_REMOTE_ID).orEmpty(),
         )
+        entrySourceIdentity = intent.getStringExtra("vod_source_identity")
+            ?: app.repo.playlist(movie.playlistId)?.let(app.repo::sourceIdentity).orEmpty()
         // A recreated Activity must not turn a stale Intent into a new parental grant.
         if (savedInstanceState == null && intent.getIntExtra(EXTRA_AUTHORIZATION_STAMP, -1) == app.settings.restrictionStamp()) {
             authorizedStamp = app.settings.restrictionStamp()
@@ -98,6 +101,10 @@ class MovieDetailsActivity : RemoteActivity() {
     private fun withAccess(action: () -> Unit) {
         if (!foreground || isFinishing || isDestroyed) return
         if (!app.isTrustedBuild || movie.url.isBlank() || app.repo.playlist(movie.playlistId) == null) { finish(); return }
+        if (entrySourceIdentity.isBlank() || app.repo.playlist(movie.playlistId)?.let(app.repo::sourceIdentity) != entrySourceIdentity) {
+            finish()
+            return
+        }
         // A refreshed catalogue may have moved this title to a restricted group while details were open.
         app.repo.itemByUrl(movie.playlistId, movie.url)?.let { latest ->
             if (latest.kind != ItemKind.MOVIE) { finish(); return }
@@ -142,8 +149,21 @@ class MovieDetailsActivity : RemoteActivity() {
     }
 
     private fun updateActions() {
-        val resume = app.repo.resumePosition(movie)
-        play.text = if (resume > 0) "Resume ${Format.duration(resume)}" else "Play"
+        val state = app.repo.watchProgress(movie)
+        val resume = state?.resume ?: 0
+        findViewById<TextView>(R.id.movie_watch_status).text = state?.label ?: "Unwatched"
+        findViewById<android.widget.ProgressBar>(R.id.movie_watch_progress).apply {
+            progress = state?.permille ?: 0
+            visibility = if (state != null && (state.position > 0 || state.completed)) View.VISIBLE else View.GONE
+        }
+        findViewById<Button>(R.id.movie_watched).apply {
+            text = if (state?.completed == true) "Mark unwatched" else "Mark watched"
+            setOnClickListener { withAccess { app.repo.markWatched(movie, state?.completed != true); updateActions() } }
+        }
+        findViewById<Button>(R.id.movie_clear).setOnClickListener {
+            withAccess { app.repo.clearWatchProgress(movie); updateActions() }
+        }
+        play.text = if (resume > 0) "Resume movie · ${Format.duration(resume)}" else if (state?.completed == true) "Play again" else "Play"
         beginning.visibility = if (resume > 0) View.VISIBLE else View.GONE
         favorite.text = if (app.repo.isFavorite(movie)) "Remove from favorites" else "Add to favorites"
     }
@@ -175,15 +195,7 @@ class MovieDetailsActivity : RemoteActivity() {
     }
 
     private fun playMovie(fromBeginning: Boolean) = withAccess {
-        if (!fromBeginning) {
-            Nav.play(this, listOf(movie), 0, movie.group.takeIf { app.settings.isGroupLocked(it) })
-        } else lifecycleScope.launch {
-            val requested = movie
-            withContext(Dispatchers.IO) { app.repo.recordHistory(requested, 0, 0) }
-            withAccess {
-                Nav.play(this@MovieDetailsActivity, listOf(movie), 0, movie.group.takeIf { app.settings.isGroupLocked(it) })
-            }
-        }
+        Nav.play(this, listOf(movie), 0, movie.group.takeIf { app.settings.isGroupLocked(it) }, fromBeginning)
     }
 
     companion object {

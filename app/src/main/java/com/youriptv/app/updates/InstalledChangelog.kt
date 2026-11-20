@@ -6,6 +6,13 @@ internal object InstalledChangelog {
 
     // Add each release here when its version code/name changes. Keep older entries for reference.
     private val releases = mapOf(
+        51L to Release("1.1.0", listOf(
+            "Resume movies and exact series episodes with locally saved watch progress.",
+            "Use Continue Watching, watched/unwatched indicators and individual progress reset.",
+            "Choose seasons and move between episodes across season boundaries.",
+            "Optionally play the next episode after a cancellable countdown; stopping in credits stays resumable.",
+            "Use the same player with remote or touch navigation and phone rotation.",
+        )),
         44L to Release("1.0.9", listOf(
             "Reconnect sooner after a fullscreen live TS stream ends.",
             "Keep later retry delays and existing playback, parental and connection-limit protections.",

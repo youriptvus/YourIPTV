@@ -6,7 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
-class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 7) {
+class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 8) {
     private val settings = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -49,6 +49,7 @@ class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 7) {
         addV5(db)
         addV6(db)
         addV7(db)
+        addV8(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -58,6 +59,16 @@ class Db(context: Context) : SQLiteOpenHelper(context, "youriptv.db", null, 7) {
         if (oldVersion < 5) addV5(db)
         if (oldVersion < 6) addV6(db)
         if (oldVersion < 7) addV7(db)
+        if (oldVersion < 8) addV8(db)
+    }
+
+    private fun addV8(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE history ADD COLUMN scope TEXT NOT NULL DEFAULT ''")
+        db.execSQL("""CREATE TABLE watch_progress(playlist_id INTEGER NOT NULL, scope TEXT NOT NULL,
+            content_key TEXT NOT NULL, media TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
+            duration INTEGER NOT NULL DEFAULT 0, completed INTEGER NOT NULL DEFAULT 0,
+            updated INTEGER NOT NULL, PRIMARY KEY(scope,content_key))""")
+        db.execSQL("CREATE INDEX idx_watch_recent ON watch_progress(playlist_id,scope,updated DESC)")
     }
 
     private fun addV7(db: SQLiteDatabase) {

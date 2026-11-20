@@ -46,7 +46,7 @@ With **Automatic updates** enabled, YourIPTV checks for updates when opened and 
 available update. Android may require installation permission or confirmation. To update manually,
 download and open the latest APK, then accept Android's update/install prompt. **Do not uninstall
 YourIPTV or clear its data**: a compatible in-place update keeps playlists and local app data.
-Settings lock defaults to **On** for new installations and migration from earlier releases.
+Settings lock defaults to **Off** unless a prior local choice or existing Settings PIN requires protection.
 In 1.0.7, only the master PIN can turn it **Off** or back **On**; read the
 [Settings policy and migration details](docs/SETTINGS_SECURITY.md).
 
@@ -216,7 +216,7 @@ setup below and [backup-server setup](docs/UPDATE_SERVER.md).
      the first update to allow installs from YourIPTV.
    - **Allow automatic restart after updates (technician)** opens *Display over other apps*; allow
      YourIPTV. This only lets the app reopen itself after an update (Android 10–14).
-   - Settings lock defaults to On. Keep the master with the responsible technician: only it can
+   - Settings lock defaults to Off; existing explicit choices and prior Settings PIN protection are preserved. Keep the master with the responsible technician: only it can
      change that switch in either direction or manage custom Settings PINs. An optional custom
      Settings PIN can open configuration while the lock is On, but cannot change the switch.
 
@@ -338,7 +338,7 @@ restriction.
 - **Parental controls and Settings protection:** these are separate security controls.
   - The parental PIN protects locked groups, adult categories, protected playback and,
     optionally, playlist management.
-  - Settings lock defaults to On. The permanent master and an optional custom Settings PIN can
+  - Settings lock defaults to Off; existing explicit choices and prior Settings PIN protection are preserved. The permanent master and an optional custom Settings PIN can
     open Unlock Settings. Only the master can turn the switch Off or On, or manage custom PINs.
     An absent custom PIN never turns the lock Off; removing one leaves the switch unchanged. New custom Settings
     PINs must differ from the parental PIN. The switch stays local and is excluded from backups.
@@ -758,7 +758,7 @@ YourIPTV/
 │       │   └── res/                Layouts (TV and portrait), drawables, icons, TV banner, strings
 │       └── test/java/com/youriptv/app/   JVM unit tests
 ├── docs/                           Requirements, release notes, test report, QA checklist,
-│                                   remote controls, known issues, TiviMate reference notes,
+│                                   remote controls, known issues, reference player reference notes,
 │                                   branding source image
 ├── gradle/wrapper/                 Gradle wrapper JAR and properties (9.8.1)
 ├── build.gradle.kts                Root build (Android Gradle Plugin 9.5.0)
@@ -820,7 +820,7 @@ These are the main ones; the full, current list is in [docs/KNOWN_ISSUES.md](doc
 | [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) | Full hands-on QA pass |
 | [docs/REMOTE_CONTROLS.md](docs/REMOTE_CONTROLS.md) | Remote-control key map |
 | [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) | Known issues and test limitations |
-| [docs/TIVIMATE_OBSERVATIONS.md](docs/TIVIMATE_OBSERVATIONS.md), [docs/LIVE_PREVIEW_REFERENCE.md](docs/LIVE_PREVIEW_REFERENCE.md) | Observed reference behaviour used for the interface design. YourIPTV is an independent implementation and reuses no TiviMate code, assets or branding |
+| [docs/REFERENCE_PLAYER_OBSERVATIONS.md](docs/REFERENCE_PLAYER_OBSERVATIONS.md), [docs/LIVE_PREVIEW_REFERENCE.md](docs/LIVE_PREVIEW_REFERENCE.md) | Observed reference behaviour used for the interface design. YourIPTV is an independent implementation and reuses no reference player code, assets or branding |
 
 ## License
 

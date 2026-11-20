@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_touch_options">Playback options</string>
+    <string name="player_touch_controls_hint">Tap for information · Playback options for channels, guide and tracks</string>
+    <string name="audio_delay_decrease">Decrease delay</string>
+    <string name="audio_delay_increase">Increase delay</string>
+    <string name="audio_delay_reset">Reset delay</string>
+</resources>

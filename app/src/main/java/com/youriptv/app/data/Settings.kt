@@ -7,6 +7,14 @@ class Settings(context: Context) {
     private val sp = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     init {
+        // Persist the default before other initialization writes; never overwrite an existing choice.
+        synchronized(SettingsLockPolicy) {
+            if (!sp.contains(SettingsLockPolicy.LOCAL_KEY)) {
+                check(sp.edit().putBoolean(SettingsLockPolicy.LOCAL_KEY, initialSettingsLock(null)).commit()) {
+                    "Could not persist local security policy"
+                }
+            }
+        }
         // 0.5.1: automatic updates became default-on; switch them on once for boxes that had them off.
         if (!sp.contains("auto_updates_forced_on")) {
             sp.edit().putBoolean("automatic_app_updates", true).putBoolean("auto_updates_forced_on", true).apply()
@@ -42,6 +50,10 @@ class Settings(context: Context) {
     var aspectMode: Int
         get() = sp.getInt("aspect", 0)
         set(v) = sp.edit().putInt("aspect", v).apply()
+
+    var autoPlayNextEpisode: Boolean
+        get() = sp.getBoolean("auto_next_episode", false)
+        set(v) = sp.edit().putBoolean("auto_next_episode", v).apply()
 
     var skipSeconds: Int
         get() = sp.getInt("skip_sec", 10)
@@ -130,7 +142,7 @@ class Settings(context: Context) {
     /** Effective values (defaults included) of every setting listed in [BackupKeys.SETTINGS]. */
     fun backupValues(): Map<String, Any> = mapOf(
         "resume_last" to resumeLastChannel, "last_channel" to lastChannelUrl, "buffer_ms" to bufferMs,
-        "aspect" to aspectMode, "skip_sec" to skipSeconds, "audio_delay_ms" to audioDelayMs,
+        "aspect" to aspectMode, "skip_sec" to skipSeconds, "auto_next_episode" to autoPlayNextEpisode, "audio_delay_ms" to audioDelayMs,
         "auto_frame_rate" to autoFrameRate, "live_format" to liveFormat, "sw_decode" to preferSoftwareDecoding,
         "user_agent" to globalUserAgent, "epg_past_h" to epgPastHours, "epg_future_d" to epgFutureDays,
         "epg_shift_h" to epgShiftHours, "clock_24h" to use24h, "show_numbers" to showChannelNumbers,
@@ -203,7 +215,7 @@ class Settings(context: Context) {
 
     // ---- PINs ----
     // The parental PIN and the Settings PIN are independent and must differ (see PinVault).
-    // Settings protection defaults on. Its explicit local switch is independent of stored PINs.
+    // Settings protection defaults off; existing explicit choices and previously protected installs are retained.
 
     val pins = PinVault(object : StringStore {
         override fun get(key: String): String? = sp.getString(key, null)
@@ -215,6 +227,12 @@ class Settings(context: Context) {
     })
 
     fun hasPin() = pins.has(PinKind.PARENTAL)
+
+    private fun initialSettingsLock(saved: Boolean?): Boolean = SettingsLockPolicy.initial(
+        saved,
+        hasSettingsPin = sp.getString("settings_pin_hash", null) != null,
+        legacySettingsProtected = sp.getBoolean("lock_settings", false) && sp.getString("pin_hash", null) != null,
+    )
 
     /** Local security policy, deliberately excluded from portable backups and Intent extras. */
     val settingsLockEnabled: Boolean

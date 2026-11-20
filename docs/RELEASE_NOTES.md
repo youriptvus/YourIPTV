@@ -1,5 +1,17 @@
 # Release notes
 
+## 1.1.0 (version code 51)
+
+- Settings Lock defaults off in both distributions. Existing explicit on/off choices, an existing Settings PIN and legacy Settings restrictions are preserved; Admin and parental protection remain independent.
+- Movies and series now share durable, account-scoped watch progress with Resume, Play from beginning, watched/unwatched and individual reset actions.
+- Continue Watching identifies the exact unfinished episode and removes completed movies.
+- Series details include available metadata, episode artwork, progress indicators, season selection and restoration of the last episode's focus.
+- Episode playback follows season/episode order across season boundaries. Natural completion offers Next episode, Episode list or Exit.
+- Optional Auto play next episode is off by default and uses a cancellable ten-second countdown. Stopping during credits does not mark content completed.
+- Progress saves every five seconds and on pause, seek and navigation. Ordered app-owned writes survive an Activity closing; playlist refreshes retain progress when content identity remains stable.
+- Phone and TV use the same player and progress logic. Phone navigation supports rotation, safe screen insets and touch playback options.
+- Preserve Live TV recovery, guide/playlist refresh, source limits, parental controls and existing account configuration. No decoder engine change or player feature paywall.
+
 ## 1.0.9 (version code 44)
 
 - Reconnect sooner after a fullscreen live TS stream ends.
@@ -479,27 +491,26 @@ See [Movies/Shows navigation](VOD_NAVIGATION.md) and [QA status](QA_CHECKLIST.md
 ## 0.3.2 (version code 6)
 
 - Fix: opening or browsing a TV category (including All channels) now starts its guide at the first
-  channel in the provider's playlist order, as TiviMate does. Before, it jumped to the playing
+  channel in the provider's playlist order. Before, it jumped to the playing
   channel, so channels above it (for example BIG BROTHER at 1) were scrolled out of view and the
   list looked out of order. Back from full screen still returns to the playing channel.
 ## 0.3.1 (version code 5)
 
-- Guide sizing and density now match TiviMate's measured proportions on a 1080p TV (measured at
-  the same resolution and display settings), without a blanket scale transform:
+- Guide sizing and density are tuned for a 1080p TV without a blanket scale transform:
   - channel rows 56 dp -> 40 dp, about 8 rows visible instead of about 4;
   - channel names, programme titles and time labels 16 sp -> 14 sp (channel names medium weight);
   - channel column 180 dp -> 260 dp with channel logos (44 dp slot) and a 40 dp number column;
   - timeline header 32 dp -> 28 dp; 2 hours of programmes visible instead of 2.5;
   - the "TV · category" title and item count no longer sit above the preview in the categories
     and guide; they appear as one small line at the top of the information panel instead;
-  - the preview stays at a fixed 320 dp wide, as in TiviMate.
-- Opening the categories slides the guide right at its full size, partly off screen, like
-  TiviMate, instead of squeezing it. In narrow layouts the time labels show every hour, so they no
+  - the preview stays at a fixed 320 dp wide.
+- Opening the categories slides the guide right at its full size, partly off screen,
+  without squeezing it. In narrow layouts the time labels show every hour, so they no
   longer run into each other.
 - No behaviour changes: categories, preview, full screen, focus and Back work as in 0.3.0.
 ## 0.3.0 (version code 4)
 
-- Live TV and the TV guide are one flow, modelled on TiviMate: Main menu → TV → categories →
+- Live TV and the TV guide are one flow with this navigation: Main menu → TV → categories →
   guide → preview → full screen. The separate "TV guide" entry has been removed from the main
   menu, and the standalone guide screen has been folded into Live TV. EPG data, EPG settings,
   catch-up, reminders, recording and programme options are unchanged.

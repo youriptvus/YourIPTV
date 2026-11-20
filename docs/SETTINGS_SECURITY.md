@@ -1,6 +1,14 @@
 # Settings security
 
-## Current 1.0.7 policy — release candidate
+## Current 1.1.0 Settings default
+
+Ordinary Settings default to unlocked in both distributions. A saved local On or Off choice is preserved. If no choice exists, an already configured Settings PIN or a legacy Settings restriction remains protected; unrelated existing preferences alone do not enable the lock. Initialization persists the resulting choice, so restarts and catalog refreshes cannot reset it. Adding or removing a PIN later does not silently override the local switch.
+
+The default does not disable Admin authorization for lock/PIN management, independent parental restrictions, provider connection limits, or Play app protection. The local switch is excluded from portable backup. Settings visits and pending actions are still revoked when the switch changes or a protected visit ends.
+
+The older policies below are historical and do not override this 1.1.0 behavior.
+
+## Historical 1.0.7 policy — release candidate
 
 Version 1.0.7 supersedes the always-on Settings policy from 1.0.1–1.0.5 with an explicit
 **Settings lock** switch. It defaults to **On** on new installations and migration from earlier

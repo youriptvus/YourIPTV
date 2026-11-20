@@ -5,6 +5,7 @@ import android.util.SparseArray
 import androidx.annotation.OptIn
 import androidx.media3.common.util.ParsableByteArray
 import androidx.media3.common.util.TimestampAdjuster
+import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.Extractor
@@ -27,7 +28,7 @@ import androidx.media3.extractor.ts.TsPayloadReader
  * cannot keep up with 50/60 fps and playback falls behind, drops frames and skips to keyframes.
  * Each H.264 stream therefore uses slice-based detection only when its first PES packet has no AUD.
  */
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalApi::class)
 class LiveTsExtractorsFactory(private val tsFlags: Int) : ExtractorsFactory {
     private val base = DefaultExtractorsFactory().setTsExtractorFlags(tsFlags)
     private var subtitleParserFactory: SubtitleParser.Factory = DefaultSubtitleParserFactory()

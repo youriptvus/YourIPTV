@@ -45,11 +45,11 @@ class LiveGuideGrid(
     private val interactionGeneration: () -> Long = { 0L },
 ) {
     private val app get() = YourIptvApp.instance
-    // TiviMate-like density at 1080p: 40dp rows (about eight visible) and a channel column wide enough for number, logo and name.
+    // Each actionable guide row also provides a full 48dp phone touch target.
     private val state = GuideState(activity, channelWidthDp = if (activity.resources.getBoolean(R.bool.is_portrait)) 180f else 260f)
     private val cache = GuideProgramCache(app)
     private val rowHeight = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP, 40f, activity.resources.displayMetrics,
+        TypedValue.COMPLEX_UNIT_DIP, 48f, activity.resources.displayMetrics,
     ).toInt()
     private var channels: List<MediaItem> = emptyList()
     private var archiveDays = 0
