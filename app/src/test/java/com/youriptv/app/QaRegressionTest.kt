@@ -228,9 +228,9 @@ class QaRegressionTest {
     }
 
     @Test
-    fun liveGuideUsesCompactTiviMateProportions() {
+    fun liveGuideKeepsCompactColumnsAndAccessibleRowTargets() {
         val grid = ui("LiveGuideGrid.kt")
-        assertTrue("about eight 40dp rows fit under the preview at 1080p", grid.contains("TypedValue.COMPLEX_UNIT_DIP, 40f"))
+        assertTrue("actionable guide rows provide a 48dp touch target", grid.contains("TypedValue.COMPLEX_UNIT_DIP, 48f"))
         assertTrue(grid.contains("if (activity.resources.getBoolean(R.bool.is_portrait)) 180f else 260f"))
         val views = ui("GuideViews.kt")
         assertTrue(views.contains("val span = 120 * 60_000L"))
@@ -310,7 +310,9 @@ class QaRegressionTest {
         assertFalse("the unguarded one-liner must not come back",
             main.contains("opts.add(\"Open in external player\" to { Nav.externalPlayer(this, item.url, item.name) })"))
         val series = ui("SeriesActivity.kt")
-        assertTrue(series.contains("else externalEpisode(row, index)"))
+        val options = series.substringAfter("private fun episodeOptions").substringBefore("private fun play(row")
+        assertTrue(options.contains("4 -> externalEpisode(row, index)"))
+        assertTrue(options.contains("{ choice -> withSeriesPermission"))
         val fn = series.substringAfter("private fun externalEpisode").substringBefore("companion object")
         assertTrue(fn.contains("app.settings.restrictionStamp() != openedStamp"))
         assertTrue(fn.contains("authenticateEntry") && fn.contains("withSeriesPermission"))

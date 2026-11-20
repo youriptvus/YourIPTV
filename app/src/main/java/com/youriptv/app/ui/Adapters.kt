@@ -76,7 +76,11 @@ class ItemAdapter(
     private fun applyPosterSizing(h: VH) {
         val artwork = h.logo as? PosterImageView ?: return
         val sizing = posterSizing ?: return
-        artwork.maxArtworkHeightPx = sizing.maxImageHeightPx
+        // Progress labels must fit alongside the caption, including large accessibility fonts.
+        val footer = h.subtitle.lineHeight * 2 + h.subtitle.compoundPaddingTop + h.subtitle.compoundPaddingBottom
+        val progressHeight = (5 * h.itemView.resources.displayMetrics.density).toInt()
+        artwork.maxArtworkHeightPx = (sizing.maxImageHeightPx - footer - progressHeight).coerceAtLeast(1)
+        if (h.subtitle.layoutParams.height != footer) h.subtitle.layoutParams = h.subtitle.layoutParams.apply { height = footer }
         if (h.name.layoutParams.height != sizing.captionHeightPx) {
             h.name.layoutParams = h.name.layoutParams.apply { height = sizing.captionHeightPx }
         }
@@ -108,14 +112,19 @@ class ItemAdapter(
                 h.subtitle.text = item.group
             }
         } else {
-            h.subtitle.text = item.group
+            val state = item.watch
+            h.subtitle.text = listOf(if (item.kind == ItemKind.EPISODE && item.season > 0) "S${item.season} E${item.episode}" else "",
+                state?.label.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { item.group }
+            h.subtitle.visibility = if (state != null || !posterMode) View.VISIBLE else View.INVISIBLE
+            h.progress.visibility = if (state != null && (state.position > 0 || state.completed)) View.VISIBLE else if (posterMode) View.INVISIBLE else View.GONE
+            h.progress.progress = state?.permille ?: 0
         }
         h.itemView.setOnClickListener { if (h.bindingAdapterPosition != RecyclerView.NO_POSITION) onClick(item, h.bindingAdapterPosition) }
         h.itemView.onOptions { if (h.bindingAdapterPosition != RecyclerView.NO_POSITION) onOptions(item, h.bindingAdapterPosition) }
         h.itemView.setOnFocusChangeListener { _, focused ->
             if (focused && h.bindingAdapterPosition != RecyclerView.NO_POSITION) onFocus?.invoke(item, h.bindingAdapterPosition)
         }
-        h.itemView.contentDescription = item.name
+        h.itemView.contentDescription = listOf(item.name, item.watch?.label.orEmpty()).filter { it.isNotBlank() }.joinToString(", ")
     }
 
     override fun onViewRecycled(holder: VH) { ImageLoader.clear(holder.logo); super.onViewRecycled(holder) }

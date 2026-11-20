@@ -1,5 +1,16 @@
 # Release notes
 
+## 1.1.0 (version code 51)
+
+- Movies and series now share durable, account-scoped watch progress with Resume, Play from beginning, watched/unwatched and individual reset actions.
+- Continue Watching identifies the exact unfinished episode and removes completed movies.
+- Series details include available metadata, episode artwork, progress indicators, season selection and restoration of the last episode's focus.
+- Episode playback follows season/episode order across season boundaries. Natural completion offers Next episode, Episode list or Exit.
+- Optional Auto play next episode is off by default and uses a cancellable ten-second countdown. Stopping during credits does not mark content completed.
+- Progress saves every five seconds and on pause, seek and navigation. Ordered app-owned writes survive an Activity closing; playlist refreshes retain progress when content identity remains stable.
+- Phone and TV use the same player and progress logic. Phone navigation supports rotation, safe screen insets and touch playback options.
+- Preserve Live TV recovery, guide/playlist refresh, source limits, parental controls and existing account configuration. No decoder engine change or player feature paywall.
+
 ## 1.0.9 (version code 44)
 
 - Reconnect sooner after a fullscreen live TS stream ends.

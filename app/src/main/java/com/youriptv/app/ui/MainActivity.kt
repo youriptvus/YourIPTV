@@ -806,17 +806,19 @@ class MainActivity : RemoteActivity() {
     private fun refreshVodFavorites() {
         val entry = groupEntries.getOrNull(selectedGroup) ?: return
         val hadFocus = currentFocus?.let { isInside(it, itemsView) } == true
-        if (entry.special == SPECIAL_FAV || entry.special == SPECIAL_HISTORY) {
+        if (entry.special == SPECIAL_FAV || entry.special == SPECIAL_HISTORY || entry.special == SPECIAL_CONTINUE) {
             selectGroup(selectedGroup, focusItems = hadFocus)
             return
         }
         val pid = playlist?.id ?: return
         val target = section
         lifecycleScope.launch {
-            val favs = withContext(Dispatchers.IO) { app.repo.favorites(pid).map { it.url }.toHashSet() }
-            if (section != target || playlist?.id != pid) return@launch
-            itemAdapter.favorites = favs
-            itemAdapter.notifyItemRangeChanged(0, itemAdapter.itemCount)
+            val before = itemAdapter.items
+            val (favs, rows) = withContext(Dispatchers.IO) {
+                app.repo.favorites(pid).map { it.url }.toHashSet() to app.repo.withWatchProgress(before)
+            }
+            if (section != target || playlist?.id != pid || itemAdapter.items !== before) return@launch
+            itemAdapter.submit(rows, favs)
         }
     }
 
@@ -986,7 +988,10 @@ class MainActivity : RemoteActivity() {
             val s = app.settings
             val entries = ArrayList<GroupEntry>()
             entries.add(GroupEntry(GroupInfo("Favorites", -1), SPECIAL_FAV))
-            if (kind != ItemKind.LIVE) entries.add(GroupEntry(GroupInfo("History", -1), SPECIAL_HISTORY))
+            if (kind != ItemKind.LIVE) {
+                entries.add(GroupEntry(GroupInfo("Continue watching", -1), SPECIAL_CONTINUE))
+                entries.add(GroupEntry(GroupInfo("History", -1), SPECIAL_HISTORY))
+            }
             val visible = groups.filter { !s.isGroupHidden(it.name) }
             if (allLabel != null) entries.add(GroupEntry(GroupInfo(allLabel, visible.sumOf { it.count }), SPECIAL_ALL))
             visible.forEach { entries.add(GroupEntry(it)) }
@@ -1047,6 +1052,7 @@ class MainActivity : RemoteActivity() {
             loadItems(focusItems, focusUrl) {
                 val list = when (entry.special) {
                     SPECIAL_FAV -> app.repo.favorites(p.id, kind)
+                    SPECIAL_CONTINUE -> app.repo.continueWatching(p.id, kind)
                     SPECIAL_HISTORY -> app.repo.history(p.id).filter { it.kind == kind || (kind == ItemKind.SERIES && it.kind == ItemKind.EPISODE) }
                     SPECIAL_ALL -> app.repo.items(p.id, kind, null)
                     else -> app.repo.items(p.id, kind, entry.info.name)
@@ -1070,7 +1076,7 @@ class MainActivity : RemoteActivity() {
         showState("Loading…", progress = true)
         loadJob = lifecycleScope.launch {
             val (items, favs, at) = withContext(Dispatchers.IO) {
-                val list = query().filter { !app.settings.isGroupHidden(it.group) }
+                val list = app.repo.withWatchProgress(query().filter { !app.settings.isGroupHidden(it.group) })
                 val position = focusUrl?.let { u -> list.indexOfFirst { it.url == u } }?.takeIf { it >= 0 }
                     ?: if (isVod) VodGridPolicy.restore(list, saved?.key, saved?.position ?: 0).coerceAtLeast(0) else 0
                 Triple(list, app.repo.favorites(p.id).map { it.url }.toHashSet(), position)
@@ -1222,6 +1228,17 @@ class MainActivity : RemoteActivity() {
                     ?.let { it.copy(start = it.start + shift, end = it.end + shift) }
                 Scheduler.recordNow(this, item, cur)
             })
+        }
+        if (com.youriptv.app.data.WatchPolicy.supports(item)) {
+            val state = app.repo.watchProgress(item)
+            val change: (() -> Unit) -> Unit = { action ->
+                if (app.settings.isGroupLocked(item.group)) Dialogs.requirePin(this, "Change watch progress") { action(); showSection(section) }
+                else { action(); showSection(section) }
+            }
+            opts.add((if (state?.completed == true) "Mark unwatched" else "Mark watched") to {
+                change { app.repo.markWatched(item, state?.completed != true) }
+            })
+            opts.add("Clear progress" to { change { app.repo.clearWatchProgress(item) } })
         }
         if (item.kind != ItemKind.SERIES) opts.add("Open in external player" to {
             // The external app receives the stream URL, so a locked group needs the parental PIN first.
@@ -1421,13 +1438,14 @@ class MainActivity : RemoteActivity() {
                 Section.HISTORY -> app.repo.history(p.id)
                 else -> when (entry?.special) {
                     SPECIAL_FAV -> app.repo.favorites(p.id, kind)
+                    SPECIAL_CONTINUE -> app.repo.continueWatching(p.id, kind)
                     SPECIAL_HISTORY -> app.repo.history(p.id).filter { it.kind == kind || (kind == ItemKind.SERIES && it.kind == ItemKind.EPISODE) }
                     SPECIAL_ALL -> app.repo.items(p.id, kind, null)
                     else -> app.repo.items(p.id, kind, entry?.info?.name)
                 }
             }.filter { !app.settings.isGroupHidden(it.group) }
             val visible = if (kind == ItemKind.EPISODE && entry?.special == null) SeriesNames.groupEpisodes(rows) else rows
-            Triple(groups, visible, app.repo.favorites(p.id).mapTo(HashSet()) { it.url })
+            Triple(groups, app.repo.withWatchProgress(visible), app.repo.favorites(p.id).mapTo(HashSet()) { it.url })
         }
         if (!token.mayPublishInto(catalogViewToken()) ||
             app.refreshCoordinator.generations.value[p.id] != generation) return false
@@ -1443,7 +1461,10 @@ class MainActivity : RemoteActivity() {
             val all = if (targetSection == Section.TV) "All channels" else if (kind == ItemKind.MOVIE) "All movies" else if (kind == ItemKind.SERIES) "All shows" else null
             val entries = buildList {
                 add(GroupEntry(GroupInfo("Favorites", -1), SPECIAL_FAV))
-                if (kind != ItemKind.LIVE) add(GroupEntry(GroupInfo("History", -1), SPECIAL_HISTORY))
+                if (kind != ItemKind.LIVE) {
+                    add(GroupEntry(GroupInfo("Continue watching", -1), SPECIAL_CONTINUE))
+                    add(GroupEntry(GroupInfo("History", -1), SPECIAL_HISTORY))
+                }
                 if (all != null) add(GroupEntry(GroupInfo(all, data.first.sumOf { it.count }), SPECIAL_ALL))
                 data.first.forEach { add(GroupEntry(it)) }
             }
@@ -1533,6 +1554,7 @@ class MainActivity : RemoteActivity() {
         private const val SPECIAL_FAV = "fav"
         private const val SPECIAL_ALL = "all"
         private const val SPECIAL_HISTORY = "history"
+        private const val SPECIAL_CONTINUE = "continue"
         const val EXTRA_GUIDE_GROUP = "guide_group"
         const val EXTRA_GUIDE_CHANNEL = "guide_channel"
         const val SEARCH_HINT = "Type to search channel names, guide programmes, movies, and series."

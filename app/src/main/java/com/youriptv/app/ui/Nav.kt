@@ -58,13 +58,21 @@ object Nav {
     fun open(a: Activity, item: MediaItem, list: List<MediaItem>, onOpened: (() -> Unit)? = null) {
         val s = YourIptvApp.instance.settings
         if (s.isGroupHidden(item.group)) { Dialogs.toast(a, "This category is hidden."); return }
+        val repo = YourIptvApp.instance.repo
+        val sourceIdentity = if (item.kind != ItemKind.LIVE && !item.isLocal)
+            repo.playlist(item.playlistId)?.let(repo::sourceIdentity).orEmpty() else ""
         val locked = s.isGroupLocked(item.group)
         // Only a group whose PIN was just entered counts as unlocked in the player.
         val unlocked = if (locked) item.group else null
-        val go = {
+        val go: () -> Unit = go@ {
+            if (sourceIdentity.isNotBlank() && repo.playlist(item.playlistId)?.let(repo::sourceIdentity) != sourceIdentity) {
+                Dialogs.toast(a, "The playlist account changed. Reopen this title.")
+                return@go
+            }
             when (item.kind) {
                 ItemKind.SERIES -> a.startActivity(
                     Intent(a, SeriesActivity::class.java)
+                        .putExtra("vod_source_identity", sourceIdentity)
                         .putExtra(SeriesActivity.EXTRA_PLAYLIST, item.playlistId)
                         .putExtra(SeriesActivity.EXTRA_URL, item.url)
                         .putExtra(SeriesActivity.EXTRA_NAME, item.name)
@@ -75,6 +83,7 @@ object Nav {
                 )
                 ItemKind.MOVIE -> a.startActivity(
                     Intent(a, MovieDetailsActivity::class.java)
+                        .putExtra("vod_source_identity", sourceIdentity)
                         .putExtra(MovieDetailsActivity.EXTRA_PLAYLIST, item.playlistId)
                         .putExtra(MovieDetailsActivity.EXTRA_URL, item.url)
                         .putExtra(MovieDetailsActivity.EXTRA_NAME, item.name)
@@ -87,7 +96,22 @@ object Nav {
                     val live = list.filter { it.kind == ItemKind.LIVE }.ifEmpty { listOf(item) }
                     play(a, live, live.indexOfFirst { it.url == item.url }.coerceAtLeast(0), unlocked)
                 }
-                else -> play(a, listOf(item), 0, unlocked)
+                ItemKind.EPISODE -> {
+                    if (item.seriesUrl.isNotBlank()) a.startActivity(Intent(a, SeriesActivity::class.java)
+                        .putExtra("vod_source_identity", sourceIdentity)
+                        .putExtra(SeriesActivity.EXTRA_PLAYLIST, item.playlistId)
+                        .putExtra(SeriesActivity.EXTRA_URL, item.seriesUrl)
+                        .putExtra(SeriesActivity.EXTRA_NAME, item.seriesName)
+                        .putExtra(SeriesActivity.EXTRA_REMOTE_ID, item.seriesRemoteId)
+                        .putExtra(SeriesActivity.EXTRA_GROUP, item.group)
+                        .putExtra(SeriesActivity.EXTRA_LOGO, item.logo)
+                        .putExtra("continue_episode", repo.playlist(item.playlistId)?.let {
+                            com.youriptv.app.data.WatchPolicy.key(it, item) })
+                        .putExtra("authorization_stamp", s.restrictionStamp()))
+                    else Dialogs.choose(a, item.name, listOf("Resume episode", "Play from beginning")) { choice ->
+                        play(a, listOf(item), 0, unlocked, choice == 1)
+                    }
+                }
             }
             onOpened?.invoke()
         }
@@ -95,11 +119,17 @@ object Nav {
     }
 
     /** [unlockedGroup] is a locked group the user has just entered the parental PIN for; every other locked group asks again. */
-    fun play(a: Activity, queue: List<MediaItem>, index: Int, unlockedGroup: String? = null) {
-        YourIptvApp.playQueue = queue
+    fun play(a: Activity, queue: List<MediaItem>, index: Int, unlockedGroup: String? = null, fromBeginning: Boolean = false) {
+        val scopes = queue.map { it.playlistId }.distinct().associateWith { id ->
+            YourIptvApp.instance.repo.playlist(id)?.let(com.youriptv.app.data.WatchPolicy::scope).orEmpty()
+        }
+        YourIptvApp.playQueue = queue.map { item ->
+            if (com.youriptv.app.data.WatchPolicy.supports(item)) item.copy(watchScope = item.watchScope.ifBlank { scopes[item.playlistId].orEmpty() }) else item
+        }
         a.startActivity(
             Intent(a, PlayerActivity::class.java)
                 .putExtra(PlayerActivity.EXTRA_INDEX, index)
+                .putExtra("vod_from_beginning", fromBeginning)
                 .putExtra(PlayerActivity.EXTRA_UNLOCKED_GROUP, unlockedGroup)
                 .putExtra(PlayerActivity.EXTRA_AUTHORIZATION_STAMP, YourIptvApp.instance.settings.restrictionStamp())
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)

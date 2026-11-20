@@ -24,6 +24,7 @@ internal class SeriesSeasonAdapter(
 ) : RecyclerView.Adapter<SeriesSeasonAdapter.SeasonHolder>() {
     var rows: List<SeriesSeasonRow> = emptyList()
         private set
+    var progress: Map<String, com.youriptv.app.data.WatchProgress> = emptyMap()
     val railStates = HashMap<Int, Parcelable>()
     private val pool = RecyclerView.RecycledViewPool()
     private var fallbackCover = ""
@@ -60,7 +61,7 @@ internal class SeriesSeasonAdapter(
         val row = rows[position]
         holder.season = row.season
         holder.title.text = "Season ${row.season} · ${row.episodes.size} episodes"
-        holder.rail.adapter = EpisodeAdapter(row, fallbackCover, state, selected, play, options, vertical, focused)
+        holder.rail.adapter = EpisodeAdapter(row, fallbackCover, state, selected, play, options, vertical, focused, progress)
         val manager = holder.rail.layoutManager as LinearLayoutManager
         railStates[row.season]?.let(manager::onRestoreInstanceState)
             ?: manager.scrollToPositionWithOffset(state.indexFor(row).coerceAtLeast(0), 0)
@@ -88,6 +89,7 @@ internal class SeriesSeasonAdapter(
         private val options: (SeriesSeasonRow, Int) -> Unit,
         private val vertical: (Int, Int) -> Unit,
         private val focused: (SeriesSeasonRow, Int) -> Unit,
+        private val progress: Map<String, com.youriptv.app.data.WatchProgress>,
     ) : RecyclerView.Adapter<EpisodeHolder>() {
         override fun getItemCount() = row.episodes.size
 
@@ -97,10 +99,14 @@ internal class SeriesSeasonAdapter(
         override fun onBindViewHolder(holder: EpisodeHolder, position: Int) {
             val episode: Episode = row.episodes[position]
             holder.title.text = "E${episode.episode}  ${episode.title.ifBlank { "Episode ${episode.episode}" }}"
+            val status = progress[episode.url]
+            holder.status.text = status?.label ?: "Unwatched"
+            holder.progress.progress = status?.permille ?: 0
+            holder.progress.visibility = if (status?.position ?: 0 > 0 || status?.completed == true) View.VISIBLE else View.INVISIBLE
             val artwork = episode.artwork.ifBlank { fallbackCover }
             ImageLoader.load(holder.art, artwork, R.drawable.series_episode_placeholder, maxPx = 360)
             val imageSource = if (episode.artwork.isNotBlank()) "provider episode image" else if (fallbackCover.isNotBlank()) "series artwork" else "no episode image"
-            holder.itemView.contentDescription = "Season ${row.season}, episode ${episode.episode}, ${episode.title}, $imageSource"
+            holder.itemView.contentDescription = "Season ${row.season}, episode ${episode.episode}, ${episode.title}, ${status?.label ?: "Unwatched"}, $imageSource"
             holder.itemView.setOnClickListener {
                 holder.bindingAdapterPosition.takeIf { it != RecyclerView.NO_POSITION }?.let { index ->
                     state.remember(row, index)
@@ -145,6 +151,8 @@ internal class SeriesSeasonAdapter(
 
     private class EpisodeHolder(view: View) : RecyclerView.ViewHolder(view) {
         val title: TextView = view.findViewById(R.id.series_episode_title)
+        val status: TextView = view.findViewById(R.id.episode_watch_status)
+        val progress: android.widget.ProgressBar = view.findViewById(R.id.episode_watch_progress)
         val art: ImageView = view.findViewById(R.id.series_episode_art)
     }
 }

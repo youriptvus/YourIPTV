@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="player_banner_padding_horizontal">12dp</dimen>
+    <dimen name="player_banner_padding_vertical">12dp</dimen>
+    <dimen name="player_banner_logo_width">48dp</dimen>
+    <dimen name="player_banner_logo_height">48dp</dimen>
+    <dimen name="player_banner_logo_margin">8dp</dimen>
+    <dimen name="player_banner_progress_width">48dp</dimen>
+    <dimen name="movie_cover_width">88dp</dimen>
+    <dimen name="movie_cover_height">132dp</dimen>
+</resources>

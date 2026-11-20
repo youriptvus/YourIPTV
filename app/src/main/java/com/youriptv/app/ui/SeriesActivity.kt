@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 class SeriesActivity : RemoteActivity() {
     private val app get() = YourIptvApp.instance
     private lateinit var series: MediaItem
+    private var entrySourceIdentity = ""
     private lateinit var access: SeriesEntryAccess
     private val browse = SeriesBrowseState()
     private val focusRestore = SeriesFocusRestore()
@@ -48,6 +49,77 @@ class SeriesActivity : RemoteActivity() {
     private lateinit var empty: TextView
     private lateinit var progress: ProgressBar
     private var details = SeriesDetails()
+    private var episodeProgress: Map<String, com.youriptv.app.data.WatchProgress> = emptyMap()
+    private var watchJob: Job? = null
+    private var requestedEpisode: String? = null
+    private var restorePlayedEpisode = false
+    private var initialProgressFocus = true
+    private var continueTarget: MediaItem? = null
+    private var nextTarget: MediaItem? = null
+    private fun episodeQueue() = SeriesBrowseState.playbackQueue(series, details.episodes)
+
+    private fun refreshWatchProgress() {
+        val queue = episodeQueue()
+        val stamp = openedStamp
+        val inputAtStart = inputGeneration
+        watchJob?.cancel()
+        watchJob = lifecycleScope.launch {
+            val saved = withContext(Dispatchers.IO) { app.repo.watchProgress(queue) }
+            if (!allowed() || openedStamp != stamp) return@launch
+            episodeProgress = saved
+            val focus = currentFocus
+            val restoreSelection = if (focus != null && seasonRows.findContainingViewHolder(focus) != null)
+                browse.focusedSeason?.let { s -> rowsAdapter.rows.firstOrNull { it.season == s } } else null
+            saveVisibleRails()
+            rowsAdapter.progress = saved
+            rowsAdapter.notifyDataSetChanged()
+            restoreSelection?.let { beginFocusRestore(it, browse.indexFor(it)); scheduleFocusRestore() }
+            val at = com.youriptv.app.data.WatchPolicy.continueIndex(queue, saved)
+            continueTarget = queue.getOrNull(at)
+            nextTarget = queue.getOrNull(at + 1)
+            val item = continueTarget
+            val status = item?.let { saved[it.url] }
+            if (restorePlayedEpisode && inputGeneration == inputAtStart && item != null) {
+                rowsAdapter.rows.firstOrNull { it.season == item.season }?.let { row ->
+                    beginFocusRestore(row, row.episodes.indexOfFirst { it.url == item.url }.coerceAtLeast(0))
+                    scheduleFocusRestore()
+                }
+            }
+            restorePlayedEpisode = false
+            findViewById<Button>(R.id.series_continue).apply {
+                visibility = if (item == null) View.GONE else View.VISIBLE
+                text = (if (status?.resume ?: 0 > 0) "Resume" else "Play") + " S${item?.season} E${item?.episode}"
+            }
+            findViewById<Button>(R.id.series_beginning).visibility = if (status?.resume ?: 0 > 0) View.VISIBLE else View.GONE
+            findViewById<Button>(R.id.series_next).visibility = if (nextTarget != null) View.VISIBLE else View.GONE
+            findViewById<TextView>(R.id.series_watch_status).text = item?.let {
+                "S${it.season} E${it.episode} · ${status?.label ?: "Unwatched"}"
+            }.orEmpty()
+            requestedEpisode?.let { requested ->
+                requestedEpisode = null
+                val source = app.repo.playlist(series.playlistId)
+                val chosen = queue.firstOrNull { source != null && com.youriptv.app.data.WatchPolicy.key(source, it) == requested }
+                val row = chosen?.let { chosenItem -> rowsAdapter.rows.firstOrNull { it.season == chosenItem.season } }
+                if (chosen != null && row != null) {
+                    val selectedIndex = row.episodes.indexOfFirst { it.url == chosen.url }
+                    beginFocusRestore(row, selectedIndex)
+                    episodeOptions(row, selectedIndex)
+                } else Dialogs.toast(this@SeriesActivity, "This saved episode is no longer available from the provider.")
+            }
+            // A fresh series entry starts at the exact saved episode, without stealing focus after playback.
+            if (initialProgressFocus && inputGeneration == 0L && item != null) {
+                val row = rowsAdapter.rows.firstOrNull { it.season == item.season }
+                row?.let { beginFocusRestore(it, it.episodes.indexOfFirst { ep -> ep.url == item.url }.coerceAtLeast(0)); scheduleFocusRestore() }
+            }
+            initialProgressFocus = false
+        }
+    }
+
+    private fun playTarget(item: MediaItem?, beginning: Boolean = false) {
+        item ?: return
+        val row = rowsAdapter.rows.firstOrNull { it.season == item.season } ?: return
+        playEpisode(row, row.episodes.indexOfFirst { it.url == item.url }, beginning)
+    }
     private var openedStamp = 0
     private var authenticating = false
     private var promptGeneration = 0L
@@ -80,6 +152,8 @@ class SeriesActivity : RemoteActivity() {
             remoteId = intent.getStringExtra(EXTRA_REMOTE_ID).orEmpty(),
         )
         val initialStamp = if (intent.hasExtra(EXTRA_AUTHORIZATION_STAMP)) intent.getIntExtra(EXTRA_AUTHORIZATION_STAMP, 0) else null
+        entrySourceIdentity = intent.getStringExtra("vod_source_identity")
+            ?: app.repo.playlist(series.playlistId)?.let(app.repo::sourceIdentity).orEmpty()
         access = SeriesEntryAccess(initialStamp, series.group, recreated = savedInstanceState != null)
         content = findViewById(R.id.series_content)
         content.isSaveFromParentEnabled = false
@@ -102,9 +176,23 @@ class SeriesActivity : RemoteActivity() {
             override fun onChildViewAttachedToWindow(view: View) = scheduleFocusRestore()
             override fun onChildViewDetachedFromWindow(view: View) = Unit
         })
+        findViewById<Button>(R.id.series_continue).setOnClickListener { playTarget(continueTarget) }
+        findViewById<Button>(R.id.series_beginning).setOnClickListener { playTarget(continueTarget, true) }
+        findViewById<Button>(R.id.series_next).setOnClickListener { playTarget(nextTarget) }
+        findViewById<Button>(R.id.series_episode_list).setOnClickListener {
+            withSeriesPermission {
+                if (rowsAdapter.rows.isNotEmpty()) focusSeason(browse.focusedSeason ?: rowsAdapter.rows.first().season)
+            }
+        }
+        findViewById<Button>(R.id.series_choose_season).setOnClickListener {
+            withSeriesPermission { Dialogs.choose(this, "Season", rowsAdapter.rows.map { "Season ${it.season}" }) { at ->
+                focusSeason(rowsAdapter.rows[at].season)
+            } }
+        }
         favorite.setOnClickListener { withSeriesPermission { toggleFavorite() } }
         retry.setOnClickListener { withSeriesPermission { load() } }
-        listOf(favorite, retry).forEach { button ->
+        listOf(favorite, retry, findViewById<Button>(R.id.series_continue), findViewById(R.id.series_beginning),
+            findViewById(R.id.series_next), findViewById(R.id.series_choose_season), findViewById(R.id.series_episode_list)).forEach { button ->
             button.setOnKeyListener { _, key, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && key == KeyEvent.KEYCODE_DPAD_DOWN && rowsAdapter.rows.isNotEmpty()) {
                     focusSeason(rowsAdapter.rows[browse.rowFor(rowsAdapter.rows)].season)
@@ -112,7 +200,9 @@ class SeriesActivity : RemoteActivity() {
                 } else false
             }
         }
+        requestedEpisode = if (savedInstanceState == null) intent.getStringExtra("continue_episode") else null
         restoreNavigation(savedInstanceState)
+        initialProgressFocus = savedInstanceState == null
         hideProtectedContent()
         app.settings.addListener(restrictionListener)
     }
@@ -131,6 +221,7 @@ class SeriesActivity : RemoteActivity() {
             content.visibility = View.VISIBLE
             backdrop.visibility = View.VISIBLE
             updateFavorite()
+            if (loaded) refreshWatchProgress()
             scheduleFocusRestore()
         }
     }
@@ -181,10 +272,15 @@ class SeriesActivity : RemoteActivity() {
     }
 
     private fun refreshCatalogItem() {
+        if (entrySourceIdentity.isBlank() || app.repo.playlist(series.playlistId)?.let(app.repo::sourceIdentity) != entrySourceIdentity) {
+            hideProtectedContent()
+            finish()
+            return
+        }
         app.repo.itemByUrl(series.playlistId, series.url)?.takeIf { it.kind == ItemKind.SERIES }?.let { series = it }
     }
 
-    private fun allowed(): Boolean = entered && ::access.isInitialized && access.allows(
+    private fun allowed(): Boolean = !isFinishing && !isDestroyed && entered && ::access.isInitialized && access.allows(
         app.settings.restrictionStamp(), series.group, app.settings.isGroupLocked(series.group), app.settings.isGroupHidden(series.group),
     )
 
@@ -297,6 +393,10 @@ class SeriesActivity : RemoteActivity() {
         if (details.backdrop.isBlank()) ImageLoader.clear(backdrop)
         else ImageLoader.load(backdrop, details.backdrop, R.drawable.series_episode_placeholder, maxPx = 1280)
         plot.text = details.plot.ifBlank { series.group }
+        findViewById<TextView>(R.id.series_metadata).text = listOf(details.year, details.genre,
+            details.rating.takeIf { it.isNotBlank() }?.let { "Rating $it" }.orEmpty(), "${rows.size} seasons")
+            .filter { it.isNotBlank() }.joinToString(" · ")
+        refreshWatchProgress()
         empty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
         empty.text = "The provider returned no episodes for this series."
         restoredOuterState?.let { seasonRows.layoutManager?.onRestoreInstanceState(it) }
@@ -320,6 +420,7 @@ class SeriesActivity : RemoteActivity() {
         if (!allowed()) return
         val episode = row.episodes.getOrNull(index) ?: return
         selected.text = "Season ${row.season} · Episode ${episode.episode} · ${episode.title}"
+        findViewById<TextView>(R.id.series_watch_status).text = episodeProgress[episode.url]?.label ?: "Unwatched"
         plot.text = episode.plot.ifBlank { details.plot.ifBlank { series.group } }
     }
 
@@ -400,19 +501,37 @@ class SeriesActivity : RemoteActivity() {
         withSeriesPermission {
             val episode = row.episodes.getOrNull(index) ?: return@withSeriesPermission
             browse.remember(row, index)
-            Dialogs.choose(this, episode.title, listOf("Play", "Play in external player")) { choice ->
-                if (choice == 0) play(row, index) else externalEpisode(row, index)
-            }
+            val item = SeriesBrowseState.playbackQueue(series, row)[index]
+            val state = episodeProgress[item.url]
+            Dialogs.choose(this, episode.title, listOf(if ((state?.resume ?: 0) > 0) "Resume episode" else "Play",
+                "Play from beginning", if (state?.completed == true) "Mark unwatched" else "Mark watched",
+                "Clear progress", "Play in external player")) { choice -> withSeriesPermission {
+                when (choice) {
+                    0 -> playEpisode(row, index, false)
+                    1 -> playEpisode(row, index, true)
+                    2 -> { app.repo.markWatched(item, state?.completed != true); refreshWatchProgress() }
+                    3 -> { app.repo.clearWatchProgress(item); refreshWatchProgress() }
+                    4 -> externalEpisode(row, index)
+                }
+            } }
+
         }
     }
 
     private fun play(row: SeriesSeasonRow, index: Int) {
+        val item = row.episodes.getOrNull(index) ?: return
+        if ((episodeProgress[item.url]?.resume ?: 0) > 0) episodeOptions(row, index)
+        else playEpisode(row, index, false)
+    }
+
+    private fun playEpisode(row: SeriesSeasonRow, index: Int, beginning: Boolean) {
         withSeriesPermission {
             if (index !in row.episodes.indices) return@withSeriesPermission
             beginFocusRestore(row, index, waitForPlaybackPause = true)
-            val queue = SeriesBrowseState.playbackQueue(series, row)
+            restorePlayedEpisode = true
+            val queue = episodeQueue()
             val unlocked = series.group.takeIf { app.settings.isGroupLocked(it) && app.settings.restrictionStamp() == openedStamp }
-            Nav.play(this, queue, index, unlocked)
+            Nav.play(this, queue, queue.indexOfFirst { it.url == row.episodes[index].url }.coerceAtLeast(0), unlocked, beginning)
         }
     }
 

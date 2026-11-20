@@ -1,5 +1,6 @@
 package com.youriptv.app.ui
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
@@ -40,6 +41,10 @@ object CustomerSettingsPanel {
         dismissWhenStopped(activity, dialog)
     }
 
+    // One collector belongs to each newly created dialog, rather than to onResume.
+    // dismissWhenStopped cancels observerJob on dismissal, and the Activity scope
+    // additionally cancels it on destruction; reopening cannot accumulate collectors.
+    @SuppressLint("RepeatOnLifecycleWrongUsage")
     private fun showPlaylistSettings(activity: AppCompatActivity, playlistId: Long) {
         if (activity.isFinishing || activity.isDestroyed) return
         val app = YourIptvApp.instance

@@ -1,6 +1,8 @@
 package com.youriptv.app.ui
 
 import androidx.media3.common.C
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import java.nio.ByteBuffer
@@ -11,6 +13,7 @@ import java.nio.ByteBuffer
  * removing output frames moves video against audio by the same amount. Changes made during playback
  * apply the difference only; a flush (seek/channel change) re-applies the full delay.
  */
+@OptIn(UnstableApi::class)
 class AudioDelayProcessor : BaseAudioProcessor() {
     @Volatile var delayMs: Int = 0
 

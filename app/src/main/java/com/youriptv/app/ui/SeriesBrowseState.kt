@@ -3,7 +3,6 @@ package com.youriptv.app.ui
 import com.youriptv.app.data.Episode
 import com.youriptv.app.data.ItemKind
 import com.youriptv.app.data.MediaItem
-import java.security.MessageDigest
 
 internal data class SeriesSeasonRow(val season: Int, val episodes: List<Episode>)
 
@@ -57,9 +56,12 @@ internal class SeriesBrowseState {
             episodes.sortedWith(compareBy({ it.season }, { it.episode }))
                 .groupBy { it.season }.map { (season, eps) -> SeriesSeasonRow(season, eps) }
 
-        fun episodeKey(episode: Episode): String = MessageDigest.getInstance("SHA-256")
-            .digest("${episode.id}\u0000${episode.url}".toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        fun episodeKey(episode: Episode): String = com.youriptv.app.data.WatchPolicy.hash(
+            if (episode.id.isNotBlank() && !episode.id.contains("://")) "provider:${episode.id}"
+            else com.youriptv.app.data.WatchPolicy.stableUrl(episode.url))
+
+        fun playbackQueue(series: MediaItem, episodes: List<Episode>): List<MediaItem> =
+            rows(episodes).flatMap { playbackQueue(series, it) }.distinctBy { it.url }
 
         fun playbackQueue(series: MediaItem, row: SeriesSeasonRow): List<MediaItem> = row.episodes.map { episode ->
             MediaItem(
@@ -67,6 +69,10 @@ internal class SeriesBrowseState {
                 name = "${series.name} S${episode.season} E${episode.episode}" +
                     if (episode.title.isNotBlank() && !episode.title.startsWith(series.name)) " · ${episode.title}" else "",
                 group = series.group, logo = episode.artwork.ifBlank { series.logo }, url = episode.url, remoteId = episode.id,
+                seriesKey = com.youriptv.app.data.WatchPolicy.hash("${series.playlistId}\u0000" +
+                    if (series.url.startsWith(com.youriptv.app.data.SeriesNames.M3U_SERIES_PREFIX)) series.url else series.remoteId.ifBlank { series.url }),
+                seriesName = series.name, seriesUrl = series.url, seriesRemoteId = series.remoteId,
+                season = episode.season, episode = episode.episode,
             )
         }
     }

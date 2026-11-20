@@ -57,6 +57,7 @@ object BackupKeys {
         "buffer_ms" to IntRange(500, 30_000),
         "aspect" to IntRange(0, 2),
         "skip_sec" to IntRange(5, 600),
+        "auto_next_episode" to Bool,
         "audio_delay_ms" to IntRange(-2000, 2000),
         "auto_frame_rate" to Bool,
         "live_format" to Text(8, setOf("ts", "m3u8")),

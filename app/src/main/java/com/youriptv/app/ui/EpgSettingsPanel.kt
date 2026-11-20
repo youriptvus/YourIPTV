@@ -1,5 +1,6 @@
 package com.youriptv.app.ui
 
+import android.annotation.SuppressLint
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -22,6 +23,10 @@ import kotlinx.coroutines.launch
 
 /** Guide preferences belong only to the current authenticated Settings visit. */
 internal object EpgSettingsPanel {
+    // This collector is created with a new dialog and cancelled by its dismiss
+    // listener (also on pause/stop/destruction), not installed once per Activity
+    // resume. The explicit dialog lifetime avoids the detector's duplicate-job case.
+    @SuppressLint("RepeatOnLifecycleWrongUsage")
     fun show(activity: SettingsActivity, playlistId: Long, token: Long) {
         if (!activity.canUseEpgSettings(token)) return
         val app = YourIptvApp.instance
