@@ -102,7 +102,7 @@ internal class SeriesSeasonAdapter(
             val status = progress[episode.url]
             holder.status.text = status?.label ?: "Unwatched"
             holder.progress.progress = status?.permille ?: 0
-            holder.progress.visibility = if (status?.position ?: 0 > 0 || status?.completed == true) View.VISIBLE else View.INVISIBLE
+            holder.progress.visibility = if (status?.completed == true || (status?.position ?: 0L) > 0L) View.VISIBLE else View.INVISIBLE
             val artwork = episode.artwork.ifBlank { fallbackCover }
             ImageLoader.load(holder.art, artwork, R.drawable.series_episode_placeholder, maxPx = 360)
             val imageSource = if (episode.artwork.isNotBlank()) "provider episode image" else if (fallbackCover.isNotBlank()) "series artwork" else "no episode image"

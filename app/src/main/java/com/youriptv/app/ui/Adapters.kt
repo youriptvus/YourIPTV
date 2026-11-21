@@ -113,7 +113,8 @@ class ItemAdapter(
             }
         } else {
             val state = item.watch
-            h.subtitle.text = listOf(if (item.kind == ItemKind.EPISODE && item.season > 0) "S${item.season} E${item.episode}" else "",
+            h.subtitle.text = listOf(if (item.season > 0 && item.kind in setOf(ItemKind.SERIES, ItemKind.EPISODE))
+                (if (item.kind == ItemKind.SERIES) "Last watched " else "") + "S${item.season} E${item.episode}" else "",
                 state?.label.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { item.group }
             h.subtitle.visibility = if (state != null || !posterMode) View.VISIBLE else View.INVISIBLE
             h.progress.visibility = if (state != null && (state.position > 0 || state.completed)) View.VISIBLE else if (posterMode) View.INVISIBLE else View.GONE

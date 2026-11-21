@@ -120,4 +120,16 @@ class WatchPolicyTest {
         assertEquals(WatchPolicy.key(m3u, first), WatchPolicy.key(m3u, first.copy(url = "https://one:new@example.test/8.mp4")))
         assertNotEquals(WatchPolicy.key(m3u, first), WatchPolicy.key(m3u, first.copy(url = "https://two:old@example.test/8.mp4")))
     }
+    @Test fun mostRecentUnfinishedWinsEvenWhenANewerEpisodeWasCompleted() {
+        val queue = (1..4).map { movie(id = "$it").copy(url = "episode-$it", kind = ItemKind.EPISODE) }
+        val progress = mapOf(queue[1].url to WatchProgress(20_000, 90_000, false, 10),
+            queue[2].url to WatchProgress(90_000, 90_000, true, 20))
+        assertEquals(1, WatchPolicy.continueIndex(queue, progress))
+    }
+    @Test fun completedFinalEpisodeNeverWrapsToEarlierUnwatchedEpisode() {
+        val queue = (1..3).map { movie(id = "$it").copy(url = "episode-$it", kind = ItemKind.EPISODE) }
+        val progress = mapOf(queue[2].url to WatchProgress(90_000, 90_000, true, 20))
+        assertEquals(2, WatchPolicy.continueIndex(queue, progress))
+    }
+
 }

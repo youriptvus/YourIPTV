@@ -6,24 +6,71 @@ import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+/** Process-local playback ownership; never stored in the database or exported with history. */
+class WatchSessionToken internal constructor(
+    internal val owner: Any,
+    internal val scope: String,
+    internal val key: String,
+    internal val revision: Long,
+)
+
 /** App-owned, ordered writes survive an Activity finishing. Pending snapshots are visible immediately.
  * Nothing here opens a stream, modifies the catalogue or runs on the live playback recovery path. */
 internal class WatchProgressStore(private val database: () -> SQLiteDatabase, private val playlist: (Long) -> Playlist?) {
     private val writer = Executors.newSingleThreadExecutor { task -> Thread(task, "YourIPTV-watch-progress").apply { isDaemon = true } }
     private val pending = LinkedHashMap<Pair<String, String>, WatchEntry>()
     private val clearing = HashSet<Long>()
+    private data class Revision(val playlistId: Long, val value: Long, val lastObservedAt: Long? = null)
+    private val revisions = HashMap<Pair<String, String>, Revision>()
+    private var nextRevision = 0L
 
-    @Synchronized fun save(item: MediaItem, position: Long, duration: Long, ended: Boolean = false, watched: Boolean? = null) {
+    private fun advance(scope: String, key: String, playlistId: Long): Long {
+        val revision = ++nextRevision
+        revisions[scope to key] = Revision(playlistId, revision)
+        return revision
+    }
+
+    /** A fresh intentional play supersedes older players for this source and stable content item. */
+    @Synchronized fun beginSession(item: MediaItem): WatchSessionToken? {
+        if (!WatchPolicy.supports(item)) return null
+        val source = playlist(item.playlistId) ?: return null
+        val scope = WatchPolicy.scope(source)
+        if (item.watchScope.isNotBlank() && item.watchScope != scope) return null
+        val key = WatchPolicy.key(source, item)
+        return WatchSessionToken(this, scope, key, advance(scope, key, item.playlistId))
+    }
+
+    /** Identity only: invalidation must not let automatic URL refresh mint a replacement playback session. */
+    @Synchronized fun sameSessionItem(token: WatchSessionToken?, item: MediaItem): Boolean {
+        if (token == null || token.owner !== this || !WatchPolicy.supports(item)) return false
+        val source = playlist(item.playlistId) ?: return false
+        val scope = WatchPolicy.scope(source)
+        if (item.watchScope.isNotBlank() && item.watchScope != scope) return false
+        return token.scope == scope && token.key == WatchPolicy.key(source, item)
+    }
+
+    @Synchronized fun save(item: MediaItem, position: Long, duration: Long, ended: Boolean = false,
+                           watched: Boolean? = null, sessionToken: WatchSessionToken? = null,
+                           observedAt: Long? = null) {
+        // Preserve the playback observation's time even if its caller reaches storage later.
+        val recordedAt = if (watched == null) observedAt ?: System.currentTimeMillis() else System.currentTimeMillis()
         if (!WatchPolicy.supports(item)) return
         val source = playlist(item.playlistId) ?: return
         val scope = WatchPolicy.scope(source)
         if (item.watchScope.isNotBlank() && item.watchScope != scope) return
         val key = WatchPolicy.key(source, item)
+        val revision = revisions[scope to key]
+        if (watched != null) advance(scope, key, item.playlistId)
+        else if (sessionToken != null && (sessionToken.owner !== this || sessionToken.scope != scope ||
+            sessionToken.key != key || revision?.value != sessionToken.revision)) return
+        if (watched == null && sessionToken != null && revision?.lastObservedAt?.let { recordedAt < it } == true) return
         val previous = read(source, listOf(item))[item.url]
         val done = watched ?: (WatchPolicy.completed(position, duration, ended) ||
             (previous?.completed == true && duration > 0 && position >= duration - minOf(2_000L, duration / 100)))
         val value = WatchEntry(key, item.copy(watch = null), WatchProgress(position.coerceAtLeast(0), duration.coerceAtLeast(0), done,
-            if (watched == false) 0 else System.currentTimeMillis()))
+            if (watched == false) 0 else recordedAt.coerceAtLeast(1L)))
+        if (watched == null && sessionToken != null && revision != null)
+            revisions[scope to key] = revision.copy(lastObservedAt = value.progress.updated)
         pending[scope to key] = value
         writer.execute {
             try {
@@ -56,10 +103,10 @@ internal class WatchProgressStore(private val database: () -> SQLiteDatabase, pr
         }
     }
 
-    @Synchronized fun entries(source: Playlist): List<WatchEntry> {
+    @Synchronized fun entries(source: Playlist, limit: Int? = 2000): List<WatchEntry> {
         val scope = WatchPolicy.scope(source)
         val values = LinkedHashMap<String, WatchEntry>()
-        if (source.id !in clearing) database().rawQuery("SELECT content_key,media,position,duration,completed,updated FROM watch_progress WHERE playlist_id=? AND scope=? ORDER BY updated DESC LIMIT 2000",
+        if (source.id !in clearing) database().rawQuery("SELECT content_key,media,position,duration,completed,updated FROM watch_progress WHERE playlist_id=? AND scope=? ORDER BY updated DESC" + (limit?.let { " LIMIT ${it.coerceAtLeast(0)}" } ?: ""),
             arrayOf(source.id.toString(), scope)).use { c -> while (c.moveToNext()) {
             runCatching { WatchEntry(c.getString(0), decode(source.id, c.getString(1)), WatchProgress(c.getLong(2), c.getLong(3), c.getInt(4) != 0, c.getLong(5))) }
                 .getOrNull()?.let { values[it.key] = it }
@@ -90,6 +137,7 @@ internal class WatchProgressStore(private val database: () -> SQLiteDatabase, pr
 
     @Synchronized fun clearPlaylist(id: Long) {
         // Ordered after queued writes: a late disk write cannot restore cleared history.
+        revisions.entries.removeAll { it.value.playlistId == id }
         pending.entries.removeAll { it.value.item.playlistId == id }
         clearing.add(id)
         writer.execute {

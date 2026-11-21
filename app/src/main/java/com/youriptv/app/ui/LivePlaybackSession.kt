@@ -399,7 +399,7 @@ class LivePlaybackSession(private val app: YourIptvApp) {
         p.setMediaItem(PlaybackFactory.mediaItem(item))
         p.prepare()
         p.playWhenReady = true
-        app.settings.lastChannelUrl = item.url
+        app.settings.rememberLiveChannel(item)
         io.launch { app.repo.recordHistory(item) }
         notifyObservers()
     }

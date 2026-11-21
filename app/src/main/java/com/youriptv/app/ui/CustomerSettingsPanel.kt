@@ -29,16 +29,30 @@ object CustomerSettingsPanel {
     fun show(activity: AppCompatActivity, playlistId: Long) {
         if (activity.isFinishing || activity.isDestroyed) return
         val dialog = AlertDialog.Builder(activity).setTitle("Settings")
-            .setItems(arrayOf("Playlist Settings", "Parental Controls")) { _, index ->
+            .setItems(arrayOf("Playlist Settings", "Parental Controls", "Playback")) { _, index ->
                 when (index) {
                     0 -> showPlaylistSettings(activity, playlistId)
                     1 -> activity.startActivity(Intent(activity, ParentalControlsActivity::class.java))
+                    2 -> showPlaybackControls(activity)
                 }
             }
             .setNegativeButton("Close", null).show()
         RemoteBack.bind(dialog, activity)
         dialog.listView?.let { list -> list.post { list.requestFocus(); list.setSelection(0) } }
         dismissWhenStopped(activity, dialog)
+    }
+
+    /** Autoplay is an ordinary viewing preference, including when configuration Settings are locked. */
+    private fun showPlaybackControls(activity: AppCompatActivity) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val settings = YourIptvApp.instance.settings
+        val dialog = AlertDialog.Builder(activity).setTitle("Playback")
+            .setMultiChoiceItems(arrayOf("Autoplay Next Episode"), booleanArrayOf(settings.autoPlayNextEpisode)) { _, _, enabled ->
+                settings.autoPlayNextEpisode = enabled
+            }.setNegativeButton("Close", null).show()
+        RemoteBack.bind(dialog, activity)
+        dismissWhenStopped(activity, dialog)
+        dialog.listView?.let { list -> list.post { list.requestFocus(); list.setSelection(0) } }
     }
 
     // One collector belongs to each newly created dialog, rather than to onResume.

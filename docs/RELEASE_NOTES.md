@@ -1,5 +1,20 @@
 # Release notes
 
+## 1.1.1 (version code 52)
+
+- Group episode history under one parent-series entry while retaining every episode resume point; movie history remains individual.
+- Preserve explicit watched/unwatched/reset actions against stale player checkpoints and keep playback observations in their original order.
+- Show green episode progress bars and the last-watched episode alongside the resume target.
+- Autoplay Next Episode defaults ON unless explicitly configured; a public Playback switch preserves saved OFF choices. Finished series never wrap to episode one.
+- Play channel catch-up directly through the archive player and restore the last live channel on launcher re-entry from any screen, including across playlist browsing.
+- Restore held-Back return to full-screen playback on Android 16 while preserving normal short-Back navigation.
+- Open the live guide at the current time and programme; manual past/future browsing remains stable until the guide is reopened.
+
+
+- Accept explicit HTTP and HTTPS M3U, Xtream and guide addresses without silently rewriting the provider scheme.
+- Fix Play imports, artwork and playback for user-selected HTTP sources. HTTPS certificate validation and downgrade-redirect protection remain enabled.
+- Validate source addresses before saving, with matching URL handling in both distributions. Existing playlists, Settings PIN choices and watch progress are retained.
+
 ## 1.1.0 (version code 51)
 
 - Settings Lock defaults off in both distributions. Existing explicit on/off choices, an existing Settings PIN and legacy Settings restrictions are preserved; Admin and parental protection remain independent.

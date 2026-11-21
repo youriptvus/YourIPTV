@@ -40,8 +40,12 @@
         </intent>
     </queries>
 
+    <!-- Android 16 target 36 otherwise consumes physical Back before the remote hold recognizer.
+         Keep AndroidX short-Back navigation and deliver key down/up for Hold Back; this controls
+         navigation animations/event routing only, not application or Google Play protection. -->
     <application
         android:name=".YourIptvApp"
+        android:enableOnBackInvokedCallback="false"
         android:allowBackup="false"
         android:banner="@drawable/banner"
         android:icon="@mipmap/ic_launcher"

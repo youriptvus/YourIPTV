@@ -5,6 +5,8 @@
     <color name="panel_alt">#FF1E252F</color>
     <color name="accent">#FF2EA8FF</color>
     <color name="accent_dim">#552EA8FF</color>
+    <color name="episode_progress">#FF43D17A</color>
+    <color name="episode_progress_track">#3343D17A</color>
     <color name="text">#FFF2F5F8</color>
     <color name="text_dim">#FF9AA6B2</color>
     <color name="overlay">#CC0B0E12</color>

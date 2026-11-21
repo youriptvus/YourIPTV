@@ -445,7 +445,7 @@ class SettingsActivity : ListActivity() {
             },
         )
         SettingsCategory.PLAYBACK -> listOf(
-            toggle("Auto play next episode", { s.autoPlayNextEpisode }, { s.autoPlayNextEpisode = it }, "show a cancellable countdown after an episode finishes"),
+            toggle("Autoplay Next Episode", { s.autoPlayNextEpisode }, { s.autoPlayNextEpisode = it }, "continue series after a cancellable countdown"),
             number("Buffer size", "ms", { s.bufferMs }, 500, 30_000) { s.bufferMs = it },
             choice("Aspect ratio", listOf("Fit", "Zoom / crop", "Stretch"), { s.aspectMode }) { s.aspectMode = it },
             number("Seek step for movies and series", "s", { s.skipSeconds }, 5, 600) { s.skipSeconds = it },

@@ -1,39 +1,51 @@
-# 1.1.0 / code 51 validation
+# 1.1.1 / code 52 validation
 
-This is the next independently prepared release candidate. Customer baseline was 1.0.9/code44; the submitted Play closed-test baseline was 1.0.9/code50. No submitted Play artifact was replaced, no Console release changed, and no APK distributed by this preparation. The owner will push and publish manually.
+Validated locally on 21 November 2026. The current shared implementation passed **185 instrumented checks** using the separate `com.youriptv.app.playtest` package: 93 on a Moto g 2025 running Android 16/API 36, and 92 on an onn. Streaming Device 4K pro running Android 14/API 34. Generated loopback media produced actual decoded frames. Production phone and TV installations remained at 1.1.0/code51 with unchanged installation identities during this QA phase; no production app or user data was replaced or cleared.
 
-## Automated checks
+These are shared-implementation checks through the isolated Play QA build. Customer/Play release assembly, signing, source parity, updater and packaging evidence are recorded separately in the release handoff. This report does not claim that the isolated APK is the production APK or a protected Google Play download.
 
-| Check | Result |
-| --- | --- |
-| Customer release unit tests | 448 tests, 58 classes; no failures, errors or skips |
-| Play release unit tests | 432 tests, 58 classes; no failures, errors or skips |
-| Customer APK and Play APK/AAB | Signed release assembly succeeded |
-| Release lint | No errors or fatal findings; 303 customer and 299 Play warnings remain |
-| Shared implementation parity | All 37 checks passed |
-| Native SQLite/progress checks | 18 on Android TV and 18 on a physical Moto phone passed |
-| Media3/details/navigation checks | 18 on Android TV and 19 on the physical phone passed |
-| Settings-default migration | Nine native preference checks passed on each physical device: default off, explicit choices, existing Settings PIN, legacy restriction and independent Admin/parental PINs |
-| Offline archived-updater compatibility | All 52 checks passed against 43 retained APKs and 18 archived source implementations; old-address/installer exceptions remain documented |
-| Existing Play regression checks | All 19 passed on the phone, including local Admin, Settings Lock, parental separation, transport policy, touch, rotation and offline privacy |
-| Packaged Play candidate | Bundletool, signatures, expected certificate, permissions, backup/network policy and known-secret-file/pattern audit passed |
+## Current device results
 
-Device instrumentation used the separate QA package and a private loopback fixture with one movie and two seasons, never the submitted production phone installation. It verified actual decoded frames, ordered periodic saves, exact resume/restart, watched/reset, account isolation and stale-source revocation, refresh persistence, cross-season next, cancellable autoplay, background handling, D-pad focus and real phone touch/rotation. No loopback cleartext exception is in the production Play manifest. A settled landscape screenshot was inspected after rotation.
+| Suite | Moto API36 | TV API34 |
+| --- | ---: | ---: |
+| Settings defaults and migration | 14 passed | 14 passed |
+| Native SQLite, history and watch-session policies | 38 passed | 38 passed |
+| VOD/details/playback UI | 32 passed | 31 passed |
+| Physical Back and guide navigation UI | 9 passed | 9 passed |
+| Total | **93 passed** | **92 passed** |
 
-An intermediate TV run missed the short-clip timing checks for periodic save and subsequent resume; its unchanged production build passed the subsequent complete TV run. Earlier harness failures were retained in the private evidence. The existing broad TV Play smoke harness refused unknown pre-existing QA playlist data, which was preserved rather than erased. The phone ran that complete suite successfully. Tests do not establish uninterrupted playback on every provider or physical remote/audio behavior.
+Verified behavior includes:
 
-## Configured customer TV
+- Main History keeps individual movies and one parent entry per series. Shows History renders one parent poster; opening it restores series details and episode progress. Grouping occurs before the display limit, preserves distinct same-title identities, isolates accounts and leaves original episode positions intact, including legacy M3U history.
+- Episode cards show accurate partial green progress, full completed progress and no unwatched line. Last-watched/continue summaries survive focus changes. Exact resume, explicit restart, saved season/episode focus, rotation, refresh persistence and manual Next selection passed.
+- Autoplay defaults ON when no choice exists and preserves saved OFF. Natural completion supports cancellable cross-season continuation, manual Next with autoplay OFF, return after completion when OFF, and final-episode return without wrapping. Settings Lock defaults OFF while preserving explicit choices, prior Settings PIN protection and independent Admin/parental rules.
+- Manual watched/unwatched, individual clear and whole-history clear cannot be overwritten by stale stopping checkpoints or END callbacks. Fresh intentional playback can save again. Session/source/store/content identity, signed-URL refresh identity, newer-session ownership and observation ordering passed deterministic native SQLite checks; delayed older episode observations retain the genuinely newer continuation/history entry.
+- Timed injected Back-key holds restore the current stream from browsing, ordinary Settings and the public locked-Settings panel. Releasing the hold does not immediately exit fullscreen; short Back retains its normal action. Changed-source/no-current guards passed.
+- Cold guide opening selects the requested source/channel even when another source has the same URL. Requested rows retain actual focus after settling on phone and TV. Explicit warm reopening returns from a future slot to the current programme/window; ordinary refresh preserves active past/future browsing. Launcher return restores the remembered live source while explicit guide requests avoid unwanted fullscreen playback.
+- Catch-up opens the archive player with its exact archive URL/flag and renders generated video. Account changes block stale archive foreground/retry playback without creating VOD history. This does not establish an external provider's archive availability.
 
-The final signed customer build also opened full ordinary Settings without a PIN on the TV. The officially signed APK upgraded the existing code44 installation in place to code51 without clearing data or uninstalling another app. Pulled installed APK bytes matched the candidate. Existing catalog, account, PIN and reference player installation were retained. No customer credentials or app database were extracted.
+## Exact artifact and suite provenance
 
-A configured movie played, was sought to a later position, resumed, and restarted from the beginning. Its saved position remained after a full application process restart and appeared once in Continue Watching. A configured five-season series played S1E7, saved and resumed that episode, restarted it, then reached the normal END choices after a user seek to the end. Next episode opened S2E1 and returning to details focused S2E1, with S1E7 marked watched. Up/down restored the remembered episode in each season. These are scoped functional observations, not long-duration endurance tests.
+Both devices' pulled installed QA base APK bytes matched:
 
-A normal TV reboot and a full configured catalog refresh retained the exact S2E1 continuation and the movie position. The catalog contained 6,533 live channels, 28,266 movies and 16,661 series. A later live view displayed decoded preview picture, populated programme rows, times and synopsis after guide processing finished.
+`02afe9ef2c7956258bf7501d53b7da6fc87dc14515ef61c1344ddf7dfcc13fc0`
 
-One other configured movie returned HTTP406; its unavailability is not counted as a playback pass. Some playback windows did not expose an idle accessibility hierarchy, so private screenshots were used for the visible picture and timer checks. Sound is assumed, not newly confirmed.
+The base four-suite test APK was:
 
-## Distribution differences
+`df2b97972c51ebd643f3bccdf35681020cc608ff3390fbdca1af7e86f96a761f`
 
-One application supports TV and phones in both repositories. Both versions use the same shared Media3 player, progress storage, details, episode queues and navigation. Customer keeps its existing updater, HTTP source compatibility, minSdk23 and its approved Admin initialization. Play keeps minSdk24, HTTPS-only transport, external signing and no self-installer/overlay permission. Settings Lock defaults off in both versions while preserving existing choices and prior PIN protection; Admin and parental authorization remain independent. Play app protection remains enabled. Autoplay next defaults off; no player feature paywall was added.
+It supplies all TV results and the Moto Settings/native/navigation results. The final Moto VOD result is the focused 32-check run on the **same app binary**, using test APK:
 
-Private device screenshots, raw instrumentation evidence and signing properties remain outside committed source. A local release handoff records final artifact hashes, installed-byte verification, offline archived-updater results and any additional reboot/refresh checks. Neither this report nor a passing build guarantees Google approval.
+`6f753ce210858ddcc550413d3f837efe9c0ab10b002d6b8c8ca20de2870bc964`
+
+That harness waits for the Player to be RESUMED, window-focused and shown before user pause/seek actions. Before-ready diagnostics captured an unfocused/buffering transition; before-seek diagnostics confirmed a focused READY player and a valid watch-session revision. The cross-season deadline remained 20 seconds and all playback outcomes remained asserted. The background case likewise waits for actual STOP/player disposal before checking restored end choices. No separate production autoplay/background correction is claimed from those harness adjustments.
+
+The authoritative private index is `D:\APK\work\YourIPTV-history-device-qa-20261121T163606Z\watch-guard-final\final-summary.json`. It records per-suite provenance, installed-byte checks, unchanged production identities, representative settled captures and superseded failure paths. Successful Moto VOD captures come from `ui-foreground-final/moto/captures`; navigation and TV captures come from `watch-guard-final`. Earlier diagnostic/failure files remain preserved and are not fresh passing results.
+
+## Limits and historical evidence
+
+Samsung remained unauthorized in ADB and was not tested. The existing TV QA package contained only the two demo playlists; no real-provider or Terra Nova source was available, and no production configuration was copied or new provider configured. Sound was assumed, not explicitly verified. Key/touch actions were injected; physical remote/HDMI-CEC hardware was not separately validated. There was no new protected Play delivery, external-provider catch-up test, long-duration soak, production-device upgrade or publication in this QA phase. Passing checks do not guarantee Google approval or uninterrupted playback on every provider/device.
+
+Historical full-provider HTTP M3U/Xtream source-import evidence remains separate in the prior source-import/release handoff. It is not part of the current 185 checks and was not rerun here. Current generated HTTP playback demonstrates the fixture transport path, not a fresh external-provider account/catalogue import. Both current distributions support user-supplied HTTP and HTTPS sources; the older report's HTTPS-only transport and default-OFF autoplay statements describe its historical candidate only.
+
+The original 1.1.0/code51 report was archived verbatim on 21 November 2026 as [historical validation](history/VOD_VALIDATION-1.1.0.md). Its old test counts, configured-provider observations, reboot/refresh evidence, lint totals and distribution statements remain historical; they must not be presented as new 1.1.1 checks.

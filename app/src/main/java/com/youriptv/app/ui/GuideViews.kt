@@ -22,6 +22,11 @@ class GuideState(context: Context, channelWidthDp: Float = 260f) {
     /** About two hours of programmes across the timeline at 1080p. */
     val span = 120 * 60_000L
     var focusTime = 0L
+    fun openAtNow(now: Long) {
+        val position = GuideNavigation.openingPosition(now)
+        focusTime = position.focusTime
+        windowStart = position.windowStart
+    }
     var focusedRow = 0
     var showNumbers = true
     /** Programme markers keyed by "channelUrl|start": reminder and recording symbols. */

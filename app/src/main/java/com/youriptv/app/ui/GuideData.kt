@@ -84,11 +84,19 @@ internal data class GuideContinuity(
     }
 }
 
+data class GuideTimePosition(val focusTime: Long, val windowStart: Long)
+
 object GuideNavigation {
     const val STEP_MS = 30 * 60_000L
 
+    /** Explicit guide entry selects the current programme, independently of a previous browsing window. */
+    fun openingPosition(now: Long) = GuideTimePosition(now, now - now % STEP_MS)
+
+    fun programAt(programs: List<Program>, time: Long): Program? =
+        programs.firstOrNull { time >= it.start && time < it.end }
+
     fun targetTime(focusTime: Long, programs: List<Program>, forward: Boolean, minTime: Long, maxTime: Long): Long {
-        val program = programs.firstOrNull { focusTime >= it.start && focusTime < it.end }
+        val program = programAt(programs, focusTime)
         val target = if (forward) {
             program?.end ?: programs.firstOrNull { it.start > focusTime }?.start?.coerceAtMost(focusTime + STEP_MS)
                 ?: (focusTime + STEP_MS)

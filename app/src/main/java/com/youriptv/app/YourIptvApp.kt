@@ -31,6 +31,8 @@ class YourIptvApp : Application() {
         private set
     internal lateinit var settingsFlow: SettingsFlow
         private set
+    private val mainLaunch = com.youriptv.app.ui.MainLaunchTracker()
+    internal fun claimFirstMainLaunch() = mainLaunch.claim()
     private val refreshObservers = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {

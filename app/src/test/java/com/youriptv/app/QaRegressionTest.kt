@@ -10,6 +10,28 @@ import java.io.InputStream
 
 /** Source-level guards for defects found during the full QA pass (UI behaviour is verified on the device). */
 class QaRegressionTest {
+    @Test
+    fun playerCheckpointsRetainTheirStartBoundWatchSession() {
+        val player = ui("PlayerActivity.kt")
+        val start = player.substringAfter("private fun startItem()").substringBefore("private fun switchTo")
+        assertTrue(start.indexOf("if (restart) app.repo.clearWatchProgress(item)") < start.indexOf("app.repo.beginWatchSession(item)"))
+        assertTrue(start.indexOf("val sessionToken = watchSessionToken") < start.indexOf("lifecycleScope.launch"))
+        assertTrue(start.contains("if (restart || !sameWatchSession)"))
+        assertTrue(start.contains("val sameWatchSession = app.repo.sameWatchSessionItem(watchSessionToken, item)"))
+        assertTrue(start.contains("progressSessionToken = sessionToken"))
+        val checkpoint = player.substringAfter("private fun savePosition()").substringBefore("// ---------------- Errors")
+        assertTrue(checkpoint.contains("val sessionToken = progressSessionToken ?: return"))
+        assertTrue(checkpoint.contains("sessionToken = sessionToken"))
+        assertTrue(checkpoint.contains("val observedAt = System.currentTimeMillis()"))
+        assertTrue(checkpoint.contains("observedAt = observedAt"))
+        assertFalse(checkpoint.contains("beginWatchSession"))
+        val stopped = player.substringAfter("override fun onStop()").substringBefore("// ---------------- Auto frame rate")
+        assertFalse(stopped.contains("beginWatchSession"))
+        val ended = player.substringAfter("private fun onEnded()").substringBefore("private fun showEpisodeEndChoices")
+        assertTrue(ended.contains("sessionToken = sessionToken"))
+        assertTrue(ended.contains("observedAt = observedAt"))
+    }
+
     private fun ui(name: String) = listOf(
         File("src/main/java/com/youriptv/app/ui/$name"),
         File("app/src/main/java/com/youriptv/app/ui/$name"),
@@ -184,8 +206,32 @@ class QaRegressionTest {
         val main = ui("MainActivity.kt")
         assertTrue(main.contains("opts.add(\"Show in TV guide\" to { openGuide(item.group, item.url) })"))
         val open = main.substringAfter("private fun openGuide(").substringBefore("private fun confirmExit")
-        assertTrue(open.contains("selectGroup(pos, focusItems = true, focusUrl = url)"))
-        assertTrue(open.contains("pendingGuide = group to url"))
+        assertTrue(open.contains("pendingGuide = (channel?.group ?: group) to url"))
+        assertTrue(open.indexOf("pendingGuide = (channel?.group ?: group) to url") < open.indexOf("!lifecycle.currentState.isAtLeast"))
+        assertTrue(open.contains("app.repo.playlist(sourceId)"))
+        assertTrue(open.contains("pendingResume = false"))
+        val groups = main.substringAfter("private fun loadGroups(").substringBefore("private var lastSection")
+        assertTrue(groups.contains("pendingGuidePlaylistId == p.id"))
+        assertTrue(groups.contains("pendingGuideSourceIdentity != requestSource"))
+        assertTrue(groups.contains("focusUrl = guide.second"))
+        assertTrue(ui("PlayerActivity.kt").contains(".putExtra(MainActivity.EXTRA_GUIDE_PLAYLIST, item.playlistId)"))
+    }
+
+    @Test
+    fun delayedCategoryFocusCannotReplaceAnExplicitGuideDestination() {
+        val main = ui("MainActivity.kt")
+        val focused = main.substringAfter("private fun onGroupFocused(").substringBefore("private fun showFocusedGroup")
+        assertTrue(focused.contains("if (explicitGuideOwnsNavigation()) return"))
+        val load = main.substringAfter("private fun showFocusedGroup()").substringBefore("private fun showLockedGroup")
+        assertTrue(load.contains("liveLevel != LiveLevel.CATEGORIES"))
+        assertTrue(load.contains("!groupsView.hasFocus()"))
+        assertTrue(load.contains("if (focused != pos) return"))
+        val owner = main.substringAfter("private fun explicitGuideOwnsNavigation()").substringBefore("private fun onGroupFocused")
+        assertTrue(owner.contains("owner != userInputGeneration"))
+        val level = main.substringAfter("private fun setLiveLevel(").substringBefore("private fun sizeContentColumn")
+        assertTrue(level.contains("if (target == LiveLevel.GUIDE) handler.removeCallbacks(loadFocusedGroup)"))
+        val nav = main.substringAfter("private fun onNav(").substringBefore("private fun unlockSettings")
+        assertTrue(nav.contains("explicitGuideInputGeneration = null"))
     }
 
     @Test
@@ -262,7 +308,7 @@ class QaRegressionTest {
         val step = player.substringAfter("private fun stepEpisode").substringBefore("\n    }")
         assertTrue("episode changes must go through switchTo so parental checks in startItem apply", step.contains("switchTo(index + delta)"))
         assertTrue(player.contains("KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> 1"))
-        assertTrue(player.contains("private fun canStepEpisode(delta: Int) = current?.kind == ItemKind.EPISODE"))
+        assertTrue(player.contains("EpisodePlaybackPolicy.adjacentIndex(queue, index, delta) >= 0"))
         val options = player.substringAfter("private fun showOptions()").substringBefore("Dialogs.choose(")
         assertTrue("the onn remote has no CH/media keys, so the menu must offer episode navigation", options.contains("\"Next episode: "))
         assertTrue(options.contains("\"Previous episode: "))
@@ -282,7 +328,8 @@ class QaRegressionTest {
         val onNew = main.substringAfter("override fun onNewIntent(intent: Intent) {").substringBefore("\n    }")
         assertTrue(onNew.contains("intent.action == Intent.ACTION_MAIN"))
         assertTrue(onNew.contains("PlayerActivity.takeLeftWhileWatchingLive(this)"))
-        assertTrue("must still honour the setting", onNew.contains("app.settings.resumeLastChannel) pendingResume = true"))
+        assertTrue("must still honour the setting", onNew.contains("StartupPlaybackPolicy.onNewIntent(app.settings.resumeLastChannel,"))
+        assertTrue("explicit guide requests retain their destination", onNew.contains("intent.hasExtra(EXTRA_GUIDE_CHANNEL)"))
         val player = ui("PlayerActivity.kt")
         val onStop = player.substringAfter("override fun onStop() {").substringBefore("\n    }")
         assertTrue("BACK (finishing) must not count as leaving while watching",
@@ -291,7 +338,7 @@ class QaRegressionTest {
         assertTrue(onStart.contains("setLeftWhileWatchingLive(this, false)"))
         // The resume path keeps the parental check, so a locked last channel never restarts on its own.
         val resume = main.substringAfter("private fun maybeResumeLastChannel").substringBefore("private fun maybeAutoRefresh")
-        assertTrue(resume.contains("if (app.settings.isGroupLocked(item.group)) return@withContext null"))
+        assertTrue(resume.contains("app.settings.isGroupHidden(item.group) || app.settings.isGroupLocked(item.group)) continue"))
     }
 
     @Test

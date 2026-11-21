@@ -42,8 +42,13 @@ class Repository(context: Context) : java.io.Closeable {
 
     fun watchProgress(item: MediaItem): WatchProgress? = watchProgress(listOf(item))[item.url]
 
-    fun saveWatchProgress(item: MediaItem, position: Long, duration: Long, ended: Boolean = false) =
-        watchStore.save(item, position, duration, ended)
+    fun beginWatchSession(item: MediaItem): WatchSessionToken? = watchStore.beginSession(item)
+
+    fun sameWatchSessionItem(token: WatchSessionToken?, item: MediaItem): Boolean = watchStore.sameSessionItem(token, item)
+
+    fun saveWatchProgress(item: MediaItem, position: Long, duration: Long, ended: Boolean = false,
+                          sessionToken: WatchSessionToken? = null, observedAt: Long? = null) =
+        watchStore.save(item, position, duration, ended, sessionToken = sessionToken, observedAt = observedAt)
 
     fun markWatched(item: MediaItem, watched: Boolean) {
         val old = watchProgress(item)
@@ -56,7 +61,7 @@ class Repository(context: Context) : java.io.Closeable {
 
     fun withWatchProgress(items: List<MediaItem>): List<MediaItem> {
         val saved = watchProgress(items)
-        return items.map { it.copy(watch = saved[it.url]) }
+        return items.map { it.copy(watch = if (it.kind == ItemKind.SERIES) it.watch else saved[it.url]) }
     }
 
     fun continueWatching(id: Long, kind: ItemKind): List<MediaItem> {
@@ -779,30 +784,89 @@ class Repository(context: Context) : java.io.Closeable {
 
     fun resumePosition(item: MediaItem): Long = if (WatchPolicy.supports(item)) watchProgress(item)?.resume ?: 0 else 0
 
-    fun history(playlistId: Long, limit: Int = 100): List<MediaItem> = if (watchStore.isClearing(playlistId)) emptyList() else db.rawQuery(
-        "SELECT h.url AS h_url, h.name AS h_name, h.kind AS h_kind, h.grp AS h_grp, h.logo AS h_logo, i.* " +
-            "FROM history h LEFT JOIN items i ON i.playlist_id=h.playlist_id AND i.url=h.url " +
-            "WHERE h.playlist_id=? AND (h.scope='' OR h.scope=?) GROUP BY h.url ORDER BY MAX(h.watched) DESC LIMIT $limit",
-        arrayOf(playlistId.toString(), playlist(playlistId)?.let(WatchPolicy::scope).orEmpty()),
-    ).use { c ->
-        val idCol = c.getColumnIndexOrThrow("id")
-        buildList {
-            while (c.moveToNext()) {
-                when {
-                    !c.isNull(idCol) -> add(Db.readItem(c))
-                    !c.isNull(c.getColumnIndexOrThrow("h_name")) && !c.isNull(c.getColumnIndexOrThrow("h_kind")) -> add(
-                        MediaItem(
-                            playlistId = playlistId,
-                            kind = ItemKind.entries.getOrElse(c.getInt(c.getColumnIndexOrThrow("h_kind"))) { ItemKind.MOVIE },
-                            name = c.getString(c.getColumnIndexOrThrow("h_name")),
-                            group = c.getString(c.getColumnIndexOrThrow("h_grp")).orEmpty(),
-                            logo = c.getString(c.getColumnIndexOrThrow("h_logo")).orEmpty(),
-                            url = c.getString(c.getColumnIndexOrThrow("h_url")),
-                        )
+    fun history(playlistId: Long, limit: Int = 100): List<MediaItem> = groupedHistory(playlistId, limit)
+
+    /** A read-only view over existing history/progress. No schema change or provider metadata fetch is needed. */
+    fun groupedHistory(playlistId: Long, limit: Int = 100): List<MediaItem> {
+        if (limit <= 0 || watchStore.isClearing(playlistId)) return emptyList()
+        val source = playlist(playlistId) ?: return emptyList()
+        // Group before the display limit, including saved metadata older than the Continue Watching window.
+        val saved = watchStore.entries(source, limit = null)
+        val byUrl = saved.associateBy { it.item.url }
+        val clearedKeys = saved.filter { it.progress.updated <= 0 }.mapTo(HashSet()) { it.key }
+        val rows = ArrayList<WatchEntry>()
+        rows.addAll(saved.filter { it.progress.updated > 0 })
+        db.rawQuery(
+            "SELECT h.url AS h_url,h.name AS h_name,h.kind AS h_kind,h.grp AS h_grp,h.logo AS h_logo," +
+                "h.position AS h_position,h.duration AS h_duration,MAX(h.watched) AS h_watched,i.* " +
+                "FROM history h LEFT JOIN items i ON i.playlist_id=h.playlist_id AND i.url=h.url " +
+                "WHERE h.playlist_id=? AND (h.scope='' OR h.scope=?) GROUP BY h.url ORDER BY h_watched DESC",
+            arrayOf(playlistId.toString(), WatchPolicy.scope(source)),
+        ).use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow("id")
+            while (cursor.moveToNext()) {
+                val url = cursor.getString(cursor.getColumnIndexOrThrow("h_url"))
+                val stored = byUrl[url]
+                if (stored != null && stored.progress.updated <= 0) continue
+                val item = when {
+                    !cursor.isNull(idColumn) -> Db.readItem(cursor)
+                    !cursor.isNull(cursor.getColumnIndexOrThrow("h_name")) && !cursor.isNull(cursor.getColumnIndexOrThrow("h_kind")) -> MediaItem(
+                        playlistId = playlistId,
+                        kind = ItemKind.entries.getOrElse(cursor.getInt(cursor.getColumnIndexOrThrow("h_kind"))) { ItemKind.MOVIE },
+                        name = cursor.getString(cursor.getColumnIndexOrThrow("h_name")),
+                        group = cursor.getString(cursor.getColumnIndexOrThrow("h_grp")).orEmpty(),
+                        logo = cursor.getString(cursor.getColumnIndexOrThrow("h_logo")).orEmpty(), url = url,
                     )
-                }
+                    else -> null
+                } ?: continue
+                val contextual = stored?.item?.let { WatchPolicy.refreshed(it, item) } ?: item
+                val key = stored?.key ?: WatchPolicy.key(source, contextual)
+                if (key in clearedKeys) continue
+                rows.add(WatchEntry(key, contextual, stored?.progress ?: WatchProgress(
+                    cursor.getLong(cursor.getColumnIndexOrThrow("h_position")),
+                    cursor.getLong(cursor.getColumnIndexOrThrow("h_duration")), false,
+                    cursor.getLong(cursor.getColumnIndexOrThrow("h_watched")),
+                )))
             }
         }
+        val current = itemsByUrls(playlistId, rows.flatMap { listOf(it.item.url, it.item.seriesUrl) })
+        val remote = HashMap<Pair<ItemKind, String>, MediaItem>()
+        if (source.type == SourceType.XTREAM) {
+            val ids = rows.flatMap { listOf(it.item.remoteId, it.item.seriesRemoteId) }.filter { it.isNotBlank() }.distinct()
+            for (chunk in ids.chunked(500)) db.rawQuery(
+                "SELECT * FROM items WHERE playlist_id=? AND remote_id IN (${chunk.joinToString(",") { "?" }})",
+                arrayOf(playlistId.toString(), *chunk.toTypedArray()),
+            ).use { cursor -> while (cursor.moveToNext()) {
+                val item = Db.readItem(cursor); remote[item.kind to item.remoteId] = item
+            } }
+        }
+        val legacyParents = HashMap<Pair<String, String>, MediaItem?>()
+        return HistoryPolicy.grouped(rows.asSequence().map { row ->
+            val old = row.item
+            val fresh = remote[old.kind to old.remoteId] ?: current[old.url]
+            var item = if (fresh != null) WatchPolicy.refreshed(old, fresh) else old
+            if (item.kind == ItemKind.EPISODE) {
+                var parent = remote[ItemKind.SERIES to item.seriesRemoteId] ?: current[item.seriesUrl]
+                if (parent == null && item.seriesUrl.isBlank()) {
+                    val parsed = SeriesNames.parse(item.name)
+                    if (source.type == SourceType.M3U && (parsed.season > 0 || parsed.episode > 0)) {
+                        parent = item.copy(kind = ItemKind.SERIES, name = parsed.series,
+                            url = SeriesNames.pseudoUrl(item.group, parsed.series), remoteId = parsed.series)
+                        item = item.copy(season = parsed.season, episode = parsed.episode)
+                    } else if (source.type == SourceType.XTREAM && (parsed.season > 0 || parsed.episode > 0)) {
+                        // Only associate legacy episodes when a unique catalogue parent proves the match.
+                        val identity = item.group to parsed.series
+                        parent = legacyParents.getOrPut(identity) {
+                            query("SELECT * FROM items WHERE playlist_id=? AND kind=? AND grp=? AND name=? COLLATE NOCASE LIMIT 2",
+                                arrayOf(playlistId.toString(), ItemKind.SERIES.ordinal.toString(), item.group, parsed.series)).singleOrNull()
+                        }
+                        if (parent != null) item = item.copy(season = parsed.season, episode = parsed.episode)
+                    }
+                }
+                item = HistoryPolicy.parent(item.copy(watch = row.progress), parent)
+            }
+            row.copy(item = item)
+        }, limit)
     }
 
     fun clearHistory(playlistId: Long) {

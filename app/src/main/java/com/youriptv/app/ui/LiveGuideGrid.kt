@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -58,7 +59,14 @@ class LiveGuideGrid(
     val focusedRow get() = state.focusedRow
     val items: List<MediaItem> get() = channels
     private var leftHeld = false
+    private var pendingRowFocus: RowFocusRequest? = null
     private var navigationGeneration = 0L
+        set(value) {
+            if (field != value) {
+                field = value
+                pendingRowFocus?.cancel()
+            }
+        }
     private var guideSearchJob: Job? = null
     private var focusedLookup: Pair<Triple<Long, String, Long>, List<Program>>? = null
 
@@ -160,13 +168,79 @@ class LiveGuideGrid(
         val target = position.coerceIn(0, channels.lastIndex)
         state.focusedRow = target
         (rows.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(target, 0)
-        rows.post {
-            if (navigationGeneration == navigation && interactionGeneration() == interaction &&
-                channels === expectedChannels && rows.adapter === adapter && rows.hasWindowFocus()) {
-                rows.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus()
-            }
+        RowFocusRequest(target, navigation, interaction, expectedChannels).also {
+            pendingRowFocus = it
+            it.start()
         }
         refresh()
+    }
+
+    /** Explicit navigation can cancel readiness waiting even when accessibility sends no physical input event. */
+    fun cancelPendingFocus() { pendingRowFocus?.cancel() }
+
+    /** Cold loads can finish before the first layout or window focus; wait without replaying stale navigation. */
+    private inner class RowFocusRequest(
+        private val target: Int,
+        private val navigation: Long,
+        private val interaction: Long,
+        private val expectedChannels: List<MediaItem>,
+    ) {
+        private var cancelled = false
+        private var observer: ViewTreeObserver? = null
+        private val initial = Runnable { tryFocus() }
+        private val timeout = Runnable { cancel() }
+        private val preDraw = ViewTreeObserver.OnPreDrawListener { tryFocus(); true }
+        private val windowFocus = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus) tryFocus()
+        }
+        private val attachment = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) { observeWindow(); rows.post(initial) }
+            override fun onViewDetachedFromWindow(view: View) { cancel() }
+        }
+
+        fun start() {
+            rows.addOnAttachStateChangeListener(attachment)
+            if (rows.isAttachedToWindow) observeWindow()
+            rows.post(initial)
+            rows.postDelayed(timeout, 5_000L)
+        }
+
+        private fun observeWindow() {
+            if (cancelled) return
+            val current = rows.viewTreeObserver
+            if (observer === current) return
+            observer = current
+            current.addOnPreDrawListener(preDraw)
+            current.addOnWindowFocusChangeListener(windowFocus)
+        }
+
+        private fun tryFocus() {
+            if (cancelled) return
+            if (pendingRowFocus !== this || navigationGeneration != navigation ||
+                interactionGeneration() != interaction || channels !== expectedChannels || rows.adapter !== adapter ||
+                activity.isFinishing || activity.isDestroyed) {
+                cancel()
+                return
+            }
+            if (!rows.isAttachedToWindow || !rows.hasWindowFocus() || rows.isLayoutRequested) return
+            val row = rows.findViewHolderForAdapterPosition(target)?.itemView as? GuideRowView ?: return
+            if (!row.isLaidOut || !row.isShown || row.channel != expectedChannels.getOrNull(target)) return
+            if (row.hasFocus() || row.requestFocus()) cancel()
+        }
+
+        fun cancel() {
+            if (cancelled) return
+            cancelled = true
+            rows.removeCallbacks(initial)
+            rows.removeCallbacks(timeout)
+            rows.removeOnAttachStateChangeListener(attachment)
+            observer?.takeIf { it.isAlive }?.let {
+                it.removeOnPreDrawListener(preDraw)
+                it.removeOnWindowFocusChangeListener(windowFocus)
+            }
+            observer = null
+            if (pendingRowFocus === this) pendingRowFocus = null
+        }
     }
 
     fun handleKey(event: KeyEvent): Boolean {
@@ -208,7 +282,7 @@ class LiveGuideGrid(
                 return true
             }
             KeyEvent.KEYCODE_PROG_RED -> {
-                if (down) { resetTime(); refresh() }
+                if (down) openAtNow()
                 return true
             }
         }
@@ -249,9 +323,7 @@ class LiveGuideGrid(
     }
 
     private fun resetTime() {
-        val now = System.currentTimeMillis()
-        state.windowStart = now - now % GuideNavigation.STEP_MS
-        state.focusTime = now
+        state.openAtNow(System.currentTimeMillis())
     }
 
     /** True when the focused cell is the programme on air now (or "now" itself on a channel without guide data). */
@@ -263,7 +335,17 @@ class LiveGuideGrid(
         else state.focusTime > now - GuideNavigation.STEP_MS && state.focusTime <= now + 60_000L
     }
 
-    fun jumpToNow() { navigationGeneration++; resetTime(); refresh() }
+    /** Explicit opening resets time; refresh and committed updates keep the user's current browsing position. */
+    fun openAtNow() {
+        navigationGeneration++
+        guideSearchJob?.cancel()
+        focusedLookup = null
+        leftHeld = false
+        resetTime()
+        refresh()
+    }
+
+    fun jumpToNow() = openAtNow()
 
     private fun minTime() = System.currentTimeMillis() - pastMs()
     private fun maxTime() = System.currentTimeMillis() + app.settings.epgFutureDays * 86_400_000L
@@ -282,7 +364,7 @@ class LiveGuideGrid(
     )
 
     private fun focusedProgram(channel: MediaItem): Program? =
-        selectedProgrammes(channel).firstOrNull { state.focusTime >= it.start && state.focusTime < it.end }
+        GuideNavigation.programAt(selectedProgrammes(channel), state.focusTime)
 
     private fun programsFor(channel: MediaItem): List<Program> {
         val result = cache.windowFor(channel, state.windowStart, state.windowStart + state.span)

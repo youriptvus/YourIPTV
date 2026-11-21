@@ -142,7 +142,7 @@ class BackupTest {
         val parental = setOf("block_adult", "hide_locked", "lock_playlists", "locked_groups")
         // active_playlist is remapped to the restored playlist's new id; update keys are per-device technician state.
         // The retention migration marker records local upgrade history, not a portable user choice.
-        val excluded = setOf("active_playlist", "automatic_app_updates", "last_update_info", "pending_update_code", "epg_window_v7_migrated")
+        val excluded = setOf("active_playlist", "automatic_app_updates", "last_update_info", "pending_update_code", "epg_window_v7_migrated", "last_live_playlist")
         assertEquals(emptySet<String>(), allKeys - BackupKeys.SETTINGS.keys - parental - excluded)
     }
 

@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import com.youriptv.app.R
 import com.youriptv.app.YourIptvApp
 import com.youriptv.app.data.Playlist
+import com.youriptv.app.data.SecureTransport
 import com.youriptv.app.data.SourceType
 import com.youriptv.app.data.XtreamUrls
 import kotlinx.coroutines.Dispatchers
@@ -207,7 +208,7 @@ class PlaylistEditActivity : RemoteActivity() {
         findViewById<View>(R.id.server_fields).visibility = fullFields
         findViewById<View>(R.id.optional_fields).visibility = fullFields
         xtreamFields.visibility = if (t == SourceType.XTREAM) View.VISIBLE else View.GONE
-        urlLabel.text = if (t == SourceType.XTREAM) "Server URL (for example http://provider.example:8080)" else "M3U / M3U Plus playlist URL"
+        urlLabel.text = if (t == SourceType.XTREAM) "Server URL (HTTP or HTTPS)" else "M3U / M3U Plus playlist URL (HTTP or HTTPS)"
         url.hint = if (t == SourceType.XTREAM) "http://provider.example:8080" else "http://provider.example/playlist.m3u"
     }
 
@@ -250,7 +251,7 @@ class PlaylistEditActivity : RemoteActivity() {
             XtreamUrls.parseLogin(server)?.let { login -> server = login.base; username = login.username; password = login.password }
             server = XtreamUrls.normalizeBase(server)
             if (username.isEmpty() || password.isEmpty()) { status.text = "Enter the username and password from your IPTV provider."; return }
-        } else if (!server.startsWith("http://", true) && !server.startsWith("https://", true)) {
+        } else if (!server.contains("://")) {
             server = "http://$server"
         }
         val displayName = name.text.toString().trim().ifEmpty {
@@ -268,6 +269,16 @@ class PlaylistEditActivity : RemoteActivity() {
     private fun savePlaylist(p: Playlist) {
         if (busy || isFinishing || !authorization.isAuthorized || !flow.isCurrentPolicy(visitPolicy)) return
         if (inheritedSettings && !flow.isAuthorized(this)) return
+        if (!SecureTransport.isNetworkUrl(p.url)) {
+            status.text = SecureTransport.NETWORK_URL_REQUIRED
+            url.requestFocus()
+            return
+        }
+        if (p.epgUrl.isNotBlank() && !SecureTransport.isNetworkUrl(p.epgUrl)) {
+            status.text = "Enter a valid HTTP or HTTPS guide address, or leave it empty."
+            epg.requestFocus()
+            return
+        }
         val base = editing
         val sourceChanged = base == null || base.type != p.type || base.url != p.url || base.username != p.username || base.password != p.password
         val previousActive = app.settings.activePlaylistId

@@ -19,6 +19,7 @@ object Http {
         userAgent.ifBlank { fallbackUserAgent() }.ifBlank { DEFAULT_USER_AGENT }
 
     fun open(url: String, userAgent: String = "", timeoutMs: Int = 30_000): InputStream {
+        SecureTransport.requireNetworkUrl(url)
         var current = url
         repeat(6) {
             val conn = URL(current).openConnection() as HttpURLConnection
@@ -31,7 +32,7 @@ object Http {
             if (code in 300..399) {
                 try {
                     val loc = conn.getHeaderField("Location") ?: throw HttpException(code, "Redirect without location")
-                    current = URL(URL(current), loc).toString()
+                    current = SecureTransport.redirect(current, loc)
                 } finally { conn.disconnect() }
                 return@repeat
             }

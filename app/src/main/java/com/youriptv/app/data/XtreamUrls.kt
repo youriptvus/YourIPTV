@@ -12,7 +12,7 @@ object XtreamUrls {
     fun normalizeBase(server: String): String {
         var s = server.trim()
         if (s.isEmpty()) return s
-        if (!s.startsWith("http://", true) && !s.startsWith("https://", true)) s = "http://$s"
+        if (!s.contains("://")) s = "http://$s"
         for (suffix in listOf("/player_api.php", "/get.php", "/xmltv.php")) {
             val i = s.indexOf(suffix, ignoreCase = true)
             if (i > 0) s = s.substring(0, i)

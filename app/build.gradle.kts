@@ -13,8 +13,8 @@ android {
         minSdk = 23
         targetSdk = 36
         // Shared VOD resume and series navigation; preserve the official package and signing identity.
-        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 51
-        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.1.0"
+        versionCode = (project.findProperty("updateTestVersionCode") as String?)?.toInt() ?: 52
+        versionName = (project.findProperty("updateTestVersionName") as String?) ?: "1.1.1"
         val updateTestOrigin = (project.findProperty("updateTestOrigin") as String?).orEmpty()
         val updateTestBackupOrigin = (project.findProperty("updateTestBackupOrigin") as String?).orEmpty()
         val updateManifest = if (updateTestOrigin.isEmpty()) {

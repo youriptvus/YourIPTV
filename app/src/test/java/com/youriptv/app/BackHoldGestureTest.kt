@@ -5,9 +5,27 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 /** Physical Back gestures tested with a clock and scheduler, without Android key-event stubs. */
 class BackHoldGestureTest {
+    @Test
+    fun android16StillDeliversPhysicalBackPressDurationToAppScreens() {
+        val manifest = listOf(File("src/main/AndroidManifest.xml"), File("app/src/main/AndroidManifest.xml"))
+            .first { it.isFile }
+        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val document = factory.newDocumentBuilder().parse(manifest)
+        val namespace = "http://schemas.android.com/apk/res/android"
+        val application = document.getElementsByTagName("application").item(0) as org.w3c.dom.Element
+        assertEquals("false", application.getAttributeNS(namespace, "enableOnBackInvokedCallback"))
+        val activities = document.getElementsByTagName("activity")
+        for (index in 0 until activities.length) {
+            val activity = activities.item(index) as org.w3c.dom.Element
+            assertFalse(activity.getAttributeNS(namespace, "enableOnBackInvokedCallback") == "true")
+        }
+    }
+
     private class Harness {
         var now = 0L
         val actions = mutableListOf<String>()

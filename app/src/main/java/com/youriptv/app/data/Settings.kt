@@ -36,7 +36,17 @@ class Settings(context: Context) {
 
     var lastChannelUrl: String
         get() = sp.getString("last_channel", "").orEmpty()
-        set(v) = sp.edit().putString("last_channel", v).apply()
+        set(v) = sp.edit().putString("last_channel", v).remove("last_live_playlist").apply()
+
+    /** Device-local provenance for the remembered channel; playlist row ids are not portable in backups. */
+    var lastLivePlaylistId: Long
+        get() = sp.getLong("last_live_playlist", 0L)
+        set(v) = sp.edit().putLong("last_live_playlist", v).apply()
+
+    fun rememberLiveChannel(item: MediaItem) {
+        if (item.kind != ItemKind.LIVE || item.isCatchup || item.isLocal) return
+        sp.edit().putString("last_channel", item.url).putLong("last_live_playlist", item.playlistId).apply()
+    }
 
     var resumeLastChannel: Boolean
         get() = sp.getBoolean("resume_last", true)
@@ -52,7 +62,8 @@ class Settings(context: Context) {
         set(v) = sp.edit().putInt("aspect", v).apply()
 
     var autoPlayNextEpisode: Boolean
-        get() = sp.getBoolean("auto_next_episode", false)
+        // Missing means the user has never chosen; retain an explicitly saved Off.
+        get() = sp.getBoolean("auto_next_episode", true)
         set(v) = sp.edit().putBoolean("auto_next_episode", v).apply()
 
     var skipSeconds: Int
@@ -152,7 +163,9 @@ class Settings(context: Context) {
     /** Writes only validated, non-secret settings; PINs and the Settings lock are never touched. */
     fun restoreValues(values: Map<String, Any>) {
         val e = sp.edit()
-        for ((k, v) in BackupKeys.sanitize(values)) {
+        val restored = BackupKeys.sanitize(values)
+        if (restored.containsKey("last_channel")) e.remove("last_live_playlist")
+        for ((k, v) in restored) {
             if (BackupKeys.isSecret(k)) continue
             when (v) {
                 is Boolean -> e.putBoolean(k, v)

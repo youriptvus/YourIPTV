@@ -30,7 +30,7 @@ class CustomerSettingsSecurityTest {
     @Test
     fun customerMenuOwnsParentalNavigationWhileProtectedConfigurationKeepsItsExactLabel() {
         val menu = File(ui, "CustomerSettingsPanel.kt").readText().substringBefore("private fun showPlaylistSettings(")
-        assertTrue(menu.contains("arrayOf(\"Playlist Settings\", \"Parental Controls\")"))
+        assertTrue(menu.contains("arrayOf(\"Playlist Settings\", \"Parental Controls\", \"Playback\")"))
         assertFalse("EPG preferences belong to the protected Settings visit", menu.contains("EpgSettingsPanel"))
         assertTrue(menu.contains("activity.startActivity(Intent(activity, ParentalControlsActivity::class.java))"))
         for (forbidden in listOf("SettingsActivity::class.java", "flow.authenticate", "allowParental", "requireSettingsPin"))
@@ -40,6 +40,17 @@ class CustomerSettingsSecurityTest {
         assertTrue(main.contains("ADMIN(\"Unlock Settings\")"))
         assertTrue(main.contains("navViews[Section.ADMIN]?.text = \"Unlock Settings\""))
         assertTrue(main.contains("Section.ADMIN -> unlockSettings()"))
+    }
+
+    @Test fun publicPlaybackControlsOnlyChangeAutoplayAndDoNotAcquireProtectedCapabilities() {
+        val source = File(ui, "CustomerSettingsPanel.kt").readText()
+        val playback = source.substringAfter("private fun showPlaybackControls(")
+            .substringBefore("// One collector")
+        assertTrue(playback.contains("arrayOf(\"Autoplay Next Episode\")"))
+        assertTrue(playback.contains("settings.autoPlayNextEpisode = enabled"))
+        for (forbidden in listOf("requireSettingsPin", "requireMasterPin", "flow.authenticate", "allowParental",
+            "setSettingsLockEnabled", "setCustomPin", "isGroupLocked", "activePlaylistId", "deletePlaylist", "startActivity("))
+            assertFalse("Public viewing preference must not acquire $forbidden", playback.contains(forbidden))
     }
 
     @Test

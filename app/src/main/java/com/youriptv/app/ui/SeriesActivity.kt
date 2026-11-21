@@ -76,7 +76,7 @@ class SeriesActivity : RemoteActivity() {
             restoreSelection?.let { beginFocusRestore(it, browse.indexFor(it)); scheduleFocusRestore() }
             val at = com.youriptv.app.data.WatchPolicy.continueIndex(queue, saved)
             continueTarget = queue.getOrNull(at)
-            nextTarget = queue.getOrNull(at + 1)
+            nextTarget = queue.getOrNull(com.youriptv.app.data.EpisodePlaybackPolicy.nextFromHistory(queue, saved))
             val item = continueTarget
             val status = item?.let { saved[it.url] }
             if (restorePlayedEpisode && inputGeneration == inputAtStart && item != null) {
@@ -91,10 +91,11 @@ class SeriesActivity : RemoteActivity() {
                 text = (if (status?.resume ?: 0 > 0) "Resume" else "Play") + " S${item?.season} E${item?.episode}"
             }
             findViewById<Button>(R.id.series_beginning).visibility = if (status?.resume ?: 0 > 0) View.VISIBLE else View.GONE
-            findViewById<Button>(R.id.series_next).visibility = if (nextTarget != null) View.VISIBLE else View.GONE
-            findViewById<TextView>(R.id.series_watch_status).text = item?.let {
-                "S${it.season} E${it.episode} · ${status?.label ?: "Unwatched"}"
-            }.orEmpty()
+            findViewById<Button>(R.id.series_next).apply {
+                visibility = if (nextTarget != null) View.VISIBLE else View.GONE
+                text = nextTarget?.let { "Next: S${it.season} E${it.episode}" }.orEmpty()
+            }
+            findViewById<TextView>(R.id.series_watch_status).text = SeriesWatchSummary.label(queue, saved, item)
             requestedEpisode?.let { requested ->
                 requestedEpisode = null
                 val source = app.repo.playlist(series.playlistId)
@@ -420,7 +421,7 @@ class SeriesActivity : RemoteActivity() {
         if (!allowed()) return
         val episode = row.episodes.getOrNull(index) ?: return
         selected.text = "Season ${row.season} · Episode ${episode.episode} · ${episode.title}"
-        findViewById<TextView>(R.id.series_watch_status).text = episodeProgress[episode.url]?.label ?: "Unwatched"
+        findViewById<TextView>(R.id.series_watch_status).text = SeriesWatchSummary.label(episodeQueue(), episodeProgress, continueTarget)
         plot.text = episode.plot.ifBlank { details.plot.ifBlank { series.group } }
     }
 

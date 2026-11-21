@@ -50,6 +50,7 @@ import com.youriptv.app.data.Catchup
 import com.youriptv.app.data.StreamDiagnosis
 import com.youriptv.app.data.ItemKind
 import com.youriptv.app.data.MediaItem
+import com.youriptv.app.data.WatchSessionToken
 import com.youriptv.app.refresh.RefreshGeneration
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +70,8 @@ class PlayerActivity : RemoteActivity() {
     private var index = 0
     private var previousIndex = -1
     private var retries = 0
+    private var finiteWindowRecoveries = 0
+    private var catchupSourceIdentity = ""
     private var probeRetried = false
     private var errorShown = false
     private var playingUrl = ""
@@ -104,6 +107,8 @@ class PlayerActivity : RemoteActivity() {
     }
     private val commitNumber = Runnable { commitDigits() }
     private var progressItem: MediaItem? = null
+    private var progressSessionToken: WatchSessionToken? = null
+    private var watchSessionToken: WatchSessionToken? = null
     private var progressReady = false
     private var progressGeneration = 0L
     private var fromBeginning = false
@@ -122,6 +127,11 @@ class PlayerActivity : RemoteActivity() {
         savePosition()
         cancelNextCountdown()
         super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        current?.let { playbackSourceAllowed(it) }
     }
 
     private val savePositionTick = object : Runnable {
@@ -195,6 +205,7 @@ class PlayerActivity : RemoteActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 app.refreshCoordinator.generations.collect { generations ->
                     var item = current ?: return@collect
+                    if (!playbackSourceAllowed(item)) return@collect
                     if (item.isLocal || item.isCatchup) return@collect
                     val generation = generations[item.playlistId] ?: return@collect
                     val previous = observedRefreshGenerations[item.playlistId]
@@ -287,6 +298,9 @@ class PlayerActivity : RemoteActivity() {
 
     private fun loadIntent(i: Intent) {
         cancelNextCountdown()
+        // An explicit playback launch owns a new watch session; lifecycle/recovery does not.
+        watchSessionToken = null
+        catchupSourceIdentity = i.getStringExtra(EXTRA_CATCHUP_SOURCE_IDENTITY).orEmpty()
         fromBeginning = i.getBooleanExtra("vod_from_beginning", false)
         i.removeExtra("vod_from_beginning")
         queue = YourIptvApp.playQueue
@@ -392,6 +406,7 @@ class PlayerActivity : RemoteActivity() {
         } else if (item.kind == ItemKind.EPISODE && endedItem?.url == item.url) {
             // Backgrounding cancels auto-next. Returning must not silently restart a completed episode.
             progressItem = null
+            progressSessionToken = null
             progressReady = false
             if (allowedOrPrompt(item)) showEpisodeEndChoices(item, autoNext = false)
         } else startItem()
@@ -519,6 +534,7 @@ class PlayerActivity : RemoteActivity() {
         }
         player = null
         sharedPlayer = false
+        progressSessionToken = null
     }
 
     fun onRecordingTookConnection() {
@@ -527,7 +543,7 @@ class PlayerActivity : RemoteActivity() {
         showMessage("Playback stopped while recording uses this provider's only connection.\n\nOK: retry after recording   BACK: exit", error = true)
     }
 
-    private fun canStepEpisode(delta: Int) = current?.kind == ItemKind.EPISODE && (index + delta) in queue.indices
+    private fun canStepEpisode(delta: Int) = com.youriptv.app.data.EpisodePlaybackPolicy.adjacentIndex(queue, index, delta) >= 0
 
     private fun stepEpisode(delta: Int): Boolean {
         if (!canStepEpisode(delta)) return false
@@ -554,9 +570,27 @@ class PlayerActivity : RemoteActivity() {
         }
     }
 
+    /** Archive URLs belong to the exact source that created them, without becoming watch-history entries. */
+    private fun playbackSourceAllowed(item: MediaItem): Boolean {
+        val changed = if (item.isCatchup && !item.isLocal) {
+            !com.youriptv.app.data.PlaybackSessionPolicy.sourceUnchanged(catchupSourceIdentity,
+                app.repo.playlist(item.playlistId)?.let(app.repo::sourceIdentity))
+        } else com.youriptv.app.data.WatchPolicy.supports(item) && item.watchScope.isNotBlank() &&
+            app.repo.playlist(item.playlistId)?.let(com.youriptv.app.data.WatchPolicy::scope) != item.watchScope
+        if (!changed) return true
+        ++progressGeneration
+        cancelNextCountdown()
+        player?.stop()
+        playingUrl = ""
+        showMessage(if (item.isCatchup) "The playlist account changed. Reopen this programme from the guide."
+            else "The playlist account changed. Reopen this title from Movies or Shows.", error = true)
+        return false
+    }
+
     /** A stale zapping list must never authorize an item under its previous category. */
     private fun refreshCurrentCatalogItem(): MediaItem? {
         val old = current ?: return null
+        if (!playbackSourceAllowed(old)) return null
         if (old.isLocal || old.isCatchup) return old
         val fresh = app.repo.itemByUrl(old.playlistId, old.url)?.let { com.youriptv.app.data.WatchPolicy.refreshed(old, it) }
         // Xtream episode details are intentionally not stored as catalog item rows.
@@ -575,15 +609,10 @@ class PlayerActivity : RemoteActivity() {
         val progressRequest = ++progressGeneration
         cancelNextCountdown()
         progressItem = null
+        progressSessionToken = null
         progressReady = false
         endedItem = null
         val item = refreshCurrentCatalogItem() ?: return
-        if (com.youriptv.app.data.WatchPolicy.supports(item) && item.watchScope.isNotBlank() &&
-            app.repo.playlist(item.playlistId)?.let(com.youriptv.app.data.WatchPolicy::scope) != item.watchScope) {
-            player?.stop()
-            showMessage("The playlist account changed. Reopen this title from Movies or Shows.", error = true)
-            return
-        }
         refreshAuthorization()
         if (!allowedOrPrompt(item)) return
         if (item.kind == ItemKind.LIVE && Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
@@ -594,6 +623,7 @@ class PlayerActivity : RemoteActivity() {
         errorShown = false
         message.visibility = View.GONE
         retries = 0
+        finiteWindowRecoveries = 0
         probeRetried = false
         restartFrameSampling()
         val url = PlaybackFactory.streamUrl(item)
@@ -604,6 +634,11 @@ class PlayerActivity : RemoteActivity() {
         val restart = fromBeginning
         fromBeginning = false
         if (restart) app.repo.clearWatchProgress(item)
+        val sameWatchSession = app.repo.sameWatchSessionItem(watchSessionToken, item)
+        if (restart || !sameWatchSession) {
+            watchSessionToken = app.repo.beginWatchSession(item)
+        }
+        val sessionToken = watchSessionToken
         lifecycleScope.launch {
             val resumeAt = if (item.kind == ItemKind.LIVE || restart) 0L else withContext(Dispatchers.IO) { app.repo.resumePosition(item) }
             if (player !== p || current != item) return@launch
@@ -613,6 +648,7 @@ class PlayerActivity : RemoteActivity() {
             if (!allowedOrPrompt(item)) return@launch
             p.setMediaItem(PlaybackFactory.mediaItem(item), resumeAt)
             progressItem = item
+            progressSessionToken = sessionToken
             p.prepare()
             p.playWhenReady = true
             if (resumeAt > 0) Dialogs.toast(this@PlayerActivity, "Resuming from ${Format.duration(resumeAt)}")
@@ -621,7 +657,7 @@ class PlayerActivity : RemoteActivity() {
         playerView.controllerShowTimeoutMs = 4000
         timeBar()?.setKeyTimeIncrement(app.settings.skipSeconds * 1000L)
         if (item.kind == ItemKind.LIVE) {
-            app.settings.lastChannelUrl = item.url
+            app.settings.rememberLiveChannel(item)
             lifecycleScope.launch(Dispatchers.IO) { app.repo.recordHistory(item) }
         }
         showBanner()
@@ -666,21 +702,35 @@ class PlayerActivity : RemoteActivity() {
         if (endedItem == item) return
         val p = player ?: return
         endedItem = item
-        app.repo.saveWatchProgress(item, p.currentPosition, p.duration, ended = true)
+        val sessionToken = progressSessionToken
+        val position = p.currentPosition
+        val duration = p.duration
+        val observedAt = System.currentTimeMillis()
+        if (sessionToken != null && progressItem?.playlistId == item.playlistId && progressItem?.url == item.url)
+            app.repo.saveWatchProgress(item, position, duration, ended = true, sessionToken = sessionToken, observedAt = observedAt)
         if (item.kind != ItemKind.EPISODE) { finish(); return }
-        showEpisodeEndChoices(item, autoNext = app.settings.autoPlayNextEpisode)
+        val completed = com.youriptv.app.data.WatchPolicy.completed(position, duration, ended = true)
+        val nextIndex = com.youriptv.app.data.EpisodePlaybackPolicy.adjacentIndex(queue, index, 1)
+        val autoNext = app.settings.autoPlayNextEpisode
+        if (com.youriptv.app.data.EpisodePlaybackPolicy.endAction(completed, autoNext, nextIndex >= 0) ==
+            com.youriptv.app.data.EpisodePlaybackPolicy.EndAction.RETURN) {
+            finish() // Series details (or the existing caller) retains its season, focus and manual Next action.
+            return
+        }
+        showEpisodeEndChoices(item, autoNext, completed)
     }
 
-    private fun showEpisodeEndChoices(item: MediaItem, autoNext: Boolean) {
-        val confirmedComplete = app.repo.watchProgress(item)?.completed == true
-        val next = queue.getOrNull(index + 1)?.takeIf { it.kind == ItemKind.EPISODE && it.seriesKey == item.seriesKey }
+    private fun showEpisodeEndChoices(item: MediaItem, autoNext: Boolean,
+                                      confirmedComplete: Boolean = app.repo.watchProgress(item)?.completed == true) {
+        val nextIndex = com.youriptv.app.data.EpisodePlaybackPolicy.adjacentIndex(queue, index, 1)
+        val next = queue.getOrNull(nextIndex)
         val choices = if (next != null) arrayOf("Play next episode", "Return to episode list", "Exit playback")
             else arrayOf("Return to episode list", "Exit playback")
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(if (confirmedComplete) "Episode finished" else "Playback ended before completion")
             .setItems(choices) { _, choice ->
                 cancelNextCountdown()
-                if (next != null && choice == 0) switchTo(index + 1)
+                if (next != null && choice == 0) stepEpisode(1)
                 else if (choice == choices.lastIndex) {
                     startActivity(android.content.Intent(this, MainActivity::class.java)
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP))
@@ -696,7 +746,14 @@ class PlayerActivity : RemoteActivity() {
             val countdown = object : Runnable {
                 override fun run() {
                     if (nextDialog !== dialog || isFinishing || current != item || !dialog.isShowing) return
-                    if (seconds == 0) { cancelNextCountdown(); switchTo(index + 1); return }
+                    if (!app.settings.autoPlayNextEpisode) { cancelNextCountdown(); finish(); return }
+                    if (seconds == 0) {
+                        cancelNextCountdown()
+                        if (com.youriptv.app.data.EpisodePlaybackPolicy.adjacentIndex(queue, index, 1) == nextIndex)
+                            switchTo(nextIndex)
+                        else finish()
+                        return
+                    }
                     dialog.setTitle("Next: S${next.season} E${next.episode} in ${seconds--}s · Cancel to stay")
                     handler.postDelayed(this, 1000)
                 }
@@ -708,22 +765,35 @@ class PlayerActivity : RemoteActivity() {
 
     private fun savePosition() {
         val item = progressItem ?: return
+        val sessionToken = progressSessionToken ?: return
         val p = player ?: return
-        if (item.kind == ItemKind.LIVE || !progressReady || current?.url != item.url) return
+        if (item.kind == ItemKind.LIVE || !progressReady || current?.url != item.url || current?.playlistId != item.playlistId) return
         // Read Media3 only on its main looper; the store owns persistence beyond this Activity.
-        app.repo.saveWatchProgress(item, p.currentPosition, p.duration, endedItem == item)
+        val position = p.currentPosition
+        val duration = p.duration
+        val observedAt = System.currentTimeMillis()
+        app.repo.saveWatchProgress(item, position, duration, endedItem == item, sessionToken = sessionToken, observedAt = observedAt)
     }
 
     // ---------------- Errors ----------------
 
     private fun handleError(e: PlaybackException) {
         val p = player ?: return
+        if (current?.let { !playbackSourceAllowed(it) } == true) return
         if (app.livePlayback.owns(p) && (app.livePlayback.hasPendingRestart || app.livePlayback.recoveryFailed)) return
-        if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+        val behindWindow = e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+        if (behindWindow) {
             val item = current
-            if (item != null && item.kind == ItemKind.LIVE && !item.isCatchup) app.livePlayback.retryAutomatically(p, item, 0L)
-            else { p.seekToDefaultPosition(); p.prepare() }
-            return
+            if (item != null && item.kind == ItemKind.LIVE && !item.isCatchup) {
+                app.livePlayback.retryAutomatically(p, item, 0L)
+                return
+            }
+            if (com.youriptv.app.data.PlaybackSessionPolicy.canRecoverFiniteWindow(finiteWindowRecoveries)) {
+                finiteWindowRecoveries++
+                p.seekToDefaultPosition()
+                p.prepare()
+                return
+            }
         }
         var cause: Throwable? = e.cause
         var httpCode = 0
@@ -740,7 +810,7 @@ class PlayerActivity : RemoteActivity() {
         )
         val accessDenied = httpCode in listOf(401, 403, 456, 458, 509)
         // A refused request right after zapping usually means the previous stream still holds the provider's line.
-        val maxRetries = if (accessDenied) 2 else if (httpCode != 0) 1 else if (decoderProblem) 0 else 3
+        val maxRetries = if (behindWindow) 0 else if (accessDenied) 2 else if (httpCode != 0) 1 else if (decoderProblem) 0 else 3
         if (retries < maxRetries) {
             retries++
             showMessage("Reconnecting… ($retries/$maxRetries)", error = false)
@@ -748,7 +818,7 @@ class PlayerActivity : RemoteActivity() {
             if (failedItem != null && failedItem.kind == ItemKind.LIVE && !failedItem.isCatchup) {
                 app.livePlayback.retryAutomatically(p, failedItem, 1500L * retries)
             } else handler.postDelayed({
-                if (player === p && current == failedItem) p.prepare()
+                if (player === p && current == failedItem && failedItem != null && playbackSourceAllowed(failedItem)) p.prepare()
             }, 1500L * retries)
             return
         }
@@ -792,6 +862,7 @@ class PlayerActivity : RemoteActivity() {
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { StreamDiagnosis.probe(url, ua) }
             if (current !== item || !errorShown) return@launch
+            if (!playbackSourceAllowed(item)) return@launch
             android.util.Log.i("YourIPTV", "Stream diagnosis: ${result.kind} http=${result.httpCode} host=${result.host}")
             if (accessDenied && result.kind == StreamDiagnosis.Kind.MEDIA_OK) {
                 // The provider now serves the stream, so the earlier refusal was a busy connection slot, not the account.
@@ -827,6 +898,8 @@ class PlayerActivity : RemoteActivity() {
 
     private fun retry() {
         val item = current
+        if (item != null && !playbackSourceAllowed(item)) return
+        finiteWindowRecoveries = 0
         if (item != null && item.kind == ItemKind.LIVE && Scheduler.recordingUsesOnlyConnection(item.playlistId)) {
             showMessage("This provider's only connection is being used by a recording.\n\nOK: retry after recording   BACK: exit", error = true)
             return
@@ -843,6 +916,13 @@ class PlayerActivity : RemoteActivity() {
             if (item != null && item.kind == ItemKind.LIVE && !item.isCatchup) {
                 if (allowedOrPrompt(item)) sessionRestart(it, item)
             } else {
+                // Retry is an explicit replay. Passive recoveries retain their original revision instead.
+                if (item != null) {
+                    watchSessionToken = app.repo.beginWatchSession(item)
+                    progressItem = item
+                    progressSessionToken = watchSessionToken
+                    endedItem = null
+                }
                 if (it.playbackState == Player.STATE_ENDED) it.seekToDefaultPosition()
                 it.prepare()
                 it.playWhenReady = true
@@ -960,6 +1040,7 @@ class PlayerActivity : RemoteActivity() {
     }
 
     private fun showCurrentStreamFullscreen() {
+        if (current?.let { !playbackSourceAllowed(it) } == true) return
         refreshCurrentMetadataForReturn()
         handler.removeCallbacks(hideBanner)
         handler.removeCallbacks(commitNumber)
@@ -1285,6 +1366,8 @@ class PlayerActivity : RemoteActivity() {
     private fun openGuide(item: MediaItem) {
         startActivity(
             Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_GUIDE_PLAYLIST, item.playlistId)
+                .putExtra(MainActivity.EXTRA_GUIDE_SOURCE_IDENTITY, app.repo.playlist(item.playlistId)?.let(app.repo::sourceIdentity))
                 .putExtra(MainActivity.EXTRA_GUIDE_GROUP, item.group)
                 .putExtra(MainActivity.EXTRA_GUIDE_CHANNEL, item.url)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -1384,6 +1467,7 @@ class PlayerActivity : RemoteActivity() {
 
     companion object {
         const val EXTRA_INDEX = "index"
+        const val EXTRA_CATCHUP_SOURCE_IDENTITY = "catchup_source_identity"
         const val EXTRA_UNLOCKED_GROUP = "unlocked_group"
         const val EXTRA_AUTHORIZATION_STAMP = "authorization_stamp"
         const val EXTRA_FROM_PREVIEW = "from_preview"
@@ -1419,6 +1503,7 @@ class PlayerActivity : RemoteActivity() {
                 YourIptvApp.playQueue = target.queue
                 a.startActivity(Intent(a, PlayerActivity::class.java)
                     .putExtra(EXTRA_INDEX, target.index)
+                    .putExtra(EXTRA_CATCHUP_SOURCE_IDENTITY, target.catchupSourceIdentity)
                     .putExtra(EXTRA_RETURN_TO_STREAM, true)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
             }

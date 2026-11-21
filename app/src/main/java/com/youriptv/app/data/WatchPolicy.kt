@@ -68,11 +68,13 @@ object WatchPolicy {
 
     fun continueIndex(queue: List<MediaItem>, progress: Map<String, WatchProgress>): Int {
         if (queue.isEmpty()) return -1
-        val latest = queue.indices.filter { (progress[queue[it].url]?.updated ?: 0) > 0 }
-            .maxByOrNull { progress[queue[it].url]?.updated ?: 0L } ?: return 0
-        if (progress[queue[latest].url]?.completed != true) return latest
-        return (latest + 1 until queue.size).firstOrNull { progress[queue[it].url]?.completed != true }
-            ?: queue.indices.firstOrNull { progress[queue[it].url]?.completed != true } ?: latest
+        val started = queue.indices.filter { (progress[queue[it].url]?.updated ?: 0) > 0 }
+        // Resume the most recently watched unfinished episode, even if a newer episode was completed.
+        started.filter { progress[queue[it].url]?.completed != true }
+            .maxByOrNull { progress[queue[it].url]?.updated ?: 0L }?.let { return it }
+        val latest = started.maxByOrNull { progress[queue[it].url]?.updated ?: 0L } ?: return 0
+        // Completion may advance across seasons, but must never wrap to an earlier episode.
+        return (latest + 1 until queue.size).firstOrNull { progress[queue[it].url]?.completed != true } ?: latest
     }
 }
 
